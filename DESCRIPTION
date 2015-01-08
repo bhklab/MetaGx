@@ -1,10 +1,10 @@
-Package: MetaGx
+Package: MetaGx2
 Type: Package
 Title: R package for meta-analysis of breast cancer gene expressions
-Version: 0.0.2
-Date: 2014-01-03
-Author: Benjamin Haibe-Kains, Pierre-Olivier Bachant-Winner
+Version: 0.9
+Date: 2015-01-08
+Author: Benjamin Haibe-Kains, Pierre-Olivier Bachant-Winner, Natchar Ratanasirigulchai 
 Maintainer: Benjamin Haibe-Kains <benjamin.haibe.kains@utoronto.ca>
-Description: This package contains a set of functions to perform meta-analysis of (breast) cancer gene expressions.
+Description: This package contains a set of functions to perform meta-analysis of cancer gene expressions.
 License: Artistic-2.0
-Depends: Biobase, BiocGenerics, org.Hs.eg.db, inSilicoDb, jetset, survival, survcomp, genefu, mRMRe, WriteXLS, lsa
+Depends: Biobase, BiocGenerics, org.Hs.eg.db, jetset, survival, survcomp, genefu, mRMRe, WriteXLS, lsa
