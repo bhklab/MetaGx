@@ -1,14 +1,14 @@
-MetaGx
-======
+MetaGx2
+=======
 
-Scripts to download and curate breast cancer datasets from InSilicoDB
+Scripts to perform meta-analysis of cancer gene expression datasets
 
 Dependencies:
 
 Install the R/Bioconductior dependencies:
 
 
-pp <- c("InSilicoDb", "Biobase", "BiocGenerics", "org.Hs.eg.db", "survival", "survcomp", "genefu", "mRMRe", "WriteXLS")
+pp <- c("Biobase", "BiocGenerics", "org.Hs.eg.db", "survival", "survcomp", "genefu", "mRMRe", "WriteXLS")
 
 source("http://bioconductor.org/biocLite.R")
 
@@ -18,5 +18,5 @@ rr <- biocLite(pkgs=pp, dependencies=TRUE, type="source", destdir=".")
 
 
 TODO
-- Weighted survival does not work properly (number of patients per time points should be "unweighted")
-- METABRIC and STAT1?
+  - Adapt the package to handle curatedOvarianData
+  - Weighted survival does not work properly (number of patients per time points should be "unweighted")
