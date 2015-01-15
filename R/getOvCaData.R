@@ -32,25 +32,27 @@ library(logging)
 # Get rid of duplicates and load esets into the environment
 source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
 
-#columns of pdata we want
+# columns of pdata we want
 PHENOdata <- pData(esets[[1]]) [,c("sample_type", "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
 
-# assayData matrix
-exprs <- matrix(0, nrow(fData(esets[[1]])), ncol = nrow(pData(esets[[1]])))
+# add dataset column 
+dataset <- matrix(names(esets)[1], nrow= nrow(pData(esets[[1]])), ncol=1)
+PHENOdata <- cbind(PHENOdata, dataset)
 
-# phenodata in AnnotatedDataFrameß
+# assayData matrix
+exprs <- matrix(0, nrow(fData(esets[[1]])), ncol = nrow(PHENOdata))
+
+
+# phenodata and featuredata in AnnotatedDataFrame
 PData <- AnnotatedDataFrame(data = PHENOdata)
 FData <- AnnotatedDataFrame(data = fData(esets[[1]]))
 
 # Rename pData to standard names
-colnames(PData) <- c("tissue", "grade", "age", "t.trs", "t.os", "e.os", "e.rfs", "series")
+colnames(PData) <- c("tissue", "grade", "age", "t.trs", "t.os", "e.os", "e.rfs", "series", "dataset")
+
 
 # make the expression set with exprs and PData
 neweset<- ExpressionSet(exprs, phenoData =PData, experimentData=experimentData(esets[[1]]), featureData = featureData(esets[[1]]),  protocolData= protocolData(esets[[1]]), annotation=annotation(esets[[1]]))
-
-
-
-
 
 
 }
