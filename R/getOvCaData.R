@@ -40,10 +40,11 @@ PHENOdata <- pData(esets[[1]]) [,c("sample_type", "grade", "age_at_initial_patho
 # initialize lists
 
 oldList <- PHENOdata[,"sample_type"]
-listIndex <- NULL
-for(i in 1:length(oldList)) {
-  if (oldList[i] == "healthy") {listIndex <- c(listIndex, i)}
-}
+listIndex <- which(oldList == "healthy")
+# listIndex <- NULL
+# for(i in 1:length(oldList)) {
+#   if (oldList[i] == "healthy") {listIndex <- c(listIndex, i)}
+# }
 
 newList <- replace(oldList, listIndex, "normal")
 
@@ -56,8 +57,32 @@ dataset <- matrix(names(esets)[1], nrow= nrow(pData(esets[[1]])), ncol=1)
 PHENOdata <- cbind(PHENOdata, dataset)
 
 
+
 ################# add treatment column made from pltx/tax/neo
-# save columns as a table lists of "y", "n" or NA
+# # treatment column will be a list of tables 
+# 
+# pltx <- pData(esets[[1]])[,"pltx"]
+# tax <- pData(esets[[1]])[,"tax"]
+# neo <- pData(esets[[1]])[,"neo"]
+# 
+# treatment_values <- list(pltx, tax, neo)
+# names(treatment_values) <- c("pltx", "tax", "neo")
+
+# treatments <- list()
+# for (i in 1:length(pltx)){
+#   treatments[i]<- data.frame(treatment_values[[1]][i], treatment_values[[2]][i], treatment_values [[3]][i])
+# }
+
+# 
+# treatment_table <- cbind(pltx, tax, neo)
+# treatment_values <- NULL
+# for(i in 1:length(pltx)){
+#   treatment_values <- list(treatment_values, treatment_table[i,])
+# }
+
+
+################# add treatment column made from pltx/tax/neo
+# save columns as a table lists of "y", "n" or NA, if mix of n and NA, produce n
 
 pltx <- pData(esets[[1]])[,"pltx"]
 tax <- pData(esets[[1]])[,"tax"]
@@ -85,6 +110,7 @@ for(i in 1:length(pltx)){
     # if none of the elements are y, then mix of n and NA
     if (which(row == "y") ==0){ 
       single_value <- "n"
+#       single_value <- NULL
     } else {# y's are present
       yindex <- which(row == "y")
       row <- NULL # reset row to clean
