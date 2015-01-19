@@ -151,4 +151,6 @@ for(i in 1:length(esets)){
   
   OvarianEsets[i] <- neweset
 }
+
+ return (OvarianEsets)
 }
