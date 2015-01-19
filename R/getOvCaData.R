@@ -5,17 +5,13 @@
 ## Initial modification of getBrCaData for Ovarian (OvarianCuratedDataset) by  Deena and Natchar
 ########################
 
-`getOvCaData` <- 
-function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
-
-#Need to remove InSilicoDB reference
-# Keep Normalization, merging?
-
 #################
 ## loading and changing curatedOvarianData
 ## Natchar January 19, 2015
 #################
-
+`getOvCaData` <- 
+  function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
+    
 # Load the curatedOvarianData package
 library(curatedOvarianData)
 
@@ -134,15 +130,18 @@ for(i in 1:length(esets)){
     treatment_values <- c(treatment_values, single_value)
   }
   
-  #### adding treatment column
+  #### adding treatment column, adding platform
   PHENOdata <- cbind(PHENOdata, treatment_values)
+  
+  platform_values <- matrix(annotation(esets[[i]]), nrow= nrow(pData(esets[[i]])), ncol=1)
+  PHENOdata <- cbind(PHENOdata, platform_values)
   
   # phenodata and featuredata in AnnotatedDataFrame
   PData <- AnnotatedDataFrame(data = PHENOdata)
   Exprs <- exprs(currenteset)
   
   ################# Rename pData to standard names
-  colnames(PData) <- c("samplename", "tissue", "grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment")
+  colnames(PData) <- c("samplename", "tissue", "grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform")
   
   
   ################# make the expression set with exprs and PData
@@ -151,6 +150,5 @@ for(i in 1:length(esets)){
   
   OvarianEsets[i] <- neweset
 }
-
  return (OvarianEsets)
 }
