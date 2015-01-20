@@ -151,4 +151,9 @@ for(i in 1:length(esets)){
   OvarianEsets[i] <- neweset
 }
  return (OvarianEsets)
+ 
+ hgs <- vector()
+for (l in 1:length(pData(OvarianEsets[[1]])$summarygrade)){
+  hgs[l] <- (pData(OvarianEsets[[1]])$summarygrade[l] == "high" || pData(OvarianEsets[[1]])$summarystage[l] == "late" || pData(OvarianEsets[[1]])$histological_type[l] == "ser")
+}
 }
