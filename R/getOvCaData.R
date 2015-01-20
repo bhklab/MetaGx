@@ -7,7 +7,7 @@
 
 #################
 ## loading and changing curatedOvarianData
-## Natchar January 19, 2015
+## Natchar January 20, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -29,7 +29,7 @@ OvarianEsets <- list()
 for(i in 1:length(esets)){
   currenteset <- esets[[i]]
   ################# columns of pdata we want
-  PHENOdata <- pData(esets[[i]]) [,c("alt_sample_name", "sample_type", "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
+  PHENOdata <- pData(esets[[i]]) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
   
   
   ################# change sample_type: all "healthy" to "normal"
@@ -141,7 +141,7 @@ for(i in 1:length(esets)){
   Exprs <- exprs(currenteset)
   
   ################# Rename pData to standard names
-  colnames(PData) <- c("samplename", "tissue", "grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform")
+  colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform")
   
   
   ################# make the expression set with exprs and PData
