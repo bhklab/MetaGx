@@ -7,7 +7,7 @@
 
 #################
 ## loading and changing curatedOvarianData
-## Natchar January 20, 2015
+## Natchar January 22, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -31,17 +31,10 @@ for(i in 1:length(esets)){
   ################# columns of pdata we want
   PHENOdata <- pData(esets[[i]]) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
   
-  
   ################# change sample_type: all "healthy" to "normal"
-  # initialize lists
-  
+
   oldList <- PHENOdata[,"sample_type"]
   listIndex <- which(oldList == "healthy")
-  # listIndex <- NULL
-  # for(i in 1:length(oldList)) {
-  #   if (oldList[i] == "healthy") {listIndex <- c(listIndex, i)}
-  # }
-  
   newList <- replace(oldList, listIndex, "normal")
   
   # replacing the old sample_type column with the new column
@@ -51,31 +44,6 @@ for(i in 1:length(esets)){
   ################# add dataset column 
   dataset <- matrix(names(esets)[i], nrow= nrow(pData(esets[[i]])), ncol=1)
   PHENOdata <- cbind(PHENOdata, dataset)
-  
-  
-  
-  ################# add treatment column made from pltx/tax/neo
-  # # treatment column will be a list of tables 
-  # 
-  # pltx <- pData(currenteset)[,"pltx"]
-  # tax <- pData(currenteset)[,"tax"]
-  # neo <- pData(currenteset)[,"neo"]
-  # 
-  # treatment_values <- list(pltx, tax, neo)
-  # names(treatment_values) <- c("pltx", "tax", "neo")
-  
-  # treatments <- list()
-  # for (i in 1:length(pltx)){
-  #   treatments[i]<- data.frame(treatment_values[[1]][i], treatment_values[[2]][i], treatment_values [[3]][i])
-  # }
-  
-  # 
-  # treatment_table <- cbind(pltx, tax, neo)
-  # treatment_values <- NULL
-  # for(i in 1:length(pltx)){
-  #   treatment_values <- list(treatment_values, treatment_table[i,])
-  # }
-  
   
   ################# add treatment column made from pltx/tax/neo
   # save columns as a table lists of "y", "n" or NA, if mix of n and NA, produce n
@@ -149,6 +117,9 @@ for(i in 1:length(esets)){
   neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = featureData(currenteset),  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
   
   OvarianEsets[i] <- neweset
+  
+  ################# Specify cancer_type in experimentData
+  experimentData(OvarianEsets[[i]])@other$cancer_type <- "ovarian"
 }
  return (OvarianEsets)
  
