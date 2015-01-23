@@ -4,10 +4,9 @@
 ## January 14, 2015
 ## Initial modification of getBrCaData for Ovarian (OvarianCuratedDataset) by  Deena and Natchar
 ########################
-
 #################
 ## loading and changing curatedOvarianData
-## Natchar January 22, 2015
+## Natchar January 19, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -15,26 +14,37 @@
 # Load the curatedOvarianData package
 library(curatedOvarianData)
 
-# Load the filtering rules from patientselection.config
-source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
-
 # Load logging package
 library(logging)
 
-# Get rid of duplicates and load esets into the environment
+# Load org.HS.eg.db package
+library(org.Hs.eg.db)
+
+# Load the filtering rules from patientselection.config
+source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
+
+# Get rid of duplicates and load esets into the environment, list of expression sets esets
 source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
 
+########################################## Manipulate and change esets ####################
 
 OvarianEsets <- list()
 for(i in 1:length(esets)){
   currenteset <- esets[[i]]
   ################# columns of pdata we want
-  PHENOdata <- pData(esets[[i]]) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
+  PHENOdata <- pData(currenteset) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
+  
   
   ################# change sample_type: all "healthy" to "normal"
-
+  # initialize lists
+  
   oldList <- PHENOdata[,"sample_type"]
   listIndex <- which(oldList == "healthy")
+  # listIndex <- NULL
+  # for(i in 1:length(oldList)) {
+  #   if (oldList[i] == "healthy") {listIndex <- c(listIndex, i)}
+  # }
+  
   newList <- replace(oldList, listIndex, "normal")
   
   # replacing the old sample_type column with the new column
@@ -42,15 +52,15 @@ for(i in 1:length(esets)){
   
   
   ################# add dataset column 
-  dataset <- matrix(names(esets)[i], nrow= nrow(pData(esets[[i]])), ncol=1)
+  dataset <- matrix(names(esets)[i], nrow= nrow(pData(currenteset)), ncol=1)
   PHENOdata <- cbind(PHENOdata, dataset)
   
   ################# add treatment column made from pltx/tax/neo
   # save columns as a table lists of "y", "n" or NA, if mix of n and NA, produce n
   
-  pltx <- pData(esets[[i]])[,"pltx"]
-  tax <- pData(esets[[i]])[,"tax"]
-  neo <- pData(esets[[i]])[,"neo"]
+  pltx <- pData(currenteset)[,"pltx"]
+  tax <- pData(currenteset)[,"tax"]
+  neo <- pData(currenteset)[,"neo"]
   
   treatment_table <- cbind(pltx, tax, neo)
   row <- NULL
@@ -101,30 +111,53 @@ for(i in 1:length(esets)){
   #### adding treatment column, adding platform
   PHENOdata <- cbind(PHENOdata, treatment_values)
   
-  platform_values <- matrix(annotation(esets[[i]]), nrow= nrow(pData(esets[[i]])), ncol=1)
+  platform_values <- matrix(annotation(currenteset), nrow= nrow(pData(currenteset)), ncol=1)
   PHENOdata <- cbind(PHENOdata, platform_values)
+  
+  #### adding platform2 (GPL)
+  platform2 <-matrix(experimentData(currenteset)@other$platform_accession, nrow = nrow(pData(currenteset)), ncol=1)
+  PHENOdata <- cbind(PHENOdata, platform2)
+  
   
   # phenodata and featuredata in AnnotatedDataFrame
   PData <- AnnotatedDataFrame(data = PHENOdata)
   Exprs <- exprs(currenteset)
   
   ################# Rename pData to standard names
-  colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform")
+  colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform1", "platform2")
   
   
   ################# make the expression set with exprs and PData
   neweset <- list()
   neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = featureData(currenteset),  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
-  
+
   OvarianEsets[i] <- neweset
-  
   ################# Specify cancer_type in experimentData
+  
   experimentData(OvarianEsets[[i]])@other$cancer_type <- "ovarian"
+  
+  ################# add etrez gene id to fData
+  entrezgene <- list()
+  gs <- toTable(org.Hs.egSYMBOL)
+  gs <- gs[!is.na(gs[ , "symbol"]) & !duplicated(gs[ , "symbol"]), , drop=FALSE]
+  gs <- gs[fData(OvarianEsets[[i]])[,"gene"], "gene_id"]
+
+  fData(OvarianEsets[[i]])$entrezgene <- gs
+  rownames(fData(OvarianEsets[[i]])) <- fData(OvarianEsets[[i]])[,"probeset"]
+
+  ################# ovcAngiogenic (Angiogenic vs non-Angiogenic Subtyping)
+  data <- t(exprs(OvarianEsets[[i]]))
+  annot <- fData(OvarianEsets[[i]])
+  colnames(data) <- rownames(annot)
+  hgs <- vector()
+  for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
+   hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[1]])$summarystage[l] == "late" || pData(OvarianEsets[[1]])$histological_type[l] == "ser")
+  }
+  angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap=gmap, do.mapping = TRUE)
+  experimentData(OvarianEsets[[i]])@other$angiogenic <- angio
 }
  return (OvarianEsets)
- 
- hgs <- vector()
-for (l in 1:length(pData(OvarianEsets[[1]])$summarygrade)){
-  hgs[l] <- (pData(OvarianEsets[[1]])$summarygrade[l] == "high" || pData(OvarianEsets[[1]])$summarystage[l] == "late" || pData(OvarianEsets[[1]])$histological_type[l] == "ser")
-}
+
+
+## End of getOvCaData
 }
