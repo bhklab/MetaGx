@@ -57,8 +57,8 @@ function (eset, sig, method=c("pearson", "spearman", "kendall"), weighted=FALSE,
     sbts.proba <- getSubtype(eset=eset, method="fuzzy")  
   }
   sbts.proba <- cbind("Global"=1, sbts.proba)
-  sbts.crisp <- getSubtype(eset=eset, method="crisp")
-  sbts.crisp <- cbind("Global"=1, sbts.crisp)
+  #!!!!sbts.crisp <- getSubtype(eset=eset, method="crisp")
+  #!!!!sbts.crisp <- cbind("Global"=1, sbts.crisp)
   sbtu <- colnames(sbts.proba)
   
   ## build matrix of signature scores in parallel
