@@ -6,7 +6,7 @@
 ########################
 #################
 ## loading and changing curatedOvarianData
-## Natchar January 23, 2015
+## Natchar January 28, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -40,10 +40,6 @@ for(i in 1:length(esets)){
   
   oldList <- PHENOdata[,"sample_type"]
   listIndex <- which(oldList == "healthy")
-  # listIndex <- NULL
-  # for(i in 1:length(oldList)) {
-  #   if (oldList[i] == "healthy") {listIndex <- c(listIndex, i)}
-  # }
   
   newList <- replace(oldList, listIndex, "normal")
   
@@ -122,6 +118,7 @@ for(i in 1:length(esets)){
   # phenodata and featuredata in AnnotatedDataFrame
   PData <- AnnotatedDataFrame(data = PHENOdata)
   Exprs <- exprs(currenteset)
+  FData <- AnnotatedDataFrame(fData(currenteset))
   
   ################# Rename pData to standard names
   colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform1", "platform2")
@@ -129,7 +126,7 @@ for(i in 1:length(esets)){
   
   ################# make the expression set with exprs and PData
   neweset <- list()
-  neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = featureData(currenteset),  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
+  neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
 
   OvarianEsets[i] <- neweset
   ################# Specify cancer_type in experimentData
@@ -153,9 +150,21 @@ for(i in 1:length(esets)){
   for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
    hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[1]])$summarystage[l] == "late" || pData(OvarianEsets[[1]])$histological_type[l] == "ser")
   }
-  angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap=gmap, do.mapping = TRUE)
-  experimentData(OvarianEsets[[i]])@other$angiogenic <- angio
+  angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap="entrezgene", do.mapping = TRUE)
+  experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
+  experimentData(OvarianEsets[[i]])@other$fuzzy <- angio$
+    subtype$Angiogenic.proba
+  experimentData(OvarianEsets[[i]])@other$crisp <- list()
+  
+  entrezgene <- NULL
+  for(entrez in 1:nrow(fData(OvarianEsets[[i]]))){
+    entrezgene <- c(entrezgene, paste("geneid", as.character(fData(OvarianEsets[[i]])[entrez,"entrezgene"] ), sep="."))
+    
+  }
+  rownames(fData(OvarianEsets[[i]])) <- entrezgene
+  
 }
+ names(OvarianEsets) <- names(esets)
  return (OvarianEsets)
 
 
