@@ -6,7 +6,7 @@
 ########################
 #################
 ## loading and changing curatedOvarianData
-## Natchar January 28, 2015
+## Natchar January 30, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -31,8 +31,14 @@ source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"
 OvarianEsets <- list()
 for(i in 1:length(esets)){
   currenteset <- esets[[i]]
+  
+  #######################################
+  ######### pData to include columns in common with BreastData
+  #######################################
+  
+  
   ################# columns of pdata we want
-  PHENOdata <- pData(currenteset) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "os_binary", "relapse_binary", "batch")]
+  PHENOdata <- pData(currenteset) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "vital_status","os_binary", "relapse_binary", "batch")]
   
   
   ################# change sample_type: all "healthy" to "normal"
@@ -45,6 +51,15 @@ for(i in 1:length(esets)){
   
   # replacing the old sample_type column with the new column
   PHENOdata[,"sample_type"] <- newList
+  
+  ################# change vital_status from living/deceased to 1 0
+  oldList <- PHENOdata[,"vital_status"]
+  listIndex <- which(oldList =="living")
+  newList <- replace(oldList, listIndex, 1)
+  listIndex <- which(oldList == "deceased")
+  newList <- replace(newList, listIndex, 0)
+  
+  PHENOdata[,"vital_status"] <- newList
   
   
   ################# add dataset column 
@@ -121,7 +136,7 @@ for(i in 1:length(esets)){
   FData <- AnnotatedDataFrame(fData(currenteset))
   
   ################# Rename pData to standard names
-  colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os", "e.rfs", "series", "dataset", "treatment", "platform1", "platform2")
+  colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os","os_binary", "e.rfs", "series", "dataset", "treatment", "platform1", "platform2")
   
   
   ################# make the expression set with exprs and PData
@@ -129,9 +144,10 @@ for(i in 1:length(esets)){
   neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
 
   OvarianEsets[i] <- neweset
-  ################# Specify cancer_type in experimentData
-  
-  experimentData(OvarianEsets[[i]])@other$cancer_type <- "ovarian"
+
+  #######################################
+  ######## fData to include entrezgeneID
+  #######################################
   
   ################# add etrez gene id to fData
   entrezgene <- list()
@@ -142,6 +158,16 @@ for(i in 1:length(esets)){
   fData(OvarianEsets[[i]])$entrezgene <- gs
   rownames(fData(OvarianEsets[[i]])) <- fData(OvarianEsets[[i]])[,"probeset"]
 
+  
+  #######################################
+  ######## Experiment Data to include cancer_type, Angiogenic class, fuzzy, crisp
+  #######################################
+  
+  
+  ################# Specify cancer_type in experimentData
+  
+  experimentData(OvarianEsets[[i]])@other$cancer_type <- "ovarian"
+  
   ################# ovcAngiogenic (Angiogenic vs non-Angiogenic Subtyping)
   data <- t(exprs(OvarianEsets[[i]]))
   annot <- fData(OvarianEsets[[i]])
@@ -152,8 +178,7 @@ for(i in 1:length(esets)){
   }
   angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap="entrezgene", do.mapping = TRUE)
   experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
-  experimentData(OvarianEsets[[i]])@other$fuzzy <- angio$
-    subtype$Angiogenic.proba
+  experimentData(OvarianEsets[[i]])@other$fuzzy <- angio$subtype$Angiogenic.proba
   experimentData(OvarianEsets[[i]])@other$crisp <- list()
   
   entrezgene <- NULL
