@@ -10,19 +10,19 @@
 `getSubtype` <- 
 function (eset, method=c("class", "crisp", "fuzzy")) {
   method <- match.arg(method)
-  if (class(eset) != "ExpressionSet") {
+  if (class(eset) != "newEset") {
     stop("eset should be an expressionSet object")
   }
-  if (length(Biobase::experimentData(eset)@other) == 0) { return (NULL) }
+  # if (length(Biobase::experimentData(eset)@other) == 0) { return (NULL) }
   switch(method,
     "class" = {
-      res <- Biobase::experimentData(eset)@other$class
+      res <- eset@subtype
     },
     "crisp" = {
-      res <- Biobase::experimentData(eset)@other$crisp
+      res <- eset@crisp
     },
     "fuzzy" = {
-      res <- Biobase::experimentData(eset)@other$fuzzy
+      res <- eset@fuzzy
     }  
   )
   return (res)
