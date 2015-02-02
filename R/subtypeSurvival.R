@@ -235,5 +235,3 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   }
 
 }
-
-
