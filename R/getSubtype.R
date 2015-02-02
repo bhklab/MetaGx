@@ -4,6 +4,12 @@
 ## September 1, 2013
 ########################
 
+########################
+## Natchar Ratanasirigulchai
+## Refer to added slot in new class type "newEset"
+## February 2, 2013
+########################
+
 ## FIXME 
 ## the package should properly extend the expressionSet class to add a slot for subtyping information
 ## the current workaround is using the experimentData slot
