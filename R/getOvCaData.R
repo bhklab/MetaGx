@@ -141,9 +141,9 @@ for(i in 1:length(esets)){
   
   ################# make the expression set with exprs and PData
   neweset <- list()
-#   setClass("newEset", representation(subtype = "character", cancer_type = "character", class = "factor", fuzzy = "numeric", crisp = "list"), contains = "ExpressionSet")
+  setClass("newEset", representation(cancer_type = "character", subtype = "factor", fuzzy = "numeric", crisp = "list"), contains = "ExpressionSet")
 
-setClass("newEset", representation(subtype = "character", cancer_type = "character"), contains = "ExpressionSet")
+# setClass("newEset", representation(subtype = "character", cancer_type = "character"), contains = "ExpressionSet")
 
   neweset[1]<- new("newEset",ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset)), cancer_type = "ovarian")
   
@@ -184,9 +184,12 @@ setClass("newEset", representation(subtype = "character", cancer_type = "charact
    hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[1]])$summarystage[l] == "late" || pData(OvarianEsets[[1]])$histological_type[l] == "ser")
   }
   angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap="entrezgene", do.mapping = TRUE)
-  experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
-  experimentData(OvarianEsets[[i]])@other$fuzzy <- angio$subtype$Angiogenic.proba
-  experimentData(OvarianEsets[[i]])@other$crisp <- list()
+  OvarianEsets[[i]]@subtype <- angio$subtype$subtype
+ OvarianEsets[[i]]@fuzzy <- angio$subtype$Angiogenic.proba
+  OvarianEsets[[i]]@crisp <- list()
+#   experimentData(OvarianEsets[[i]])@subtype <- angio$subtype$subtype
+#   experimentData(OvarianEsets[[i]])@fuzzy <- angio$subtype$Angiogenic.proba
+#   experimentData(OvarianEsets[[i]])@crisp <- list()
   
   entrezgene <- NULL
   for(entrez in 1:nrow(fData(OvarianEsets[[i]]))){
