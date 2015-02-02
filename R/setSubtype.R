@@ -9,7 +9,7 @@
 ## the current workaround is using the experimentData slot
 `setSubtype` <- 
 function (eset, subtype.class, subtype.crisp, subtype.fuzzy) {
-  if (class(eset) != "ExpressionSet") {
+  if (class(eset) != "newEset") {
     stop("eset should be an expressionSet object")
   }
   ## subtype.class is a vector of subtype labels, each sample is associated to a single subtype
@@ -37,7 +37,10 @@ function (eset, subtype.class, subtype.crisp, subtype.fuzzy) {
   } else {
     subtype.fuzzy <- NULL
   }
-  Biobase::experimentData(eset)@other <- list("class"=subtype.class, "crisp"=subtype.crisp, "fuzzy"=subtype.fuzzy)
+  eset@subtype <- subtype.class
+  eset@crisp <- subtype.crisp
+  eset@fuzzy <- subtype.fuzzy
+  
   return (eset)
 }
 
