@@ -5,18 +5,13 @@
 ########################
 
 
-########################
-## Natchar Ratanasirigulchai
-## Now uses "newEset" class for subtyping information
-## February 2, 2015
-########################
 
 ## FIXME 
 ## the package should properly extend the expressionSet class to add a slot for subtyping information
 ## the current workaround is using the experimentData slot
 `setSubtype` <- 
 function (eset, subtype.class, subtype.crisp, subtype.fuzzy) {
-  if (class(eset) != "newEset") {
+  if (class(eset) != "ExpressionSet") {
     stop("eset should be an expressionSet object")
   }
   ## subtype.class is a vector of subtype labels, each sample is associated to a single subtype
@@ -44,9 +39,9 @@ function (eset, subtype.class, subtype.crisp, subtype.fuzzy) {
   } else {
     subtype.fuzzy <- NULL
   }
-  eset@subtype <- subtype.class
-  eset@crisp <- subtype.crisp
-  eset@fuzzy <- subtype.fuzzy
+  experimentData(eset)@other$class <- subtype.class
+  experimentData(eset)@other$crisp <- subtype.crisp
+  experimentData(eset)@other$fuzzy <- subtype.fuzzy
   
   return (eset)
 }
