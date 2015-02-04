@@ -4,11 +4,6 @@
 ## September 1, 2013
 ########################
 
-########################
-## Natchar Ratanasirigulchai
-## Refer to added slot in new class type "newEset"
-## February 2, 2013
-########################
 
 ## FIXME 
 ## the package should properly extend the expressionSet class to add a slot for subtyping information
@@ -22,13 +17,13 @@ function (eset, method=c("class", "crisp", "fuzzy")) {
   # if (length(Biobase::experimentData(eset)@other) == 0) { return (NULL) }
   switch(method,
     "class" = {
-      res <- eset@subtype
+      res <- experimentData(eset)@other$class
     },
     "crisp" = {
-      res <- eset@crisp
+      res <- experimentData(eset)@other$crisp
     },
     "fuzzy" = {
-      res <- eset@fuzzy
+      res <- experimentData(eset)@other$fuzzy
     }  
   )
   return (res)
