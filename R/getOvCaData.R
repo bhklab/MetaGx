@@ -189,7 +189,7 @@
 #       OvarianEsets[[i]]@fuzzy <- angio$subtype$Angiogenic.proba
 #       OvarianEsets[[i]]@crisp <- list()
         experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
-        experimentData(OvarianEsets[[i]])@other$fuzzy <- angio$subtype$Angiogenic.proba
+        experimentData(OvarianEsets[[i]])@other$fuzzy <- data.frame("Angiogenic" =angio$subtype$Angiogenic.proba)
         experimentData(OvarianEsets[[i]])@other$crisp <- list()
       
       entrezgene <- NULL
