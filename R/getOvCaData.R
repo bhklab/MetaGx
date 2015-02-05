@@ -6,30 +6,24 @@
 ########################
 #################
 ## loading and changing curatedOvarianData
-## Natchar February 3, 2015
+## Natchar February 5, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
+
+##libraries
+library(curatedOvarianData)
+library(logging)
+library(org.Hs.eg.db)
     
-    # Load the curatedOvarianData package
-    library(curatedOvarianData)
+## Load the filtering rules from patientselection.config
+source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
+##esets into the environment, list of expression sets esets
+# sapply(ls(), function(x) if(!x %in% c("remove.samples", "duplicates")) print(get(x)))
+source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
+########################################## Manipulate and change esets ####################
     
-    # Load logging package
-    library(logging)
-    
-    # Load org.HS.eg.db package
-    library(org.Hs.eg.db)
-    
-    # Load the filtering rules from patientselection.config
-    source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
-    
-    # Get rid of duplicates and load esets into the environment, list of expression sets esets
-   # sapply(ls(), function(x) if(!x %in% c("remove.samples", "duplicates")) print(get(x)))
-    source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
-    
-    ########################################## Manipulate and change esets ####################
-    
-    OvarianEsets <- list()
+OvarianEsets <- list()
     for(i in 1:length(esets)){
       currenteset <- esets[[i]]
       
@@ -38,22 +32,19 @@
       #######################################
       
       
-      ################# columns of pdata we want
+      ## columns of pdata we want
       PHENOdata <- pData(currenteset) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "vital_status","os_binary", "relapse_binary", "batch")]
       
       
-      ################# change sample_type: all "healthy" to "normal"
-      # initialize lists
-      
+      ##change sample_type: all "healthy" to "normal"      
       oldList <- PHENOdata[,"sample_type"]
       listIndex <- which(oldList == "healthy")
-      
       newList <- replace(oldList, listIndex, "normal")
       
       # replacing the old sample_type column with the new column
       PHENOdata[,"sample_type"] <- newList
       
-      ################# change vital_status from living/deceased to 1 0
+      ##change vital_status from living/deceased to 1 0
       oldList <- PHENOdata[,"vital_status"]
       listIndex <- which(oldList =="living")
       newList <- replace(oldList, listIndex, 1)
@@ -62,13 +53,12 @@
       
       PHENOdata[,"vital_status"] <- as.numeric(newList)
       
-      
-      ################# add dataset column 
+      ##add dataset column 
       dataset <- matrix(names(esets)[i], nrow= nrow(pData(currenteset)), ncol=1)
       PHENOdata <- cbind(PHENOdata, dataset)
       
-      ################# add treatment column made from pltx/tax/neo
-      # save columns as a table lists of "y", "n" or NA, if mix of n and NA, produce n
+      ##add treatment column made from pltx/tax/neo
+      ## save columns as a table lists of "y", "n" or NA, if mix of n and NA, produce n
       
       pltx <- pData(currenteset)[,"pltx"]
       tax <- pData(currenteset)[,"tax"]
@@ -136,11 +126,10 @@
       Exprs <- exprs(currenteset)
       FData <- AnnotatedDataFrame(fData(currenteset))
       
-      ################# Rename pData to standard names
+      ##Rename pData to standard names
       colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os","os_binary", "e.rfs", "series", "dataset", "treatment", "platform1", "platform2")
       
-      
-      ################# make the expression set with exprs and PData
+      ##make the expression set with exprs and PData
       neweset <- list()
 #       setClass("newEset", representation(cancer_type = "character", subtype = "factor", fuzzy = "numeric", crisp = "list"), contains = "ExpressionSet")
 #       
@@ -149,8 +138,6 @@
 #       neweset[1]<- new("newEset",ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset)), cancer_type = "ovarian")
 #       
         neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
-      
-      
       OvarianEsets[i] <- neweset
       
       #######################################
@@ -189,7 +176,7 @@
 #       OvarianEsets[[i]]@fuzzy <- angio$subtype$Angiogenic.proba
 #       OvarianEsets[[i]]@crisp <- list()
         experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
-        experimentData(OvarianEsets[[i]])@other$fuzzy <- data.frame("Angiogenic" =angio$subtype$Angiogenic.proba)
+        experimentData(OvarianEsets[[i]])@other$fuzzy <- data.frame("Angiogenic" = angio$subtype$Angiogenic.proba)
         experimentData(OvarianEsets[[i]])@other$crisp <- list()
       
       entrezgene <- NULL
