@@ -60,7 +60,7 @@
       listIndex <- which(oldList == "deceased")
       newList <- replace(newList, listIndex, 0)
       
-      PHENOdata[,"vital_status"] <- newList
+      PHENOdata[,"vital_status"] <- as.numeric(newList)
       
       
       ################# add dataset column 
