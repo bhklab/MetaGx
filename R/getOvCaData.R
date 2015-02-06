@@ -171,18 +171,14 @@ OvarianEsets <- list()
 
 for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
   hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")
+  if (is.na(hgs[l])){
+    if(TRUE %in% complete.cases(c(pData(OvarianEsets[[i]])$summarygrade[l] == "high", pData(OvarianEsets[[i]])$summarystage[l] == "late", pData(OvarianEsets[[i]])$histological_type[l] == "ser"))){
+      hgs[l] <- FALSE
+    }
+  }
 }
-# for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
-#   hgs[l] <- if(is.na(pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")){
-#     FALSE
-#   }else {
-#     (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")
-#   }
-# }
-na.index <- which(is.na(hgs))
-hgs <- replace(hgs, na.index, FALSE)
-if (TRUE %in% hgs){
-  
+
+if (length(which(hgs==TRUE)) > 2){
       angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap="entrezgene", do.mapping = TRUE)
 #       OvarianEsets[[i]]@subtype <- angio$subtype$subtype
 #       OvarianEsets[[i]]@fuzzy <- angio$subtype$Angiogenic.proba
@@ -190,8 +186,9 @@ if (TRUE %in% hgs){
         experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
         experimentData(OvarianEsets[[i]])@other$fuzzy <- data.frame("Angiogenic" = angio$subtype$Angiogenic.proba, "NonAngiogenic" = angio$subtype$nonAngiogenic.proba)
         experimentData(OvarianEsets[[i]])@other$crisp <- data.frame("Angiogenic_score" = angio$subtype$subtype.score)
+} else {
+  warning( sprintf("eset: %s had less than 2 samples as TRUE in hgs. No subtyping information was comupted.", names(esets)[i]))
 }
-      
       entrezgene <- NULL
       for(entrez in 1:nrow(fData(OvarianEsets[[i]]))){
         entrezgene <- c(entrezgene, paste("geneid", as.character(fData(OvarianEsets[[i]])[entrez,"entrezgene"] ), sep="."))
