@@ -6,7 +6,7 @@
 
 
 `subtypeSurvival` <- 
-function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs", "tdm"), time.cens, condensed=TRUE, resdir="cache", nthread=1, sig.method, sig.scaling) {
+function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs", "tdm", "os"), time.cens, condensed=TRUE, resdir="cache", nthread=1, sig.method, sig.scaling) {
 
   ######################
   
