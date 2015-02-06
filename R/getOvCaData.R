@@ -6,7 +6,7 @@
 ########################
 #################
 ## loading and changing curatedOvarianData
-## Natchar February 5, 2015
+## Natchar February 6, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -168,16 +168,29 @@ OvarianEsets <- list()
       annot <- fData(OvarianEsets[[i]])
       colnames(data) <- rownames(annot)
       hgs <- vector()
-      for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
-        hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[1]])$summarystage[l] == "late" || pData(OvarianEsets[[1]])$histological_type[l] == "ser")
-      }
+
+for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
+  hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")
+}
+# for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
+#   hgs[l] <- if(is.na(pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")){
+#     FALSE
+#   }else {
+#     (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")
+#   }
+# }
+na.index <- which(is.na(hgs))
+hgs <- replace(hgs, na.index, FALSE)
+if (TRUE %in% hgs){
+  
       angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap="entrezgene", do.mapping = TRUE)
 #       OvarianEsets[[i]]@subtype <- angio$subtype$subtype
 #       OvarianEsets[[i]]@fuzzy <- angio$subtype$Angiogenic.proba
 #       OvarianEsets[[i]]@crisp <- list()
         experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
         experimentData(OvarianEsets[[i]])@other$fuzzy <- data.frame("Angiogenic" = angio$subtype$Angiogenic.proba, "NonAngiogenic" = angio$subtype$nonAngiogenic.proba)
-        experimentData(OvarianEsets[[i]])@other$crisp <- list()
+        experimentData(OvarianEsets[[i]])@other$crisp <- data.frame("Angiogenic_score" = angio$subtype$subtype.score)
+}
       
       entrezgene <- NULL
       for(entrez in 1:nrow(fData(OvarianEsets[[i]]))){
