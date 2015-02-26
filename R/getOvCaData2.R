@@ -5,6 +5,10 @@
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.80, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
   
+    availcore <- parallel::detectCores()
+    if (nthread > availcore) { nthread <- availcore }
+    options("mc.cores"=nthread)
+    
     merging.method <- match.arg(merging.method)
     merging.std <- match.arg(merging.std)
     ##libraries
@@ -85,6 +89,7 @@
       
     }
     eset.all <- esets
+    if (verbose){ message("Merging Expression Sets")}
     eset.merged <- datasetMerging(esets=eset.all,  method=merging.method, standardization=merging.std, nthread=nthread)
     ## identify potential duplicated samples
     duplicates <<- duplicateFinder(eset=eset.merged, topvar.genes=topvar.genes, dupl.cor=duplicates.cor, method="spearman", nthread=nthread)
@@ -107,6 +112,7 @@
     
     ## remove duplicates
     if (remove.duplicates) {
+      if(verbose){ message("Duplicate Removal")}
       ## duplicates are removed by order of datasets
       ## select sample names to remove
       rmix <- duplicates
@@ -134,9 +140,16 @@
         sfuzzy <- getSubtype(eset=x, method="fuzzy")[keepix, , drop=FALSE]
         scrisp <- getSubtype(eset=x, method="crisp")[keepix, , drop=FALSE]
         eset.merged <- setSubtype(eset=x, subtype.class=sclass, subtype.fuzzy=sfuzzy, subtype.crisp=scrisp)
+        entrezgene <- NULL
         return(x)
       }, y=rmix)
+      entrezgene <- NULL
+      for(entrez in 1:nrow(fData(eset.merged))){
+        entrezgene <- c(entrezgene, paste("geneid", as.character(fData(eset.merged)[entrez,"entrezgene"] ), sep="."))
+      }
+      rownames(fData(eset.merged)) <- entrezgene
     }
+    
     return (list("merged"=eset.merged, "each"=eset.all)) #Return 
   }
 
