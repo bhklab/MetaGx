@@ -1,6 +1,6 @@
 #################
 ## loading and changing curatedOvarianData
-## Natchar February 26, 2015
+## Natchar February 27, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.80, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
@@ -12,11 +12,11 @@
     merging.method <- match.arg(merging.method)
     merging.std <- match.arg(merging.std)
     ##libraries
-    library(curatedOvarianData)
+    library(FULLVcuratedOvarianData)
     library(logging)
     library(org.Hs.eg.db)
     
-    source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
+    source(system.file("extdata", "patientselection.config", package = "FULLVcuratedOvarianData"))
     min.sample.size <<- 1 
     min.number.of.events <<- 1
     min.number.of.genes <<- 1
@@ -25,9 +25,9 @@
     remove.samples <<- c(tcga.lowcor.outliers, duplicates)
     add.surv.y <<- NULL
     if(verbose){
-      message("loading datasets from curatedOvarianData")
+      message("loading datasets from FULLVcuratedOvarianData")
     }
-    source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
+    source(system.file("extdata", "createEsetList.R", package = "FULLVcuratedOvarianData"))
     
     names(esets)<-gsub( "_.*$", "", names(esets) )
     #### change sample names of TCGA RNAseq to include .RNA at end (solves conflict between sample names of TCGA during merging)
