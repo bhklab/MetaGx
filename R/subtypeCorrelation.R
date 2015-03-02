@@ -4,6 +4,11 @@
 ## September 1, 2013
 ########################
 
+########################
+## Natchar Ratanasirigulchai
+## changes made on March 2, 2015
+########################
+
 
 `subtypeCorrelation` <- 
 function (eset, sig, method=c("pearson", "spearman", "kendall"), weighted=FALSE, condensed=TRUE, plot=TRUE, resdir="cache", nthread=1, sig.method, sig.scaling) {
@@ -28,7 +33,8 @@ function (eset, sig, method=c("pearson", "spearman", "kendall"), weighted=FALSE,
   }
   
   if (missing(sig)) {
-    sig <- as.list(rownames(Biobase::fData(eset)[ , "ENTREZID"]))
+    sig <- as.list(rownames(Biobase::fData(eset)))
+    #     sig <- as.list(rownames(Biobase::fData(eset)[ , "ENTREZID"]))
     ## assign gene symbol as signature names
     gsymb <- Biobase::fData(eset)[ , "SYMBOL"]
     gsymb[is.na(gsymb)] <- paste("ENTREZID", Biobase::fData(eset)[is.na(gsymb), "ENTREZID"], sep=".")
@@ -57,8 +63,8 @@ function (eset, sig, method=c("pearson", "spearman", "kendall"), weighted=FALSE,
     sbts.proba <- getSubtype(eset=eset, method="fuzzy")  
   }
   sbts.proba <- cbind("Global"=1, sbts.proba)
-  #!!!!sbts.crisp <- getSubtype(eset=eset, method="crisp")
-  #!!!!sbts.crisp <- cbind("Global"=1, sbts.crisp)
+  sbts.crisp <- getSubtype(eset=eset, method="crisp")
+  sbts.crisp <- cbind("Global"=1, sbts.crisp)
   sbtu <- colnames(sbts.proba)
   
   ## build matrix of signature scores in parallel
