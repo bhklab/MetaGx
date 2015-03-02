@@ -4,6 +4,11 @@
 ## September 1, 2013
 ########################
 
+########################
+## Natchar Ratanasirigulchai
+## changes made on March 2, 2015
+########################
+
 
 `datasetMerging` <- 
 function (esets, method=c("union", "intersect"), standardization=c("quantile", "robust.scaling", "scaling", "none"), nthread=1) {
@@ -47,7 +52,10 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   ## expression data
   exprs.merged <- lapply(esets, function (x, y) {
     ee <- Biobase::exprs(x)
+    print(dim(ee))
     eem <- matrix(NA, nrow=length(y), ncol=ncol(ee), dimnames=list(y, colnames(ee)))
+    print(dim(eem))
+    print(length(intersect(rownames(ee),rownames(eem))))
     eem[rownames(ee), colnames(ee)] <- ee
     return (eem)
   }, y=rownames(feature.merged))
@@ -60,8 +68,9 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
     ee <- Biobase::pData(x)[ , y, drop=FALSE]
   }, y=ucid)
   clinicinfo.merged <- do.call(rbind, clinicinfo.merged)
-  rownames(clinicinfo.merged) <- gsub(sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(clinicinfo.merged))
-  ## create a merged expressionSet object
+  rownames(clinicinfo.merged) <- colnames(exprs.merged)
+#   rownames(clinicinfo.merged) <- gsub(   sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(clinicinfo.merged)         )
+#   ## create a merged expressionSet object
   eset.merged <- ExpressionSet(assayData=exprs.merged, phenoData=AnnotatedDataFrame(data=clinicinfo.merged), featureData=AnnotatedDataFrame(data=feature.merged))
   experimentData(eset.merged)@preprocessing <- list("normalization"="mixed", package="unspecified", version="0")
   annotation(eset.merged) <- "mixed"
@@ -73,12 +82,19 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
     sbtn <- table(unlist(sbtn))
     if (!all(sbtn == length(esets))) { stop("Different subtyping across esets") }
     sclass <- lapply(esets, getSubtype, method="class")
-    nn <- unlist(sapply(sclass, names))
+#     nn <- unlist(sapply(sclass, names))
+#     sclass <- unlist(sclass)
+#     names(sclass) <- nn
+#     names(sclass) <- names(esets)
     sclass <- unlist(sclass)
-    names(sclass) <- nn
+    names(sclass) <- unlist(sapply(esets, sampleNames))
     sfuzzy <- do.call(rbind, lapply(esets, getSubtype, method="fuzzy"))
+    rownames(sfuzzy) <- sampleNames(eset.merged)
     scrisp <- do.call(rbind, lapply(esets, getSubtype, method="crisp"))
+    message("going to set the subtype")
     eset.merged <- setSubtype(eset=eset.merged, subtype.class=sclass, subtype.fuzzy=sfuzzy, subtype.crisp=scrisp)
+    rownames(fData(eset.merged)) <- fData(eset.merged)[,"ENTREZID"]
+    message("set the subtype complete for merged")
   }
     
   ## standardization
