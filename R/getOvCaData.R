@@ -6,200 +6,159 @@
 ########################
 #################
 ## loading and changing curatedOvarianData
-## Natchar February 2, 2015
+## Natchar March 2, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
-
-##libraries
-library(curatedOvarianData)
-library(logging)
-library(org.Hs.eg.db)
+  
+    availcore <- parallel::detectCores()
+    if (nthread > availcore) { nthread <- availcore }
+    options("mc.cores"=nthread)
     
-## Load the filtering rules from patientselection.config
-source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
-##esets into the environment, list of expression sets esets
-# sapply(ls(), function(x) if(!x %in% c("remove.samples", "duplicates")) print(get(x)))
-source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
-########################################## Manipulate and change esets ####################
+    merging.method <- match.arg(merging.method)
+    merging.std <- match.arg(merging.std)
+    ##libraries
+    library(curatedOvarianData)
+    library(logging)
+    library(org.Hs.eg.db)
     
-OvarianEsets <- list()
+    source(system.file("extdata", "patientselection.config", package = "curatedOvarianData"))
+    min.sample.size <<- 1 
+    min.number.of.events <<- 1
+    min.number.of.genes <<- 1
+    tcga.lowcor.outliers <<- list()
+    duplicates <<-list()
+    remove.samples <<- c(tcga.lowcor.outliers, duplicates)
+    add.surv.y <<- NULL
+    if(verbose){
+      message("loading datasets from curatedOvarianData")
+    }
+    source(system.file("extdata", "createEsetList.R", package = "curatedOvarianData"))
+    
+    names(esets)<-gsub( "_.*$", "", names(esets) )
+    #### change sample names of TCGA RNAseq to include .RNA at end (solves conflict between sample names of TCGA during merging)
+    num.esets <-length(esets)
+    RNAnames <- NULL
+    for (n in 1:length(sampleNames(esets[[num.esets]]))){
+      RNAnames <- c(RNAnames, sprintf("%s.RNA", sampleNames(esets[[num.esets]])[n]))
+    }
+    sampleNames(esets[[num.esets]]) <- RNAnames 
+    RNAnames <- NULL
+    for (n in 1:length(sampleNames(esets[[num.esets-1]]))){
+      RNAnames <- c(RNAnames, sprintf("%s.miRNA", sampleNames(esets[[num.esets-1]])[n]))
+    }
+    sampleNames(esets[[num.esets-1]]) <- RNAnames  
+    
     for(i in 1:length(esets)){
-      currenteset <- esets[[i]]
+      dataset <-rep(names(esets)[i], nrow(pData(esets[[i]])))
+      pData(esets[[i]]) <- cbind(pData(esets[[i]]), dataset)
       
-      #######################################
-      ######### pData to include columns in common with BreastData
-      #######################################
-      
-      
-      ## columns of pdata we want
-      PHENOdata <- pData(currenteset) [,c("alt_sample_name", "sample_type", "histological_type", "summarygrade", "summarystage" , "grade", "age_at_initial_pathologic_diagnosis", "days_to_tumor_recurrence", "days_to_death", "vital_status","os_binary", "relapse_binary", "batch")]
-      
-      
-      ##change sample_type: all "healthy" to "normal"      
-      oldList <- PHENOdata[,"sample_type"]
-      listIndex <- which(oldList == "healthy")
-      newList <- replace(oldList, listIndex, "normal")
-      
-      # replacing the old sample_type column with the new column
-      PHENOdata[,"sample_type"] <- newList
-      
-      ##change vital_status from living/deceased to 1 0
-      oldList <- PHENOdata[,"vital_status"]
-      listIndex <- which(oldList =="living")
-      newList <- replace(oldList, listIndex, 1)
-      listIndex <- which(oldList == "deceased")
-      newList <- replace(newList, listIndex, 0)
-      
-      PHENOdata[,"vital_status"] <- as.numeric(newList)
-      
-      ##add dataset column 
-      dataset <- matrix(names(esets)[i], nrow= nrow(pData(currenteset)), ncol=1)
-      PHENOdata <- cbind(PHENOdata, dataset)
-      
-      ##add treatment column made from pltx/tax/neo
-      ## save columns as a table lists of "y", "n" or NA, if mix of n and NA, produce n
-      
-      pltx <- pData(currenteset)[,"pltx"]
-      tax <- pData(currenteset)[,"tax"]
-      neo <- pData(currenteset)[,"neo"]
-      
-      treatment_table <- cbind(pltx, tax, neo)
-      row <- NULL
-      treatment_values <- NULL
-      single_value <- NULL
-      naindex <-NULL
-      yindex <-NULL
-      IndexedRow <- NULL
-      
-      for(k in 1:length(pltx)){
-        row <- treatment_table[k,]
-        # map NA values to "na" to avoid missing value errors
-        naindex <- which(is.na(row))
-        IndexedRow <- replace(row, naindex, "na")
-        
-        # if they are all NA, put NA, if all n, put n, if all y, then list all of them
-        if (all(IndexedRow == IndexedRow[1])){
-          if ( IndexedRow[1] == "n"){ #all "n"
-            single_value <- IndexedRow[1]
-          } 
-          else if (IndexedRow[1] == "na"){ #all NA
-            single_value <- NA
-          }
-          else {# all are y!
-            single_value <- paste(as.character(colnames(treatment_table)), collapse = "/")
-          }
-          
-          ### if entries are not all the same, take y's  
-        } else {
-          #refresh single_value
-          single_value <- NULL 
-          # if none of the elements are y, then mix of n and NA
-          if (all(which(row == "y")) ==0){ 
-            single_value <- "n"
-            #       single_value <- NULL
-          } else {# y's are present
-            yindex <- which(row == "y")
-            row <- NULL # reset row to clean
-            for(j in 1:length(yindex)){ # go through yindex
-              row <- c(row, colnames(treatment_table)[j])
-              single_value <- paste(as.character(row), collapse= "/") # example: produces pltx/neo
-            }
-          }
-        }
-        treatment_values <- c(treatment_values, single_value)
-      }
-      
-      #### adding treatment column, adding platform
-      PHENOdata <- cbind(PHENOdata, treatment_values)
-      
-      platform_values <- matrix(annotation(currenteset), nrow= nrow(pData(currenteset)), ncol=1)
-      PHENOdata <- cbind(PHENOdata, platform_values)
-      
-      #### adding platform2 (GPL)
-      platform2 <-matrix(experimentData(currenteset)@other$platform_accession, nrow = nrow(pData(currenteset)), ncol=1)
-      PHENOdata <- cbind(PHENOdata, platform2)
-      
-      
-      # phenodata and featuredata in AnnotatedDataFrame
-      PData <- AnnotatedDataFrame(data = PHENOdata)
-      Exprs <- exprs(currenteset)
-      FData <- AnnotatedDataFrame(fData(currenteset))
-      
-      ##Rename pData to standard names
-      colnames(PData) <- c("samplename", "tissue", "histological_type","summarygrade", "summarystage","grade", "age", "t.rfs", "t.os", "e.os","os_binary", "e.rfs", "series", "dataset", "treatment", "platform1", "platform2")
-      
-      ##make the expression set with exprs and PData
-      neweset <- list()
-#       setClass("newEset", representation(cancer_type = "character", subtype = "factor", fuzzy = "numeric", crisp = "list"), contains = "ExpressionSet")
-#       
-      # setClass("newEset", representation(subtype = "character", cancer_type = "character"), contains = "ExpressionSet")
-      
-#       neweset[1]<- new("newEset",ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset)), cancer_type = "ovarian")
-#       
-        neweset[1]<- ExpressionSet(Exprs, phenoData =PData, experimentData=experimentData(currenteset), featureData = FData,  protocolData= protocolData(currenteset), annotation=annotation(currenteset))
-      OvarianEsets[i] <- neweset
-      
-      #######################################
-      ######## fData to include entrezgeneID
-      #######################################
-      
-      ################# add etrez gene id to fData
+      ####### fData to include entrezgeneID
       entrezgene <- list()
       gs <- toTable(org.Hs.egSYMBOL)
       gs <- gs[!is.na(gs[ , "symbol"]) & !duplicated(gs[ , "symbol"]), , drop=FALSE]
-      gs <- gs[fData(OvarianEsets[[i]])[,"gene"], "gene_id"]
+      gs <- gs[fData(esets[[i]])[,"gene"], "gene_id"]
       
-      fData(OvarianEsets[[i]])$entrezgene <- gs
-      rownames(fData(OvarianEsets[[i]])) <- fData(OvarianEsets[[i]])[,"probeset"]
-      
-      
-      #######################################
-      ######## Experiment Data to include cancer_type, Angiogenic class, fuzzy, crisp
-      #######################################
-      
+      fData(esets[[i]])$entrezgene <- gs
+      fData(esets[[i]])$ENTREZID<- gs
+      rownames(fData(esets[[i]])) <- gs
+      rownames(exprs(esets[[i]])) <- gs
+      names(fData(esets[[i]]))[names(fData(esets[[i]])) == "gene"] <- "SYMBOL"
+      experimentData(esets[[i]])@other$cancer_type <- "ovarian"
       
       ################# Specify cancer_type in experimentData
       
-      experimentData(OvarianEsets[[i]])@other$cancer_type <- "ovarian"
+      experimentData(esets[[i]])@other$cancer_type <- "ovarian"
       
       ################# ovcAngiogenic (Angiogenic vs non-Angiogenic Subtyping)
-      data <- t(exprs(OvarianEsets[[i]]))
-      annot <- fData(OvarianEsets[[i]])
+      data <- t(exprs(esets[[i]]))
+      annot <- fData(esets[[i]])
       colnames(data) <- rownames(annot)
-      hgs <- vector()
-
-for (l in 1:length(pData(OvarianEsets[[i]])$summarygrade)){
-  hgs[l] <- (pData(OvarianEsets[[i]])$summarygrade[l] == "high" || pData(OvarianEsets[[i]])$summarystage[l] == "late" || pData(OvarianEsets[[i]])$histological_type[l] == "ser")
-  if (is.na(hgs[l])){
-    if(TRUE %in% complete.cases(c(pData(OvarianEsets[[i]])$summarygrade[l] == "high", pData(OvarianEsets[[i]])$summarystage[l] == "late", pData(OvarianEsets[[i]])$histological_type[l] == "ser"))){
-      hgs[l] <- FALSE
-    }
-  }
-}
-
-if (length(which(hgs==TRUE)) > 2){
-      angio <- ovcAngiogenic(data = data, annot=annot, hgs=hgs, gmap="entrezgene", do.mapping = TRUE)
-#       OvarianEsets[[i]]@subtype <- angio$subtype$subtype
-#       OvarianEsets[[i]]@fuzzy <- angio$subtype$Angiogenic.proba
-#       OvarianEsets[[i]]@crisp <- list()
-        experimentData(OvarianEsets[[i]])@other$class <- angio$subtype$subtype
-        experimentData(OvarianEsets[[i]])@other$fuzzy <- data.frame("Angiogenic" = angio$subtype$Angiogenic.proba, "NonAngiogenic" = angio$subtype$nonAngiogenic.proba)
-        experimentData(OvarianEsets[[i]])@other$crisp <- data.frame("Angiogenic_score" = angio$subtype$subtype.score)
-} else {
-  warning( sprintf("eset: %s had less than 2 samples as TRUE in hgs. No subtyping information was comupted.", names(esets)[i]))
-}
+      
+      angio <- ovcAngiogenic(data = data, annot=annot, gmap="entrezgene", do.mapping = TRUE)
+      experimentData(esets[[i]])@other$class <- angio$subtype$subtype
+      fuzzy <- experimentData(esets[[i]])@other$fuzzy <- data.frame("Angiogenic" = angio$subtype$Angiogenic.proba, "NonAngiogenic" = angio$subtype$nonAngiogenic.proba)
+      rownames(experimentData(esets[[i]])@other$fuzzy) <- rownames(angio$subtype)
+      crisp <- t(apply(fuzzy, 1, function(x){
+        xx<- array(0, dim=length(x), dimnames=list(names(x)))
+        xx[which.max(x)] <- 1
+        return(xx)
+      }))
+      rownames(crisp) <- rownames(angio$subtype)
+      experimentData(esets[[i]])@other$crisp <- crisp
+      
       entrezgene <- NULL
-      for(entrez in 1:nrow(fData(OvarianEsets[[i]]))){
-        entrezgene <- c(entrezgene, paste("geneid", as.character(fData(OvarianEsets[[i]])[entrez,"entrezgene"] ), sep="."))
+      for(entrez in 1:nrow(fData(esets[[i]]))){
+        entrezgene <- c(entrezgene, paste("geneid", as.character(fData(esets[[i]])[entrez,"entrezgene"] ), sep="."))
         
       }
-      rownames(fData(OvarianEsets[[i]])) <- entrezgene
+      rownames(fData(esets[[i]])) <- entrezgene
+      rownames(exprs(esets[[i]])) <- entrezgene
       
     }
-    names(OvarianEsets) <- names(esets)
-    return (OvarianEsets)
+    eset.all <- esets
+    if (verbose){ message("Merging Expression Sets")}
+    eset.merged <- datasetMerging(esets=eset.all,  method=merging.method, standardization=merging.std, nthread=nthread)
+    ## identify potential duplicated samples
+    duplicates <<- duplicateFinder(eset=eset.merged, topvar.genes=topvar.genes, dupl.cor=duplicates.cor, method="spearman", nthread=nthread)
+    ## annotate the separate esets and the merged eset
+    tt <- sapply(duplicates, paste, collapse="///") # Name1///Name2///Name3
+    ## merged eset #Annotate the duplicate status of the merged eset (adding a duplicates column)
+    Biobase::pData(eset.merged) <- cbind(Biobase::pData(eset.merged), "duplicates"=NA)
+    Biobase::pData(eset.merged)[names(tt), "duplicates"] <- tt 
+    ## individual esets. 
+    ## For each dataset, what are the corresponding duplicate samples?
+    if (length(tt) > 0) {
+      eset.all <- lapply(eset.all, function (x, y) 
+      {
+        Biobase::pData(x) <- cbind(Biobase::pData(x), "duplicates"=NA)
+        nn <- intersect(rownames(pData(x)), y)
+        Biobase::pData(x)[nn, "duplicates"] <- y[nn]
+        return(x)
+      }, y=tt)
+    }
     
+    ## remove duplicates
+    if (remove.duplicates) {
+      if(verbose){ message("Duplicate Removal")}
+      ## duplicates are removed by order of datasets
+      ## select sample names to remove
+      rmix <- duplicates
+      ii <- 1
+      while (length(rmix) > ii) { #While duplicates exist
+        rmix <- rmix[!is.element(names(rmix), rmix[[ii]])]
+        ii <- ii + 1
+      }
+      rmix <- unique(unlist(rmix))
+      ## merged eset
+      keepix <- setdiff(Biobase::sampleNames(eset.merged), rmix) #Keep the non-duplicated samples for the merged esets
+      Biobase::exprs(eset.merged) <- Biobase::exprs(eset.merged)[ , keepix, drop=FALSE]
+      Biobase::pData(eset.merged) <- Biobase::pData(eset.merged)[keepix, , drop=FALSE]
+      sclass <- getSubtype(eset=eset.merged, method="class")[keepix] # Subtyping method to get subtypes
+      sfuzzy <- getSubtype(eset=eset.merged, method="fuzzy")[keepix, , drop=FALSE]
+      scrisp <- getSubtype(eset=eset.merged, method="crisp")[keepix, , drop=FALSE]
+      eset.merged <- setSubtype(eset=eset.merged, subtype.class=sclass, subtype.fuzzy=sfuzzy, subtype.crisp=scrisp)
+      ## individual esets
+      ## Repeat for each of individual datasets
+      eset.all <- lapply(eset.all, function (x, y) {
+        keepix <- setdiff(Biobase::sampleNames(x), y)
+        Biobase::exprs(x) <- Biobase::exprs(x)[ , keepix, drop=FALSE]
+        Biobase::pData(x) <- Biobase::pData(x)[keepix, , drop=FALSE]
+        sclass <- getSubtype(eset=x, method="class")[keepix]
+        sfuzzy <- getSubtype(eset=x, method="fuzzy")[keepix, , drop=FALSE]
+        scrisp <- getSubtype(eset=x, method="crisp")[keepix, , drop=FALSE]
+        eset.merged <- setSubtype(eset=x, subtype.class=sclass, subtype.fuzzy=sfuzzy, subtype.crisp=scrisp)
+        entrezgene <- NULL
+        return(x)
+      }, y=rmix)
+      entrezgene <- NULL
+      for(entrez in 1:nrow(fData(eset.merged))){
+        entrezgene <- c(entrezgene, paste("geneid", as.character(fData(eset.merged)[entrez,"entrezgene"] ), sep="."))
+      }
+      rownames(fData(eset.merged)) <- entrezgene
+    }
     
-    ## End of getOvCaData
+    return (list("merged"=eset.merged, "each"=eset.all)) #Return 
   }
+
+    ## End of getOvCaData
