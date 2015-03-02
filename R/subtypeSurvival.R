@@ -4,6 +4,11 @@
 ## September 1, 2013
 ########################
 
+########################
+## Natchar Ratanasirigulchai
+## changes made on March 2, 2015
+########################
+
 
 `subtypeSurvival` <- 
 function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs", "tdm", "os"), time.cens, condensed=TRUE, resdir="cache", nthread=1, sig.method, sig.scaling) {
@@ -82,7 +87,8 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   }
   
   if (missing(sig)) {
-    sig <- as.list(rownames(Biobase::fData(eset)[ , "ENTREZID"]))
+    sig <- as.list(rownames(Biobase::fData(eset)))
+#     sig <- as.list(rownames(Biobase::fData(eset)[ , "ENTREZID"]))
     ## assign gene symbol as signature names
     gsymb <- Biobase::fData(eset)[ , "SYMBOL"]
     gsymb[is.na(gsymb)] <- paste("ENTREZID", Biobase::fData(eset)[is.na(gsymb), "ENTREZID"], sep=".")
@@ -117,7 +123,7 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   sbts.crisp <- getSubtype(eset=eset, method="crisp")
   sbts.crisp <- cbind("Global"=1, sbts.crisp)
   sbtu <- colnames(sbts.proba)
-  
+  message("build matrix sig scores")
   ## build matrix of signature scores in parallel
   splitix <- parallel::splitIndices(nx=length(sig), ncl=nthread)
   splitix <- splitix[sapply(splitix, length) > 0]
@@ -131,15 +137,29 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   expr <- t(do.call(cbind, do.call(c, mcres)))
   rownames(expr) <- names(sig)
   ## extract survival data
-  stime <- Biobase::pData(eset)[ , sprintf("t.%s", surv.type)] / 365
+#   stime <- Biobase::pData(eset)[ , sprintf("t.%s", surv.type)] / 365
+  switch(surv.type,
+         "os" = {
+           stime <- pData(eset)[, "days_to_death"]/365
+         },
+         "rfs" = {
+           stime <- pData(eset) [,"days_to_tumor_recurrence"]/365
+         })
   time.cens <- time.cens / 365
-  sevent <- Biobase::pData(eset)[ , sprintf("e.%s", surv.type)]
+#   sevent <- Biobase::pData(eset)[ , sprintf("e.%s", surv.type)]
+  switch(surv.type,
+       "os" = {
+         sevent <-as.numeric(pData(eset)[, "vital_status"] == "living")
+       },
+       "rfs" = {
+         sevent <- pData(eset) [,"recurrence_status"]
+       })
   ss <- survcomp::censor.time(surv.time=stime, surv.event=sevent, time.cens=time.cens)  
   stime <- ss[[1]]
   sevent <- ss[[2]]
   ## strata
   strat <- as.factor(Biobase::pData(eset)[ , "dataset"])
-  
+  message("cindex")
   ## concordance index
   splitix <- parallel::splitIndices(nx=nrow(expr), ncl=nthread)
   splitix <- splitix[sapply(splitix, length) > 0]
@@ -174,6 +194,7 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   cindices <- rr
   
   ## D index (hazard ratio)
+message("dindex")
   splitix <- parallel::splitIndices(nx=nrow(expr), ncl=nthread)
   splitix <- splitix[sapply(splitix, length) > 0]
   mcres <- parallel::mclapply(splitix, function(x, expr, stime, sevent, strat, sbts.proba) {
@@ -235,3 +256,5 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   }
 
 }
+
+
