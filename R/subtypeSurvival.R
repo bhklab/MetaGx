@@ -149,7 +149,7 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
 #   sevent <- Biobase::pData(eset)[ , sprintf("e.%s", surv.type)]
   switch(surv.type,
        "os" = {
-         sevent <-as.numeric(pData(eset)[, "vital_status"] == "living")
+         sevent <-as.numeric(pData(eset)[, "vital_status"] == "deceased")
        },
        "rfs" = {
          sevent <- pData(eset) [,"recurrence_status"]
