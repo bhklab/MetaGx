@@ -6,11 +6,11 @@
 ########################
 #################
 ## loading and changing curatedOvarianData
-## Natchar March 4, 2015
+## Natchar March 11, 2015
 #################
 `getOvCaData` <- 
   function (resdir="cache", probegene.method, remove.duplicates=TRUE, topvar.genes=1000, duplicates.cor=0.98, datasets, sbt.model=c("scmgene", "scmod2", "scmod1", "pam50", "ssp2006", "ssp2003"), merging.method=c("union", "intersection"), merging.std=c("quantile", "robust.scaling", "scaling", "none"), nthread=1, verbose=TRUE) {  
-  
+    
     availcore <- parallel::detectCores()
     if (nthread > availcore) { nthread <- availcore }
     options("mc.cores"=nthread)
@@ -49,16 +49,33 @@
     }
     sampleNames(esets[[num.esets-1]]) <- RNAnames  
     
+    esets <- esets[-20]
     for(i in 1:length(esets)){
+      print(paste("i",i))
       dataset <-rep(names(esets)[i], nrow(pData(esets[[i]])))
       pData(esets[[i]]) <- cbind(pData(esets[[i]]), dataset)
       
       ####### fData to include entrezgeneID
-      entrezgene <- list()
+
       gs <- toTable(org.Hs.egSYMBOL)
       gs <- gs[!is.na(gs[ , "symbol"]) & !duplicated(gs[ , "symbol"]), , drop=FALSE]
-      gs <- gs[fData(esets[[i]])[,"gene"], "gene_id"]
+      rownames(gs) <- gs[,"symbol"]
+      gs<- gs[match(fData(esets[[i]])[,"gene"],rownames(gs)),"gene_id"]
+      na.index <- which(is.na(gs))
       
+      if (length(na.index) >0){
+      exprs(esets[[i]]) <- exprs(esets[[i]])[-na.index,]
+      fData(esets[[i]]) <- fData(esets[[i]])[-na.index,]
+      }
+      
+      gs <- as.character(gs[!is.na(gs)])
+#       gs <- na.omit(gs)
+      entrezgene <- gs
+      ENTREZID <-gs
+#       fData(esets[[i]])$entrezgene <- rep("a",each=nrow(fData(esets[[i]])))
+#       fData(esets[[i]])$ENTREZID <- rep("a",each=nrow(fData(esets[[i]])))
+#       fData(esets[[i]]) <- cbind(fData(esets[[i]]), entrezgene)
+#       fData(esets[[i]]) <- cbind(fData(esets[[i]]), ENTREZID)
       fData(esets[[i]])$entrezgene <- gs
       fData(esets[[i]])$ENTREZID<- gs
       rownames(fData(esets[[i]])) <- gs
@@ -161,4 +178,4 @@
     return (list("merged"=eset.merged, "each"=eset.all)) #Return 
   }
 
-    ## End of getOvCaData
+## End of getOvCaData
