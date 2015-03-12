@@ -6,12 +6,12 @@
 
 ########################
 ## Natchar Ratanasirigulchai
-## changes made on March 2, 2015
+## changes made on March 12, 2015
 ########################
 
 
 `subtypeSurvival` <- 
-function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs", "tdm", "os"), time.cens, condensed=TRUE, resdir="cache", nthread=1, sig.method, sig.scaling) {
+function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs", "tdm", "os"), time.cens, condensed=TRUE, resdir="cache", nthread=1, sig.method, sig.scaling, label=c("symbol", "entrez")) {
 
   ######################
   
@@ -79,7 +79,7 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   }
   
   ######################
- 
+  label <- match.arg(label)
   surv.type <- match.arg(surv.type)
   
   if (class(eset) != "ExpressionSet") {
@@ -136,6 +136,14 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
   }, sig=sig, eset=eset, sigm=sig.method, sigs=sig.scaling)
   expr <- t(do.call(cbind, do.call(c, mcres)))
   rownames(expr) <- names(sig)
+
+if(label == "symbol"){
+  rownames(expr) <- fData(eset)[names(sig),"SYMBOL"]
+} else{
+  rownames(expr) <- names(sig)
+}  
+
+
   ## extract survival data
 #   stime <- Biobase::pData(eset)[ , sprintf("t.%s", surv.type)] / 365
   switch(surv.type,
@@ -144,6 +152,9 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
          },
          "rfs" = {
            stime <- pData(eset) [,"days_to_tumor_recurrence"]/365
+         }, 
+         "dmfs"= {
+           stime <- pData(eset) [, "t.dmfs"]/365
          })
   time.cens <- time.cens / 365
 #   sevent <- Biobase::pData(eset)[ , sprintf("e.%s", surv.type)]
@@ -153,6 +164,9 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
        },
        "rfs" = {
          sevent <- pData(eset) [,"recurrence_status"]
+       },
+       "dmfs" = {
+         sevent <- pData(eset)[, "e.dmfs"]
        })
   ss <- survcomp::censor.time(surv.time=stime, surv.event=sevent, time.cens=time.cens)  
   stime <- ss[[1]]
@@ -172,7 +186,12 @@ function (eset, sig, plot=FALSE, weighted=FALSE, surv.type=c("dfs", "rfs", "dmfs
     }, expr=expr, stime=stime, sevent=sevent, strat=strat, sbts.proba=sbts.proba)
   }, expr=expr, stime=stime, sevent=sevent, strat=strat, sbts.proba=sbts.proba)
   rr <- unlist(mcres, recursive=FALSE)
-  names(rr) <- names(sig)
+  if(label == "symbol"){
+    names(rr) <- fData(eset)[names(sig),"SYMBOL"]
+  } else{
+    names(rr) <- names(sig)
+  }  
+
   ## save results
   dd <- lapply(rr, data.frame)
   if (condensed) {
@@ -206,7 +225,11 @@ message("dindex")
     }, expr=expr, stime=stime, sevent=sevent, strat=strat, sbts.proba=sbts.proba)
   }, expr=expr, stime=stime, sevent=sevent, strat=strat, sbts.proba=sbts.proba)
   rr <- unlist(mcres, recursive=FALSE)
-  names(rr) <- names(sig)
+  if(label == "symbol"){
+    names(rr) <- fData(eset)[names(sig),"SYMBOL"]
+  } else{
+    names(rr) <- names(sig)
+  }  
   ## save results
   dd <- lapply(rr, data.frame)
   if (condensed) {
