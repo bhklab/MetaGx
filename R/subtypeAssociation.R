@@ -4,9 +4,13 @@
 ## September 1, 2013
 ########################
 
+########################
+## Natchar Ratanasirigulchai
+## Changes made on: March 12, 2015
+########################
 
 `subtypeAssociation` <- 
-function (eset, sig, plot=TRUE, subtype.col, weighted=FALSE, condensed=TRUE, resdir="cache", nthread=1, ...) {
+function (eset, sig, plot=TRUE, subtype.col, weighted=FALSE, condensed=TRUE, resdir="cache", nthread=1, label=c("symbol", "entrez"), ...) {
   ## assess association between gene expression and subtypes
   #
   # Arga:
@@ -19,12 +23,15 @@ function (eset, sig, plot=TRUE, subtype.col, weighted=FALSE, condensed=TRUE, res
   #   Kruskal-Wallist to test whether the expression of the genes(s) of interest is dependent on the molecular subtypes
   #   pairwise wilcoxon rank sum test p-values, is the expression of the gene(s) of interest higher in the subtype in rows compared to the subtype in column?
   
+  label <- match.arg(label)
+  
   if (class(eset) != "ExpressionSet") {
     stop("Handling list of expressionSet objects is not implemented yet")
   }
   
   if (missing(sig)) {
-    sig <- as.list(rownames(Biobase::fData(eset)[ , "ENTREZID"]))
+    sig <- as.list(rownames(Biobase::fData(eset)))
+#     sig <- as.list(rownames(Biobase::fData(eset)[ , "ENTREZID"]))
     ## assign gene symbol as signature names
     gsymb <- Biobase::fData(eset)[ , "SYMBOL"]
     gsymb[is.na(gsymb)] <- paste("ENTREZID", Biobase::fData(eset)[is.na(gsymb), "ENTREZID"], sep=".")
@@ -100,9 +107,15 @@ function (eset, sig, plot=TRUE, subtype.col, weighted=FALSE, condensed=TRUE, res
   }, sig=sig, eset=eset, sbts=sbts, sbtu=sbtu, ...)
   pp <- do.call(c, mcres)
   pp <- pp[!sapply(pp, is.null)]
-  for (i in 1:length(pp)) {
-    pp[[i]]$name <- names(pp)[i]
+  
+  if(label == "symbol"){
+    names(pp) <- fData(eset)[names(pp), "SYMBOL"]
   }
+
+    for (i in 1:length(pp)) {
+      pp[[i]]$name <- names(pp)[i]
+    }
+
   # names(pp) <- names(sig)
   
   if (plot) {
