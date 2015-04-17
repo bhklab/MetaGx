@@ -51,7 +51,7 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   )
   ## expression data
   exprs.merged <- lapply(esets, function (x, y) {
-    ee <- Biobase::exprs(x)
+    ee <- Biobase::exprs(x)[is.element(rownames(exprs(x)),rownames(feature.merged)),]
     print(dim(ee))
     eem <- matrix(NA, nrow=length(y), ncol=ncol(ee), dimnames=list(y, colnames(ee)))
     print(dim(eem))
