@@ -1,4 +1,17 @@
 getVerhaakSubtypes <- function(eset) {
+  ## Load gene sets from the original publication
+	x <- read.xls("test/JCI65833sd1.xls", sheet=7, skip=1)
+	genesets <- lapply(levels(x$CLASS), function(y) as.character(x[x$CLASS==y,1]))
+	names(genesets) <-  levels(x$CLASS)
   ## Get ssGSEA subtype scores
-  ## Classify each sample according to the max ssGSEA subtype score. Note that 
+  gsva.out <- gsva(exprs(my.eset), genesets,mx.diff=TRUE, parallel.sz=1)[[1]]
+  gsva.out <- t(gsva.out)
+  ## Classify each sample according to the max ssGSEA subtype score. Note that this differs slightly
+  # from the Veerhak et al. classification which has a "first pass" for classifying
+  # Immunoreactive and Mesenchymal classes, followed by classification of remaining samples into
+  # the max-scoring ssGSEA value for the four subtypes.
+  subclasses <- as.factor(apply(gsva.out, 1, function(x) colnames(gsva.out)[which.max(x)]))
+  ## Append a new column for Verhaak subtypes
+  
+  pData(eset) <- data.frame(pData(eset), Verhaak.subtypes=subclasses)
 }
