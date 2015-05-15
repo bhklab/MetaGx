@@ -14,4 +14,5 @@ getVerhaakSubtypes <- function(eset) {
   ## Append a new column for Verhaak subtypes
   
   pData(eset) <- data.frame(pData(eset), Verhaak.subtypes=subclasses)
+  return(list(Annotated.eset=eset, gsva.out=gsva.out))
 }
