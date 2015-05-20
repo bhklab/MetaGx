@@ -1,0 +1,70 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+
+
+\begin{document}
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=FALSE, fig.width=12, fig.height=8, fig.path='figures/', fig.align='center',
+fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE)
+options(replace.assign=TRUE,width=90)
+@
+
+\title{Reproduction of Published Ovarian Subtyping Schemes}
+
+%\author{Gregory M. Chen}
+\maketitle
+
+\tableofcontents 
+
+<<load>>=
+library(gdata)
+library(Biobase)
+library(GSVA)
+library(MetaGx)
+
+load("~/Desktop/test/eset.scaled.rda")
+source("../R/getVerhaakSubtypes.R")
+@
+
+% Verhaak et al., 2013
+
+<<verhaak>>=
+spreadsheet.data <- read.xls("../inst/extdata/JCI65833sd1.xls", skip=1)
+## Examine the correlation between normalized ssGSEA scores in the Tothill dataset, as predicted by our implementation and that of Verhaak et al.
+tothill.eset <- esets$GSE9891_eset
+implemented.verhaak.output <- getVerhaakSubtypes(tothill.eset)
+
+# extract the official CLOVAR subtype scores and compare with our implementation
+tothill.spreadsheet.data <- spreadsheet.data[grep("Tothill", spreadsheet.data$DATASET),]
+
+# Include patients in both data sets
+tothill.spreadsheet.data <- tothill.spreadsheet.data[c(1,grep(".ssGSEA.raw.score", colnames(tothill.spreadsheet.data)))]
+tothill.spreadsheet.data[,-1] <- sapply(tothill.spreadsheet.data[,-1], as.numeric)
+rownames(tothill.spreadsheet.data) <- tothill.spreadsheet.data$ID
+tothill.spreadsheet.data <- tothill.spreadsheet.data[,-1]
+merged <- merge(implemented.verhaak.output$gsva.out, tothill.spreadsheet.data, by="row.names")
+
+# Plot correlations between ssGSEA scores
+plot(merged$DIF, merged$Differentiated.ssGSEA.raw.score)
+plot(merged$IMR, merged$Immunoreactive.ssGSEA.raw.score)
+plot(merged$MES, merged$Mesenchymal.ssGSEA.raw.score)
+plot(merged$PRO, merged$Proliferative.ssGSEA.raw.score)
+
+cor(merged$DIF, merged$Differentiated.ssGSEA.raw.score)
+cor(merged$IMR, merged$Immunoreactive.ssGSEA.raw.score)
+cor(merged$MES, merged$Mesenchymal.ssGSEA.raw.score)
+cor(merged$PRO, merged$Proliferative.ssGSEA.raw.score)
+
+mean(apply(merged[,2:5],1,which.max) == apply(merged[,6:9],1,which.max))
+@
+
+\end{document}

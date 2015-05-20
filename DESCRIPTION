@@ -5,6 +5,8 @@ Version: 0.9
 Date: 2015-01-08
 Author: Benjamin Haibe-Kains, Pierre-Olivier Bachant-Winner, Natchar Ratanasirigulchai 
 Maintainer: Benjamin Haibe-Kains <benjamin.haibe.kains@utoronto.ca>
+VignetteBuilder: knitr
 Description: This package contains a set of functions to perform meta-analysis of cancer gene expressions.
 License: Artistic-2.0
 Depends: Biobase, BiocGenerics, org.Hs.eg.db, jetset, survival, survcomp, genefu, mRMRe, WriteXLS, lsa
+Suggests: knitr
