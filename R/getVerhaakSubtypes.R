@@ -1,13 +1,14 @@
 getVerhaakSubtypes <- function(eset) {
   ## Load gene sets from the original publication
-	#x <- read.xls(system.file(file.path("extdata", "JCI65833sd1.xls"), package="MetaGx"), sheet=7, skip=1)
-	x <- read.xls("../inst/extdata/JCI65833sd1.xls", sheet=7, skip=1)
+  # Load Verhaak et al. supplementary from the package inst directory
+	#supplementary.data <- read.xls(system.file(file.path("extdata", "JCI65833sd1.xls"), package="MetaGx"), sheet=7, skip=1)
+  # Use this instead when running this method from source
+	supplementary.data <- read.xls("../inst/extdata/JCI65833sd1.xls", sheet=7, skip=1)
 
-	genesets <- lapply(levels(x$CLASS), function(y) as.character(x[x$CLASS==y,1]))
-	names(genesets) <-  levels(x$CLASS)
+	genesets <- lapply(levels(supplementary.data$CLASS), function(y) as.character(supplementary.data[supplementary.data$CLASS==y,1]))
+	names(genesets) <-  levels(supplementary.data$CLASS)
   ## Get ssGSEA subtype scores
-  #gsva.out <- gsva(exprs(eset), genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=1)
-	gsva.out <- gsva(exprs(eset), genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=1, ssgsea.norm=FALSE)
+	gsva.out <- gsva(exprs(eset), genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=1)
   gsva.out <- t(gsva.out)
   ## Classify each sample according to the max ssGSEA subtype score. Note that this differs slightly
   # from the Veerhak et al. classification which has a "first pass" for classifying

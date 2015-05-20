@@ -29,7 +29,7 @@ options(replace.assign=TRUE,width=90)
 library(gdata)
 library(Biobase)
 library(GSVA)
-library(MetaGx)
+library(MetaGx2)
 
 load("~/Desktop/test/eset.scaled.rda")
 source("../R/getVerhaakSubtypes.R")
@@ -47,24 +47,33 @@ implemented.verhaak.output <- getVerhaakSubtypes(tothill.eset)
 tothill.spreadsheet.data <- spreadsheet.data[grep("Tothill", spreadsheet.data$DATASET),]
 
 # Include patients in both data sets
-tothill.spreadsheet.data <- tothill.spreadsheet.data[c(1,grep(".ssGSEA.raw.score", colnames(tothill.spreadsheet.data)))]
-tothill.spreadsheet.data[,-1] <- sapply(tothill.spreadsheet.data[,-1], as.numeric)
+tothill.spreadsheet.data <- tothill.spreadsheet.data[c(1,13,grep(".ssGSEA.normalized.score", colnames(tothill.spreadsheet.data)))]
+tothill.spreadsheet.data[,c(-1,-2)] <- sapply(tothill.spreadsheet.data[,c(-1,-2)], as.numeric)
 rownames(tothill.spreadsheet.data) <- tothill.spreadsheet.data$ID
 tothill.spreadsheet.data <- tothill.spreadsheet.data[,-1]
+tothill.spreadsheet.data$CloverLeaf <- as.character(tothill.spreadsheet.data$CloverLeaf)
+tothill.spreadsheet.data$CloverLeaf <- sub("_Good", "", as.character(tothill.spreadsheet.data$CloverLeaf))
+tothill.spreadsheet.data$CloverLeaf <- sub("_Poor", "", as.character(tothill.spreadsheet.data$CloverLeaf))
+tothill.spreadsheet.data$CloverLeaf <- as.factor(tothill.spreadsheet.data$CloverLeaf)
+
+predicted.subtypes <- pData(implemented.verhaak.output$Annotated.eset)[,colnames(pData(implemented.verhaak.output$Annotated.eset))=="Verhaak.subtypes",drop=FALSE]
 merged <- merge(implemented.verhaak.output$gsva.out, tothill.spreadsheet.data, by="row.names")
+rownames(merged) <- merged$Row.names
+merged <- merged[,-1]
+merged <- merge(merged, predicted.subtypes, by="row.names")
 
 # Plot correlations between ssGSEA scores
-plot(merged$DIF, merged$Differentiated.ssGSEA.raw.score)
-plot(merged$IMR, merged$Immunoreactive.ssGSEA.raw.score)
-plot(merged$MES, merged$Mesenchymal.ssGSEA.raw.score)
-plot(merged$PRO, merged$Proliferative.ssGSEA.raw.score)
+plot(merged$DIF, merged$Differentiated.ssGSEA.normalized.score)
+plot(merged$IMR, merged$Immunoreactive.ssGSEA.normalized.score)
+plot(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score)
+plot(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
 
-cor(merged$DIF, merged$Differentiated.ssGSEA.raw.score)
-cor(merged$IMR, merged$Immunoreactive.ssGSEA.raw.score)
-cor(merged$MES, merged$Mesenchymal.ssGSEA.raw.score)
-cor(merged$PRO, merged$Proliferative.ssGSEA.raw.score)
+cor(merged$DIF, merged$Differentiated.ssGSEA.normalized.score)
+cor(merged$IMR, merged$Immunoreactive.ssGSEA.normalized.score)
+cor(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score)
+cor(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
 
-mean(apply(merged[,2:5],1,which.max) == apply(merged[,6:9],1,which.max))
+mean(apply(merged[,2:5],1,which.max) == apply(merged[,7:10],1,which.max))
 @
 
 \end{document}
