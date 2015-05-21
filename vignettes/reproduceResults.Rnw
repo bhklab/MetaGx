@@ -13,7 +13,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=FALSE, fig.width=12, fig.height=8, fig.path='figures/', fig.align='center',
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center',
 fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE)
 options(replace.assign=TRUE,width=90)
 @
@@ -30,17 +30,20 @@ library(gdata)
 library(Biobase)
 library(GSVA)
 library(MetaGx2)
-
-load("~/Desktop/test/eset.scaled.rda")
-source("../R/getVerhaakSubtypes.R")
+library(MetaGxOvarian)
+source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
+### use this line if you do not want to get rid of duplicates
+rm(remove.duplicates)
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 @
 
 % Verhaak et al., 2013
 
 <<verhaak>>=
+source("../R/getVerhaakSubtypes.R")
 spreadsheet.data <- read.xls("../inst/extdata/JCI65833sd1.xls", skip=1)
 ## Examine the correlation between normalized ssGSEA scores in the Tothill dataset, as predicted by our implementation and that of Verhaak et al.
-tothill.eset <- esets$GSE9891_eset
+tothill.eset <- esets$GSE9891
 implemented.verhaak.output <- getVerhaakSubtypes(tothill.eset)
 
 # extract the official CLOVAR subtype scores and compare with our implementation
@@ -57,6 +60,11 @@ tothill.spreadsheet.data$CloverLeaf <- sub("_Poor", "", as.character(tothill.spr
 tothill.spreadsheet.data$CloverLeaf <- as.factor(tothill.spreadsheet.data$CloverLeaf)
 
 predicted.subtypes <- pData(implemented.verhaak.output$Annotated.eset)[,colnames(pData(implemented.verhaak.output$Annotated.eset))=="Verhaak.subtypes",drop=FALSE]
+
+# keep only patient id as the rownames
+rownames(predicted.subtypes) <- sub("GSE9891_", "", rownames(predicted.subtypes))
+rownames(implemented.verhaak.output$gsva.out) <- sub("GSE9891_", "", rownames(implemented.verhaak.output$gsva.out))
+
 merged <- merge(implemented.verhaak.output$gsva.out, tothill.spreadsheet.data, by="row.names")
 rownames(merged) <- merged$Row.names
 merged <- merged[,-1]
@@ -73,7 +81,12 @@ cor(merged$IMR, merged$Immunoreactive.ssGSEA.normalized.score)
 cor(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score)
 cor(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
 
+
 mean(apply(merged[,2:5],1,which.max) == apply(merged[,7:10],1,which.max))
 @
 
+
+<<konecny>>=
+source("../R/getKonecnySubtypes.R")
+@
 \end{document}
