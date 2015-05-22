@@ -27,6 +27,7 @@ options(replace.assign=TRUE,width=90)
 
 <<load>>=
 library(gdata)
+library(xtable)
 library(Biobase)
 library(GSVA)
 library(MetaGx2)
@@ -39,7 +40,7 @@ source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 
 % Verhaak et al., 2013
 
-<<verhaak>>=
+<<verhaak, eval=TRUE>>=
 source("../R/getVerhaakSubtypes.R")
 verhaak.spreadsheet.data <- read.xls("../inst/extdata/JCI65833sd1.xls", skip=1)
 ## Examine the correlation between normalized ssGSEA scores in the Tothill dataset, as predicted by our implementation and that of Verhaak et al.
@@ -87,7 +88,7 @@ mean(apply(merged[,2:5],1,which.max) == apply(merged[,7:10],1,which.max))
 @
 
 
-<<konecny>>=
+<<konecny, results='asis'>>=
 source("../R/getKonecnySubtypes.R")
 # validate on Bonome dataset
 bonome.eset <- esets$GSE26712
@@ -107,8 +108,14 @@ merged$Konecny.subtypes <- as.factor(gsub("[^0-9]", "", merged$Konecny.subtypes)
 merged$Mayo_assgn_subtype_vec <- as.factor(merged$Mayo_assgn_subtype_vec)
 # Remove observations which the authors left unclassified
 merged <- merged[complete.cases(merged),]
-
-#TODO: create a nice output for this contingency table
-print(ftable(merged))
+merged[] <- sapply(merged, function(x) {levels(x) <- paste0("c", levels(x)); as.factor(x)})
+merged$Konecny.subtypes <- as.factor(merged$Konecny.subtypes)
+merged$Mayo_assgn_subtype_vec <- as.factor(merged$Mayo_assgn_subtype_vec)
+addtorow <- list()
+addtorow$pos <- list()
+addtorow$pos[[1]] <- 0
+addtorow$pos[[2]] <- 0
+addtorow$command <- c('& Konecny Subtypes from Supplementary & & &\\\\\n', "Implemented Konecny Subtypes & c1 & c2 & c3 & c4 \\\\\n")
+print(xtable(as.table(ftable(merged))), add.to.row=addtorow, include.colnames=FALSE)
 @
 \end{document}
