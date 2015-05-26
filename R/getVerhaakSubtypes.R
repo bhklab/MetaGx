@@ -12,7 +12,7 @@ getVerhaakSubtypes <- function(eset) {
   rownames(expression.matrix) <- fData(eset)$gene[match(rownames(expression.matrix), rownames(fData(eset)))]
   
   ## Get ssGSEA subtype scores
-	gsva.out <- gsva(expression.matrix, genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=1)
+	gsva.out <- gsva(expression.matrix, genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=4)
   gsva.out <- t(gsva.out)
   ## Classify each sample according to the max ssGSEA subtype score. Note that this differs slightly
   # from the Veerhak et al. classification which has a "first pass" for classifying

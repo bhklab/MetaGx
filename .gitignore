@@ -1,6 +1,7 @@
 R/OvarianSubtyping/test/
 .Rproj.user
 *.Rproj
+*.synctex.gz
 .RData
 .Rhistory
 .DS_Store
