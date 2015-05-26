@@ -30,12 +30,23 @@ library(gdata)
 library(xtable)
 library(Biobase)
 library(GSVA)
+library(sparsediscrim)
 library(MetaGx2)
 library(MetaGxOvarian)
 source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
+#source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
+#source("../inst/extdata/reproduce.results.patientselection.config")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
+rm(probe.gene.mapping)
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+
+get.gene.mapping <- function(eset) {
+  Biobase::exprs(eset) <- exprs(eset)[fData(eset)$best_probe,]
+  Biobase::fData(eset) <- fData(eset)[fData(eset)$best_probe,]
+  rownames(fData(eset)) <- rownames(exprs(eset)) <- paste("geneid.", fData(eset)$EntrezGene.ID, sep="")
+  return(eset)
+}
 @
 
 % Verhaak et al., 2013
@@ -44,33 +55,71 @@ source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 source("../R/getVerhaakSubtypes.R")
 verhaak.spreadsheet.data <- read.xls("../inst/extdata/JCI65833sd1.xls", skip=1)
 ## Examine the correlation between normalized ssGSEA scores in the Tothill dataset, as predicted by our implementation and that of Verhaak et al.
-tothill.eset <- esets$GSE9891
-implemented.verhaak.output <- getVerhaakSubtypes(tothill.eset)
+verhaak.validation.esets <- list(Bonome=esets$GSE26712,
+                                 Crijns=esets$GSE13876, 
+                                 Denkert=esets$GSE14764, 
+                                 Dressman=esets$PMID17290060, 
+                                 TCGA=esets$TCGA, # This contains the full TCGA set, but we will filter to the validation data later
+                                 Tothill=esets$GSE9891, 
+                                 Yoshihara=esets$GSE17260)
 
-# extract the official CLOVAR subtype scores and compare with our implementation
-tothill.verhaak.spreadsheet.data <- verhaak.spreadsheet.data[grep("Tothill", verhaak.spreadsheet.data$DATASET),]
+verhaak.validation.esets <- lapply(verhaak.validation.esets, get.gene.mapping)
+implemented.verhaak.output <- lapply(verhaak.validation.esets, getVerhaakSubtypes)
 
-# Include patients in both data sets
-tothill.verhaak.spreadsheet.data <- tothill.verhaak.spreadsheet.data[c(1,13,grep(".ssGSEA.normalized.score", colnames(tothill.verhaak.spreadsheet.data)))]
-tothill.verhaak.spreadsheet.data[,c(-1,-2)] <- sapply(tothill.verhaak.spreadsheet.data[,c(-1,-2)], as.numeric)
-rownames(tothill.verhaak.spreadsheet.data) <- tothill.verhaak.spreadsheet.data$ID
-tothill.verhaak.spreadsheet.data <- tothill.verhaak.spreadsheet.data[,-1]
-tothill.verhaak.spreadsheet.data$CloverLeaf <- as.character(tothill.verhaak.spreadsheet.data$CloverLeaf)
-tothill.verhaak.spreadsheet.data$CloverLeaf <- sub("_Good", "", as.character(tothill.verhaak.spreadsheet.data$CloverLeaf))
-tothill.verhaak.spreadsheet.data$CloverLeaf <- sub("_Poor", "", as.character(tothill.verhaak.spreadsheet.data$CloverLeaf))
-tothill.verhaak.spreadsheet.data$CloverLeaf <- as.factor(tothill.verhaak.spreadsheet.data$CloverLeaf)
+
+
+implemented.ssgsea.scores <- data.frame(Dataset.name=character(0), sample.name=character(0), DIF=numeric(0), IMR=numeric(0), MES=numeric(0), PRO=numeric(0))
+
+for(i in 1:length(implemented.verhaak.output)) {
+  current.implemented.ssgsea.scores <- as.data.frame(implemented.verhaak.output[[i]][[2]])
+  Dataset.name <- names(implemented.verhaak.output)[i]
+  # Find the sample names corresponding to the names provided in the Verhaak et al. supplementary spreadsheet
+  if(Dataset.name == "Bonome") {
+    sample.name <- sub(".* ", "", pData(verhaak.validation.esets[[i]])$alt_sample_name)
+  } else if(Dataset.name == "Crijns") {
+    sample.name <- as.character(pData(verhaak.validation.esets[[i]])$unique_patient_ID)
+  } else if(Dataset.name == "Denkert") {
+     sample.name <- sub("GSE14764_", "", rownames(pData(verhaak.validation.esets[[i]])))
+  } else if(Dataset.name == "Dressman") {
+    sample.name <- sub("PMID17290060_X", "", rownames(pData(verhaak.validation.esets[[i]])))
+  } else if(Dataset.name == "TCGA") {
+    sample.name <- as.character(pData(verhaak.validation.esets[[i]])$unique_patient_ID)
+  }  else if(Dataset.name == "Tothill") {
+    sample.name <- sub("GSE9891_", "", rownames(pData(verhaak.validation.esets[[i]])))
+  }  else if(Dataset.name == "Yoshihara") {
+    sample.name <- sub("GSE17260_", "", rownames(pData(verhaak.validation.esets[[i]])))
+  }
+  current.ssgsea.scores <- as.data.frame(implemented.verhaak.output[[i]][[2]])
+  implemented.ssgsea.scores <- rbind(implemented.ssgsea.scores, data.frame(
+                                                                      Dataset.name=Dataset.name,
+                                                                      sample.name=sample.name,
+                                                                      DIF=current.ssgsea.scores$DIF,
+                                                                      IMR=current.ssgsea.scores$IMR,
+                                                                      MES=current.ssgsea.scores$MES,
+                                                                      PRO=current.ssgsea.scores$PRO))
+}
+
+implemented.ssgsea.scores$Dataset.name <- as.character(implemented.ssgsea.scores$Dataset.name)
+implemented.ssgsea.scores$Dataset.name[implemented.ssgsea.scores$Dataset.name == "TCGA"] <- "TCGA-validation"
+implemented.ssgsea.scores$Dataset.name <- as.factor(implemented.ssgsea.scores$Dataset.name)
+
+verhaak.spreadsheet.data <- verhaak.spreadsheet.data[c(1,2,13,grep(".ssGSEA.normalized.score", colnames(verhaak.spreadsheet.data)))]
+levels(implemented.ssgsea.scores$Dataset.name) <- toupper(levels(implemented.ssgsea.scores$Dataset.name))
+levels(implemented.ssgsea.scores$sample.name) <- toupper(levels(implemented.ssgsea.scores$sample.name))
+levels(verhaak.spreadsheet.data$ID) <- toupper(levels(verhaak.spreadsheet.data$ID))
+levels(verhaak.spreadsheet.data$DATASET) <- toupper(levels(verhaak.spreadsheet.data$DATASET))
+
+verhaak.spreadsheet.data$CloverLeaf <- as.character(verhaak.spreadsheet.data$CloverLeaf)
+verhaak.spreadsheet.data$CloverLeaf <- sub("_Good", "", as.character(verhaak.spreadsheet.data$CloverLeaf))
+verhaak.spreadsheet.data$CloverLeaf <- sub("_Poor", "", as.character(verhaak.spreadsheet.data$CloverLeaf))
+verhaak.spreadsheet.data$CloverLeaf <- as.factor(verhaak.spreadsheet.data$CloverLeaf)
+
+colnames(implemented.ssgsea.scores)[1:2] <- c("DATASET", "ID")
 
 # subtypes predicted by our implementation
 verhaak.predicted.subtypes <- pData(implemented.verhaak.output$Annotated.eset)[,colnames(pData(implemented.verhaak.output$Annotated.eset))=="Verhaak.subtypes",drop=FALSE]
 
-# keep only patient id as the rownames
-rownames(verhaak.predicted.subtypes) <- sub("GSE9891_", "", rownames(verhaak.predicted.subtypes))
-rownames(implemented.verhaak.output$gsva.out) <- sub("GSE9891_", "", rownames(implemented.verhaak.output$gsva.out))
-
-merged <- merge(implemented.verhaak.output$gsva.out, tothill.verhaak.spreadsheet.data, by="row.names")
-rownames(merged) <- merged$Row.names
-merged <- merged[,-1]
-merged <- merge(merged, verhaak.predicted.subtypes, by="row.names")
+merged <- merge(implemented.ssgsea.scores, verhaak.spreadsheet.data, by=c("DATASET", "ID"))
 
 # Plot correlations between ssGSEA scores
 plot(merged$DIF, merged$Differentiated.ssGSEA.normalized.score)
@@ -84,14 +133,14 @@ cor(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score)
 cor(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
 
 
-mean(apply(merged[,2:5],1,which.max) == apply(merged[,7:10],1,which.max))
+mean(apply(merged[,3:6],1,which.max) == apply(merged[,8:11],1,which.max))
 @
 
 
 <<konecny, results='asis'>>=
 source("../R/getKonecnySubtypes.R")
 # validate on Bonome dataset
-bonome.eset <- esets$GSE26712
+bonome.eset <- get.gene.mapping(esets$GSE26712)
 implemented.konecny.out <- getKonecnySubtypes(bonome.eset)
 konecny.spreadsheet.data <- read.xls("../inst/extdata/jnci_JNCI_14_0249_s06.xls")
 # subtypes generated by our implementation
