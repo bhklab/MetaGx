@@ -7,7 +7,7 @@
 \usepackage[latin1]{inputenc}
 \usepackage{geometry}
 \geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
-
+\usepackage[table]{xcolor}
 
 \begin{document}
 
@@ -18,9 +18,10 @@ fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE)
 options(replace.assign=TRUE,width=90)
 @
 
-\title{Reproduction of Published Ovarian Subtyping Schemes}
+\title{Reproduction of Published Ovarian Subtyping Schemes - Initial Results}
 
-%\author{Gregory M. Chen}
+\author{Gregory M. Chen}
+\date{\today}
 \maketitle
 
 \tableofcontents 
@@ -54,6 +55,10 @@ getGeneMapping <- function(eset) {
   return(eset)
 }
 @
+
+This document reports the results of the initial reproduction of ovarian cancer subtyping classification schemes described below. We used the gene or probe set lists provided in supplementary data for each publication, and implemented the subtyping classifiers described in the supplementary texts.
+
+
 
 % Verhaak et al., 2013
 
@@ -204,5 +209,21 @@ data.for.survival$vital_status <- data.for.survival$vital_status == "deceased"
 surv.obj <- survfit(Surv(data.for.survival$days_to_death, data.for.survival$vital_status) ~ data.for.survival$Tothill.subtypes)
 survMisc::autoplot(surv.obj, title="Survival curves")$plot
 @
+
+\hspace*{-2.5cm}
+\arrayrulecolor[HTML]{00008F}
+\begin{tabular}{ | p{2cm} | p{4cm} | p{4cm}| p{4cm} | p{4cm} |}
+\hline
+\rowcolor[HTML]{3399FF}
+\cellcolor[HTML]{FFFFFF}
+   & Tothill et al., 2008.  & Bentink et al., 2012. & The Cancer Genome Analysis, 2011 (Clustering), Verhaak et al., 2012 (Classification) & Konecny et al., 2014.   \\ \hline
+  \cellcolor[HTML]{85C2FF} Probe set filtering prior to clustering & Probes with expression below 7.0, variance below 0.5 were removed; 8732 remaining probe sets. & Ratio of varince across sampes / variance across replicates; selected top 1000 & Top 1500 variability across patients & Top 2500 variability across patients (2040 after removing missing data)  \\ \hline
+  \cellcolor[HTML]{85C2FF} Clustering & Consensus k-means clustering: 1000 iterations of k-means clustering. Samples which clustered together in >800 iterations were considered the `robust' sample set (for class prediction).  Using the `robust' consensus set: use kNN and diagonal LDA to select the top n genes by LOOCV (used approx. 750). Used these genes and kNN/DLDA to classify remaining samples & Separated into training set, model selection set. Identifying splits with clear separation (ISIS) algorithm on training set, led to a large set of possible bi-partitions. To select the bi-partitions, used bootstrapping to assess the robustness of each partition; found four, selected one for biological reasons & Non-negative matrix factorization(NMF) & Non-negative matrix factorization (NMF).   \\ \hline
+  \cellcolor[HTML]{85C2FF} Number of clusters & 6 (4 serous ovarian carcinoma) & 2 & 4 & 4 \\ \hline
+  \cellcolor[HTML]{85C2FF} Probe set filtering prior to classification  & Same probe sets used for clustering. The authors report the probe set identifiers common to U133A and U133Plus2. & Authors report gene names and EnsEMBL identifiers and weights; the classification algorithm may use a subset of genes that overlap with a given platform  & After filtering patients with silhouette width, Significance Analysis of Microarrays (SAM) to identify gene sets of size 200 for each subtype. Used best-first search using Correlation-based Feature Subset Selection with Weka, 10-fold CV to select 100 genes. & Prediction Analysis of Microarrays (PAM) with a 1 std. dev. threshold, 10 fold CV to select 633 probe sets.  \\ \hline
+  \cellcolor[HTML]{85C2FF} Classification & DLDA & Weighted average, using DLDA weights & The 100 genes were used to classify new samples using ssGSEA: first classified as Immunoreactive or Mesenchymal based on a cutoff, then classified into one of the four classes using ssGSEA. & Nearest centroid using Spearman's rho. \\ \hline
+  \cellcolor[HTML]{85C2FF} Validation & Used the Dressman dataset. Reported counts for each class, and plots of survival curves. & Report subtype score distribution and survival curves for ten independent datasets: Crijns, Denkert, Dressman, Mok, Spentzos. Zhang, TCGA, Yoshihara, Tothill, Birrer & Give class predictions for Bonome, Crijns, Denkert, Dressman, TCGA, Tothill,  Yoshihara datasets & Validated on Bonome et al. \\ \hline
+\end{tabular}
+\hspace*{-2.5cm}
 
 \end{document}
