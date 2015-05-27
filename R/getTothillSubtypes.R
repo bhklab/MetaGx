@@ -1,31 +1,44 @@
-getTothillSubtypes <- function(eset) {
+getTothillSubtypes <- function(eset, gene.mapping=c("Entrez.ID", "Probe.ID")) {
+  gene.mapping <- match.arg(gene.mapping)
+  
   ## Load train data with predefined class labels
-  #supplementary.data <- scan(system.file(file.path("extdata", "tothill.supptable.2.probesets.txt"), package="MetaGx"))
-  #supplementary.probesets <- scan("../inst/extdata/tothill.supptable.2.probesets.txt", what=character(0), quiet=TRUE)
+  supp.table.2 <- read.table("../inst/extdata/tothill.supptable.probes.entrez.txt", header=TRUE)
+  supplementary.probesets <- as.character(supp.table.2$Probe.ID)
+  supplementary.entrez.ids <- unique(supp.table.2[supp.table.2$Entrez.ID != "---",]$Entrez.ID)
   
   # Get the probeset - Entrez ID mapping for the platform used in the Tothill et al. study
   #probe.entrez.mappings <- as.list(hgu133plus2ENTREZID[mappedkeys(hgu133plus2ENTREZID)])
   #supplementary.entrez.ids <- unlist(probe.entrez.mappings[supplementary.probesets])
   
-  supp.table.2 <- read.table("../inst/extdata/tothill.supptable.probes.entrez.txt", header=TRUE)
-  supplementary.entrez.ids <- unique(supp.table.2[supp.table.2$Entrez.ID != "---",]$Entrez.ID)
-  
   ## Train a diagonal linear discriminant classifier using the Tothill data set and overlapping probesets / entrez gene ids
   # Get the expression matrix of this eset and the Tothill eset, with columns named by Entrez gene ids
-  expression.matrix <- exprs(eset)
-  rownames(expression.matrix) <- fData(eset)$EntrezGene.ID[match(rownames(expression.matrix), rownames(fData(eset)))]
- 
-  tothill.eset <- getGeneMapping(esets$GSE9891)
-  tothill.expression.matrix <- exprs(tothill.eset)
-  rownames(tothill.expression.matrix) <- fData(tothill.eset)$EntrezGene.ID[match(rownames(tothill.expression.matrix), rownames(fData(tothill.eset)))]
-  
-  
-  colnames(tothill.expression.matrix) <- sub("X", "", pData(tothill.eset)$alt_sample_name)
-  
-  intersecting.entrez.ids <- intersect(supplementary.entrez.ids, intersect(rownames(expression.matrix), rownames(tothill.expression.matrix)))
-  expression.matrix <- expression.matrix[rownames(expression.matrix) %in%  intersecting.entrez.ids,]
-  tothill.expression.matrix <- tothill.expression.matrix[rownames(tothill.expression.matrix) %in%  intersecting.entrez.ids,]
-  
+  if(gene.mapping == "Entrez.ID") {
+    expression.matrix <- exprs(eset)
+    rownames(expression.matrix) <- fData(eset)$EntrezGene.ID[match(rownames(expression.matrix), rownames(fData(eset)))]
+   
+    tothill.eset <- getGeneMapping(esets$GSE9891)
+    tothill.expression.matrix <- exprs(tothill.eset)
+    rownames(tothill.expression.matrix) <- fData(tothill.eset)$EntrezGene.ID[match(rownames(tothill.expression.matrix), rownames(fData(tothill.eset)))]
+    
+    colnames(tothill.expression.matrix) <- sub("X", "", pData(tothill.eset)$alt_sample_name)
+    
+    intersecting.entrez.ids <- intersect(supplementary.entrez.ids, intersect(rownames(expression.matrix), rownames(tothill.expression.matrix)))
+    expression.matrix <- expression.matrix[rownames(expression.matrix) %in%  intersecting.entrez.ids,]
+    tothill.expression.matrix <- tothill.expression.matrix[rownames(tothill.expression.matrix) %in%  intersecting.entrez.ids,]
+  } else if(gene.mapping == "Probe.ID") {
+    expression.matrix <- exprs(eset)
+    rownames(expression.matrix) <- fData(eset)$probeset[match(rownames(expression.matrix), rownames(fData(eset)))]
+    
+    tothill.eset <- esets$GSE9891
+    tothill.expression.matrix <- exprs(tothill.eset)
+    rownames(tothill.expression.matrix) <- fData(tothill.eset)$probeset[match(rownames(tothill.expression.matrix), rownames(fData(tothill.eset)))]
+    
+    colnames(tothill.expression.matrix) <- sub("X", "", pData(tothill.eset)$alt_sample_name)
+    
+    intersecting.probesets <- intersect(supplementary.probesets, intersect(rownames(expression.matrix), rownames(tothill.expression.matrix)))
+    expression.matrix <- expression.matrix[rownames(expression.matrix) %in%  intersecting.probesets,]
+    tothill.expression.matrix <- tothill.expression.matrix[rownames(tothill.expression.matrix) %in%  intersecting.probesets,]
+  }
   #Transpose matrices, so each row is a sample and columns are genes  
   expression.matrix <- t(expression.matrix)
   tothill.expression.matrix <- t(tothill.expression.matrix)
