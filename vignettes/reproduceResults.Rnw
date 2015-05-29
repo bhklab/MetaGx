@@ -10,7 +10,7 @@
 \usepackage{titlesec}
 \geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
 \usepackage[table]{xcolor}
-\newcommand{\sectionbreak}{\clearpage}
+%\newcommand{\sectionbreak}{\clearpage}
 
 \begin{document}
 
@@ -20,6 +20,7 @@ knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, f
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
+days.per.year <- 365.242
 @
 
 \title{Reproduction of Published Ovarian Subtyping Schemes - Initial Results}
@@ -64,11 +65,11 @@ getGeneMapping <- function(eset) {
 }
 @
 
-This document reports the results of the initial reproduction of ovarian cancer subtyping classification schemes described below. We used the gene or probe set lists provided in supplementary data for each publication, and implemented the subtyping classifiers described in the supplementary texts.
-
+This document reports the results of the initial reproduction of ovarian cancer subtyping classification schemes described below. We used the gene or probe set lists provided in supplementary data for each publication, and implemented the subtyping classifiers described in the methods or supplementary texts.
 \tableofcontents
 
 % Konecny et al., 2014
+\pagebreak
 \section{Konecny et al., 2014}
 <<konecny>>=
 source("../R/getKonecnySubtypes.R")
@@ -95,7 +96,7 @@ merged$Konecny.subtypes <- as.factor(merged$Konecny.subtypes)
 merged$Mayo_assgn_subtype_vec <- as.factor(merged$Mayo_assgn_subtype_vec)
 @
 
-First, we implemented the subtyping classification scheme by Konecny et al., 2014. Their subtype classification scheme uses a nearest-centroids approach with Spearman's correlation coefficient as the distance measure. The authors provided a list of 633 selected probe sets for classifying new cases. To allow applicability cross-platform, we our implemented subtype classifier uses the 575 unique Entrez gene ID corresponding to these probe sets (with the mean value taken for multiple probe sets mapping to the same gene ID). In their supplementary materials, Konecny et al. report their predicted subtypes on a validation dataset (Bonome et al.). To assess our implementation, we compared our predicted subtypes on the Bonome dataset. The contingency matrix is given below, indicating a large degree of concordance between our implemented subtypes and the author's supplementary data. Overall, \Sexpr{round(mean(merged$Konecny.subtypes == merged$Mayo_assgn_subtype_vec) * 100, digits=2)}\% of samples were classified identically between our implmentation and the supplementary.
+First, we implemented the subtyping classification scheme by Konecny et al., 2014. Their subtype classification scheme uses a nearest-centroids approach with Spearman's correlation coefficient as the distance measure. The authors provided a list of 635 selected probe sets for classifying new cases. To allow cross-platform applicability, we implemented the subtype classifier using the 575 unique Entrez gene IDs corresponding to these probe sets (with the mean value taken for multiple probe sets mapping to the same gene ID). In their supplementary materials, Konecny et al. report their predicted subtypes on a validation dataset (Bonome et al.). To assess our implementation, we compared our predicted subtypes on the Bonome dataset. The contingency matrix is given below, indicating a large degree of concordance between our implemented subtypes and the author's supplementary data. Overall, \Sexpr{round(mean(merged$Konecny.subtypes == merged$Mayo_assgn_subtype_vec) * 100, digits=2)}\% of samples were classified identically between our implementation and the supplementary results.
 
 <<konecny_table, results='asis'>>=
 addtorow <- list()
@@ -103,10 +104,10 @@ addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
 addtorow$pos[[2]] <- 0
 addtorow$command <- c('& Konecny Subtypes from Supplementary & & &\\\\\n', "Implemented Konecny Subtypes & c1 & c2 & c3 & c4 \\\\\n")
-print(xtable(as.table(ftable(merged)), caption="Contingency table showing strong concordance between using our implementation of the Konecny subtyping classifier and the predictions given in the supplementary of the Konecny manuscript. These predictions were made on the dataset of Bonome et al."), add.to.row=addtorow, include.colnames=FALSE)
+print(xtable(as.table(ftable(merged)), caption="Contingency table showing strong concordance between using our implementation of the Konecny subtyping classifier and the predictions given in the supplementary materials of the Konecny manuscript. These predictions were made on the dataset of Bonome et al."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
-We also generated survival curves for our implmeneted subtypes on the Bonome set. This plot closely resembles Figure 3A of the main text of Konecny et al.
+We also generated survival curves for our implemented subtypes on the Bonome set. This plot resembles Figure 3A of the main text of Konecny et al.
 \begin{figure}[H]
 \centering
 <<konecny_survival, fig.width=8, fig.height=4, out.width="0.6\\textwidth">>=
@@ -123,6 +124,7 @@ survMisc::autoplot(surv.obj, title="Survival curves")$plot
 \end{figure}
 
 % Verhaak et al., 2013
+\pagebreak
 \section{Verhaak et al., 2013}
 <<verhaak, eval=TRUE>>=
 source("../R/getVerhaakSubtypes.R")
@@ -203,13 +205,13 @@ PRO.cor <- cor(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
 accuracy <- mean(apply(merged[,3:6],1,which.max) == apply(merged[,8:11],1,which.max))
 @
 
-Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. In their supplementary materials, the authors report a normalized ssGSEA score for each subtype. 
+Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
 
-We implmeneted this subtype classification scheme using the provided gene sets and the ssGSEA implementation in \texttt{R} package \texttt{GSVA}. The parameters to the function \texttt{gsva} were: \texttt{method="ssgsea"}, \texttt{min.sz=10}, \texttt{tau=0.75}, which resemble default GenePattern parameters but differ slightly from the function call used in Waldron et al. (2014), 
+We implemented this subtype classification scheme using the provided gene sets and the ssGSEA implementation in \texttt{R} package \texttt{GSVA}. The parameters to the function \texttt{gsva} were: \texttt{method="ssgsea"}, \texttt{min.sz=10}, \texttt{tau=0.75}, which resemble default GenePattern parameters.\footnote{These parameters differ slightly from the function call used in Waldron et al. (2014)}
 
-To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf) & verhaak.spreadsheet.data$DATASET != "CRIJNS",])} patients reported in their supplementary\footnote{These numbers exclude the dataset of Crijns et al., as the patient IDs in the supplementary did not match the IDs in MetaGxOvarian.} we matched \Sexpr{nrow(merged)} from MetaGxOvarian data. 
+To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf) & verhaak.spreadsheet.data$DATASET != "CRIJNS",])} patients reported in their supplementary;\footnote{These numbers exclude the dataset of Crijns et al., as the patient IDs in the supplementary did not match the IDs in MetaGxOvarian.} we matched \Sexpr{nrow(merged)} patients from MetaGxOvarian data. 
 
-The normalized ssGSEA scores differ in numeric range between our implementation and the values provided in the supplementary materials. of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(merged)} were matched. We observed Pearson's correlation coefficeints of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
+Due to different normalization methods, our ssGSEA scores differ in numeric range but are expected to correlate strongly with the values provided in the supplementary materials. of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(merged)} were matched. We observed Pearson's correlation coefficients of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
 
 \begin{figure}[H]
 <<verhaak_figures, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
@@ -223,7 +225,7 @@ par(par.original)
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
 \end{figure}
 
-From these normalized ssGSEA scores, a suptype classification may be performed according to the subtype with the max ssGSEA score.\footnote{A noteworthy point here is that Verhaak et al. classify patients into subtypes using the following procedure: if the IMR or MES scores are above a certain threshold, classify according to the higher of the two scores; otherwise, classify according to the max-scoring of the four subtypes. Here, we will classify using the max of the four subtypes, like Waldron et al. (2014), circumventing this preference for IMR and MES classifications.} A contingency table is given below. Overall, \Sexpr{round(100 * accuracy, digits=2)}\% of samples were classified identically between our ssGSEA scores and those reported in the supplementary data. 
+From these normalized ssGSEA scores, a subtype classification may be performed according to the subtype with the max ssGSEA score.\footnote{A noteworthy point here is that Verhaak et al. classify patients into subtypes using the following procedure: if the IMR or MES scores are above a certain threshold, classify according to the higher of the two scores; otherwise, classify according to the max-scoring of the four subtypes. Here, we use ssGSEA scores to classify according to the max of the four subtypes, like Waldron et al. (2014), circumventing this preference for IMR and MES classifications.} A contingency table is given below. Overall, \Sexpr{round(100 * accuracy, digits=2)}\% of samples were classified identically between our ssGSEA scores and those reported in the supplementary data. 
 
 <<verhaak_table, results='asis'>>=
 implemented.classes.from.max <-  as.factor(apply(merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)) 
@@ -233,7 +235,7 @@ addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
 addtorow$pos[[2]] <- 0
 addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & c1 & c2 & c3 & c4 \\\\\n")
-print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript. These predictions were made on the combined >700 sample dataset."), add.to.row=addtorow, include.colnames=FALSE)
+print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
 <<tothill>>=
@@ -250,19 +252,21 @@ subtype.counts$Published.Validation.Counts = published.validation.counts[match(s
 subtype.counts.m <- melt(subtype.counts)
 colnames(subtype.counts.m) <- c("Subtype", "Implementation", "Count")
 @
-
+\pagebreak
 \section{Tothill et al., 2008}
 
-Next, we implemented the subtype classifier of Tothill et al., 2008. The authored classified samples in their validation set (Dressman et al.) using a diagonal linear dicriminant analysis (DLDA) classifier trained on a selected set of probe sets common to the Affymetrix U113Plus2 and U113A\footnote{Tothill et al. filtered their probes by variance to 8732 U113Plus2 probe sets which they used for clustering. To the best of my knowledge, they do not report these 8732 probesets in their text or supplementary. In their Supplementary Table 2, they report the 4373 probe sets which overlap with the U133A, which they used to classify the Dressman data set. My implmenetation uses these 4373 probe sets, and allows the user to specify whether they would like to classify by probe set or Entrez ID.} 
+Next, we implemented the subtype classifier of Tothill et al., 2008. The authors classified samples in their validation set (Dressman et al.) using a diagonal linear discriminant analysis (DLDA) classifier trained on a selected set of probe sets common to the Affymetrix U113Plus2 and U113A.\footnote{Tothill et al. filtered their probes by variance to 8732 U113Plus2 probe sets which they used for clustering. To the best of my knowledge, they do not report these 8732 probe sets in their text or supplementary. In their Supplementary Table 2, they report the 4373 probe sets which overlap with the U133A, which they used to classify the Dressman data set. My implementation uses these 4373 probe sets, and allows the user to specify whether they would like to classify by probe set or Entrez ID.} 
 
-Below is a barplot showing the counts of each predicted subtype by our implementation and published results, classified on the Dressman dataset.\footnote{To my knowledge, Tothill et al. do not provide their classifier's labels for each sample, so we are not able to generate a contingency table.}
+Below is a bar plot showing the counts of each predicted subtype by our implementation and published results, classified on the Dressman dataset.\footnote{To my knowledge, Tothill et al. do not provide their classifier's labels for each sample, so I was unable to generate a contingency table.}
 
 \begin{figure}[H]
 \centering
 <<tothill_barplot, fig.width=10, fig.height=2, out.width="0.75\\textwidth">>=
+# reverse the levels of Implementation to swap the positions of the barplot
+subtype.counts.m$Implementation <- factor(subtype.counts.m$Implementation, levels=rev(levels(subtype.counts.m$Implementation)))
 ggplot(subtype.counts.m, aes(x=Implementation, y=Count, fill=Subtype)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(size=6)) + coord_flip()
 @
-\caption{Stacked barplot indicating class distributions of predicted subtypes on the Dressman dataset using data from the main text of the Tothill manuscript (top) and our implmentation of the Tothill scheme (bottom).}
+\caption{Stacked bar plot indicating class distributions of predicted subtypes on the Dressman dataset using data from our implementation of the Tothill scheme (top) and the main text of the Tothill manuscript (bottom).}
 \end{figure}
 
 \begin{figure}[H]
@@ -283,10 +287,11 @@ survMisc::autoplot(surv.obj, title="Survival curves")$plot
 \caption{(Above) Survival curves the Dressman dataset using our implementation of the Tothill subtyping scheme. (Below) Corresponding Figure 5D from Tothill et al. Note the difference in scale on the x axis - both axes are in months, but MetaGxOvarian has extended survival information.}
 \end{figure}
 
+\pagebreak
 \section{Bentink, Haibe-Kains et al., 2012}
 
-<<bentink_crijns, fig.width=9, fig.height=4>>=
-source("../R/getBentikHaibeKainsSubtypes.R")
+<<bentink_crijns, fig.width=9, fig.height=4, cache=FALSE>>=
+source("../R/getBentinkHaibeKainsSubtypes.R")
 crijns.eset <- getGeneMapping(esets$GSE13876)
 tothill.eset <- getGeneMapping(esets$GSE9891)
 dressman.eset <- getGeneMapping(esets$PMID17290060)
@@ -303,26 +308,27 @@ bentink.plots <- lapply(names(implemented.bentink.out), function(dataset.name) {
   data.to.plot$vital_status <- data.to.plot$vital_status=="deceased"
   data.to.plot <- data.to.plot[complete.cases(data.to.plot),]
   # Consider survival up to ten years
-  if(sum(data.to.plot$days_to_death > 3652) > 0) {
-    data.to.plot[ data.to.plot$days_to_death > 3652,]$vital_status <- FALSE
-    data.to.plot[ data.to.plot$days_to_death > 3652,]$days_to_death <- 3652
-  }
-  surv.obj <- survfit(Surv(data.to.plot$days_to_death, data.to.plot$vital_status) ~ data.to.plot$Bentink.Haibe.Kains.subtypes)
+  #if(sum(data.to.plot$days_to_death > 3652) > 0) {
+  #  data.to.plot[ data.to.plot$days_to_death > 3652,]$vital_status <- FALSE
+  #  data.to.plot[ data.to.plot$days_to_death > 3652,]$days_to_death <- 3652
+  #}
+  data.to.plot$years_to_death <- data.to.plot$days_to_death / days.per.year
+  surv.obj <- survfit(Surv(data.to.plot$years_to_death, data.to.plot$vital_status) ~ data.to.plot$Bentink.Haibe.Kains.subtypes)
   
   density.plot <- ggplot(data.to.plot, aes(x=y, colour=Bentink.Haibe.Kains.subtypes)) + geom_density() + theme(legend.position="bottom", legend.direction='vertical')
   survival.plot <- survMisc::autoplot(surv.obj, title="Survival curves")$plot + theme(legend.position="bottom", legend.direction='vertical')
   #p <- grid.arrange(density.plot, survival.plot, ncol=2)
-  return(list(density.plot, survival.plot))
+  return(list(density.plot, survival.plot, data.to.plot))
 })
 
 names(bentink.plots) <- names(implemented.bentink.out)
 
 @
 
-We implmeneted the subtype classifier of Bentink, Haibe-Kains et al. (2012) using the function \texttt{genefu::ovcAngiogenic}, which assignes one of two subtypes based on weights of a DLDA classifier. The authors classified samples in ten independent datasets, and provide survival curves and a distribution of scores. Below are score distribution and survival plots from our implmentation, using data from high-grade, late-stage serous ovarian carcinoma. Note that the distribution plots that we generated are smoothed density estimates, whereas the distributions from the supplementary manuscript are fitted curves to normal distributions.
+We implemented the subtype classifier of Bentink, Haibe-Kains et al. (2012) using the function \texttt{genefu::ovcAngiogenic}, which assigned one of two subtypes based on weights of a DLDA classifier. The authors classified samples in ten independent datasets, and provide survival curves and a distribution of scores. Below are score distribution and survival plots from our implementation, using data from high-grade, late-stage serous ovarian carcinoma. Note that the distribution plots that we generated are non-parametric density estimates, whereas the distributions from the supplementary manuscript are fitted curves to normal distributions.
 
 \subsection*{Validation: Tothill dataset}
-Our implementation of the Bentik et al. subtype classifier on the Tothill et al. dataset classified \Sexpr{sum(pData(implemented.bentink.out[["tothill"]]$Annotated.eset)$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(pData(implemented.bentink.out[["tothill"]]$Annotated.eset)$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.
+Our implementation of the Bentink et al. subtype classifier on the Tothill et al. dataset classified \Sexpr{sum(bentink.plots[["tothill"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["tothill"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.\footnote{The counts and plots are similar, but not identical. Perhaps this is due to differences in gene expression normalization?}
 
 \begin{figure}[H]
 {\centering
@@ -336,7 +342,7 @@ grid.arrange(bentink.plots[["tothill"]][[1]], bentink.plots[["tothill"]][[2]], n
 
 \pagebreak
 \subsection*{Validation: Crijns dataset}
-Our implementation of the Bentink et al. subtype classifier on the Crijns et al. dataset classified \Sexpr{sum(pData(implemented.bentink.out[["crijns"]]$Annotated.eset)$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(pData(implemented.bentink.out[["crijns"]]$Annotated.eset)$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.
+Our implementation of the Bentink et al. subtype classifier on the Crijns et al. dataset classified \Sexpr{sum(bentink.plots[["crijns"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["crijns"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.\footnote{In this case, the survival curves appear to differ from the curves provided in the supplementary text.}
 \begin{figure}[H]
 {\centering
 <<bentink_crijns_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth">>=
@@ -349,7 +355,7 @@ grid.arrange(bentink.plots[["crijns"]][[1]], bentink.plots[["crijns"]][[2]], nco
 
 \pagebreak
 \subsection*{Validation: Dressman dataset}
-Our implementation of the Bentik et al. subtype classifier on the Dressman et al. dataset classified \Sexpr{sum(pData(implemented.bentink.out[["dressman"]]$Annotated.eset)$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(pData(implemented.bentink.out[["dressman"]]$Annotated.eset)$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.
+Our implementation of the Bentink et al. subtype classifier on the Dressman et al. dataset classified \Sexpr{sum(bentink.plots[["dressman"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["dressman"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.
 
 \begin{figure}[H]
 {\centering
@@ -369,7 +375,7 @@ grid.arrange(bentink.plots[["dressman"]][[1]], bentink.plots[["dressman"]][[2]],
 \rowcolor[HTML]{3399FF}
 \cellcolor[HTML]{FFFFFF}
    & Tothill et al., 2008.  & Bentink et al., 2012. & The Cancer Genome Analysis, 2011 (Clustering), Verhaak et al., 2012 (Classification) & Konecny et al., 2014.   \\ \hline
-  \cellcolor[HTML]{85C2FF} Probe set filtering prior to clustering & Probes with expression below 7.0, variance below 0.5 were removed; 8732 remaining probe sets. & Ratio of varince across sampes / variance across replicates; selected top 1000 & Top 1500 variability across patients & Top 2500 variability across patients (2040 after removing missing data)  \\ \hline
+  \cellcolor[HTML]{85C2FF} Probe set filtering prior to clustering & Probes with expression below 7.0, variance below 0.5 were removed; 8732 remaining probe sets. & Ratio of variance across samples / variance across replicates; selected top 1000 & Top 1500 variability across patients & Top 2500 variability across patients (2040 after removing missing data)  \\ \hline
   \cellcolor[HTML]{85C2FF} Clustering & Consensus k-means clustering: 1000 iterations of k-means clustering. Samples which clustered together in >800 iterations were considered the `robust' sample set (for class prediction).  Using the `robust' consensus set: use kNN and diagonal LDA to select the top n genes by LOOCV (used approx. 750). Used these genes and kNN/DLDA to classify remaining samples & Separated into training set, model selection set. Identifying splits with clear separation (ISIS) algorithm on training set, led to a large set of possible bi-partitions. To select the bi-partitions, used bootstrapping to assess the robustness of each partition; found four, selected one for biological reasons & Non-negative matrix factorization(NMF) & Non-negative matrix factorization (NMF).   \\ \hline
   \cellcolor[HTML]{85C2FF} Number of clusters & 6 (4 serous ovarian carcinoma) & 2 & 4 & 4 \\ \hline
   \cellcolor[HTML]{85C2FF} Probe set filtering prior to classification  & Same probe sets used for clustering. The authors report the probe set identifiers common to U133A and U133Plus2. & Authors report gene names and EnsEMBL identifiers and weights; the classification algorithm may use a subset of genes that overlap with a given platform  & After filtering patients with silhouette width, Significance Analysis of Microarrays (SAM) to identify gene sets of size 200 for each subtype. Used best-first search using Correlation-based Feature Subset Selection with Weka, 10-fold CV to select 100 genes. & Prediction Analysis of Microarrays (PAM) with a 1 std. dev. threshold, 10 fold CV to select 633 probe sets.  \\ \hline
