@@ -60,6 +60,6 @@ getTothillSubtypes <- function(eset, gene.mapping=c("Entrez.ID", "Probe.ID")) {
   trained.dlda <- HiDimDA::Dlda(data=tothill.train.data[,-1], grouping=tothill.train.data$group)
   print("Finished training.")
   subclasses <- predict(trained.dlda, expression.matrix, grpcodes=levels(tothill.train.data$group))$class
-  pData(eset) <- data.frame(pData(eset), Tothill.subtypes=subclasses)
+  eset$Tothill.subtypes <- subclasses
   return(list(Annotated.eset=eset, trained.dlda=trained.dlda))
 }

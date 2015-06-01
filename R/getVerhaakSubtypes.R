@@ -20,6 +20,6 @@ getVerhaakSubtypes <- function(eset) {
   # the max-scoring ssGSEA value for the four subtypes.
   subclasses <- as.factor(apply(gsva.out, 1, function(x) colnames(gsva.out)[which.max(x)]))
   ## Append a new column for Verhaak subtypes
-  pData(eset) <- data.frame(pData(eset), Verhaak.subtypes=subclasses)
+  eset$Verhaak.subtypes <- subclasses
   return(list(Annotated.eset=eset, gsva.out=gsva.out))
 }

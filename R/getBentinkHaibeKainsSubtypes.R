@@ -4,6 +4,6 @@ getBentinkHaibeKainsSubtypes <- function(eset) {
   annot <- fData(eset)
   colnames(annot)[which(colnames(annot) == "EntrezGene.ID")] <- "entrezgene"
   angio <- genefu::ovcAngiogenic(data = expression.matrix, annot=annot, gmap="entrezgene", do.mapping = TRUE)
-  pData(eset) <- data.frame(pData(eset), Bentink.Haibe.Kains.subtypes=angio$subtype$subtype)
+  eset$Bentink.Haibe.Kains.subtypes <- angio$subtype$subtype
   return(list(Annotated.eset=eset, angio=angio))
 }
