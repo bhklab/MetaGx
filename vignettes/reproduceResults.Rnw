@@ -117,7 +117,7 @@ data.for.survival <- data.for.survival[complete.cases(data.for.survival),]
 data.for.survival$months_to_death <- data.for.survival$days_to_death / days.per.month
 data.for.survival$vital_status <- data.for.survival$vital_status == "deceased"
 surv.obj <- survfit(Surv(data.for.survival$months_to_death, data.for.survival$vital_status) ~ data.for.survival$Konecny.subtypes)
-survMisc::autoplot(surv.obj, title="Survival curves")$plot
+survMisc::autoplot(surv.obj, title="Survival curves")$plot + scale_colour_manual(name="Strata", values=c("black", "green", "blue", "red"))
 @
 \includegraphics[width=0.35\textwidth]{konecny_fig3A.png}
 \caption{(Above) Survival curves the Bonome dataset using our implementation of the Konecny subtyping scheme. (Below) Corresponding Figure 3A from Konecny et al.}
