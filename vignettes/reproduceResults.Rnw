@@ -45,7 +45,6 @@ library(sparsediscrim)
 library(MetaGx2)
 library(MetaGxOvarian)
 library(ggplot2)
-library(hgu133plus2.db)
 @
 
 <<load_data>>=
@@ -143,7 +142,7 @@ implemented.verhaak.output <- lapply(verhaak.validation.esets, getVerhaakSubtype
 
 
 
-implemented.ssgsea.scores <- data.frame(Dataset.name=character(0), sample.name=character(0), DIF=numeric(0), IMR=numeric(0), MES=numeric(0), PRO=numeric(0))
+implemented.ssgsea.scores <- data.frame(Dataset.name=character(0), sample.name=character(0), DIF=numeric(0), IMR=numeric(0), MES=numeric(0), PRO=numeric(0), implemented.subtype=factor())
 
 for(i in 1:length(implemented.verhaak.output)) {
   current.implemented.ssgsea.scores <- as.data.frame(implemented.verhaak.output[[i]][[2]])
@@ -171,7 +170,8 @@ for(i in 1:length(implemented.verhaak.output)) {
                                                                       DIF=current.ssgsea.scores$DIF,
                                                                       IMR=current.ssgsea.scores$IMR,
                                                                       MES=current.ssgsea.scores$MES,
-                                                                      PRO=current.ssgsea.scores$PRO))
+                                                                      PRO=current.ssgsea.scores$PRO,
+                                                                      implemented.subtype=implemented.verhaak.output[[i]][[1]]$Verhaak.subtypes))
 }
 
 implemented.ssgsea.scores$Dataset.name <- as.character(implemented.ssgsea.scores$Dataset.name)
@@ -202,7 +202,8 @@ IMR.cor <- cor(merged$IMR, merged$Immunoreactive.ssGSEA.normalized.score)
 MES.cor <- cor(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score)
 PRO.cor <- cor(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
 
-accuracy <- mean(apply(merged[,3:6],1,which.max) == apply(merged[,8:11],1,which.max))
+accuracy.classification.with.thresholds <- mean(merged$implemented.subtype == merged$CloverLeaf)
+accuracy.classification.by.max <- mean(apply(merged[,3:6],1,which.max) == apply(merged[,9:12],1,which.max))
 @
 
 Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
@@ -225,17 +226,28 @@ par(par.original)
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
 \end{figure}
 
-From these normalized ssGSEA scores, a subtype classification may be performed according to the subtype with the max ssGSEA score.\footnote{A noteworthy point here is that Verhaak et al. classify patients into subtypes using the following procedure: if the IMR or MES scores are above a certain threshold, classify according to the higher of the two scores; otherwise, classify according to the max-scoring of the four subtypes. Here, we use ssGSEA scores to classify according to the max of the four subtypes, like Waldron et al. (2014), circumventing this preference for IMR and MES classifications.} A contingency table is given below. Overall, \Sexpr{round(100 * accuracy, digits=2)}\% of samples were classified identically between our ssGSEA scores and those reported in the supplementary data. 
+From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold;\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-computed these threshold values for each gene list used for classifying new samples.} the second method is to directly assign the subtype by the max ssGSEA score. Contingency tables are given below. Overall, the first method produces an accuracy of \Sexpr{round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples were classified identically using the first method, and \Sexpr{round(100 * accuracy.classification.by.max, digits=2)}\%. were classified identicially using the second method.
 
-<<verhaak_table, results='asis'>>=
-implemented.classes.from.max <-  as.factor(apply(merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)) 
-supplementary.classes.from.max <- as.factor(apply(merged[,paste0(c("Differentiated", "Immunoreactive", "Mesenchymal", "Proliferative"), ".ssGSEA.normalized.score")],1,which.max))
+<<verhaak_table_bythreshold, results='asis'>>=
+implemented.classes.from.threshold <-  merged$implemented.subtype
+supplementary.classes.from.threshold <- merged$CloverLeaf
 addtorow <- list()
 addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
 addtorow$pos[[2]] <- 0
-addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & c1 & c2 & c3 & c4 \\\\\n")
-print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
+addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & DIF & IMR & MES & PRO \\\\\n")
+print(xtable(table(implemented.classes.from.threshold, supplementary.classes.from.threshold), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using threshold values for Immunoreactive and Mesenchymal subtypes. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
+@
+
+<<verhaak_table_bymax, results='asis'>>=
+implemented.classes.from.max <-  as.factor(c("DIF", "IMR", "MES", "PRO")[apply(merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)]) 
+supplementary.classes.from.max <- as.factor(c("DIF", "IMR", "MES", "PRO")[apply(merged[,paste0(c("Differentiated", "Immunoreactive", "Mesenchymal", "Proliferative"), ".ssGSEA.normalized.score")],1,which.max)])
+addtorow <- list()
+addtorow$pos <- list()
+addtorow$pos[[1]] <- 0
+addtorow$pos[[2]] <- 0
+addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & DIF & IMR & MES & PRO  \\\\\n")
+print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using the max ssGSEA score for each class. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
 <<tothill>>=
