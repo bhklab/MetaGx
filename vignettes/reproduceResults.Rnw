@@ -116,7 +116,7 @@ data.for.survival <- data.for.survival[complete.cases(data.for.survival),]
 data.for.survival$months_to_death <- data.for.survival$days_to_death / days.per.month
 data.for.survival$vital_status <- data.for.survival$vital_status == "deceased"
 surv.obj <- survfit(Surv(data.for.survival$months_to_death, data.for.survival$vital_status) ~ data.for.survival$Konecny.subtypes)
-survMisc::autoplot(surv.obj, title="Survival curves")$plot + scale_colour_manual(name="Strata", values=c("black", "green", "blue", "red"))
+survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot + scale_colour_manual(name="Strata", values=c("black", "green", "blue", "red"))
 @
 \includegraphics[width=0.35\textwidth]{konecny_fig3A.png}
 \caption{(Above) Survival curves the Bonome dataset using our implementation of the Konecny subtyping scheme. (Below) Corresponding Figure 3A from Konecny et al.}
@@ -226,7 +226,7 @@ par(par.original)
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
 \end{figure}
 
-From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold;\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-computed these threshold values for each gene list used for classifying new samples.} the second method is to directly assign the subtype by the max ssGSEA score. Contingency tables are given below. Overall, the first method produces an accuracy of \Sexpr{round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples were classified identically using the first method, and \Sexpr{round(100 * accuracy.classification.by.max, digits=2)}\%. were classified identicially using the second method.
+From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-computed these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples were classified identically between our implementation and supplementary results.
 
 <<verhaak_table_bythreshold, results='asis'>>=
 implemented.classes.from.threshold <-  merged$implemented.subtype
@@ -238,6 +238,8 @@ addtorow$pos[[2]] <- 0
 addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & DIF & IMR & MES & PRO \\\\\n")
 print(xtable(table(implemented.classes.from.threshold, supplementary.classes.from.threshold), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using threshold values for Immunoreactive and Mesenchymal subtypes. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
+
+The second method is to directly assign the subtype by the max ssGSEA score. Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.by.max, digits=2)}\% of samples classified identicially between our implementation and supplementary results.
 
 <<verhaak_table_bymax, results='asis'>>=
 implemented.classes.from.max <-  as.factor(c("DIF", "IMR", "MES", "PRO")[apply(merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)]) 
@@ -293,7 +295,7 @@ data.for.survival$vital_status <- data.for.survival$vital_status == "deceased"
 #data.for.survival[ data.for.survival$days_to_death > 1826,]$days_to_death <- 1826
 data.for.survival$months_to_death <- data.for.survival$days_to_death / days.per.month
 surv.obj <- survfit(Surv(data.for.survival$months_to_death, data.for.survival$vital_status) ~ data.for.survival$Tothill.subtypes)
-survMisc::autoplot(surv.obj, title="Survival curves")$plot
+survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot
 @
 \includegraphics[width=0.35\textwidth]{tothill_fig5D.png}
 \caption{(Above) Survival curves the Dressman dataset using our implementation of the Tothill subtyping scheme. (Below) Corresponding Figure 5D from Tothill et al. Note the difference in scale on the x axis - both axes are in months, but MetaGxOvarian has extended survival information.}
@@ -333,7 +335,7 @@ bentink.plots <- lapply(names(implemented.bentink.out), function(dataset.name) {
   surv.obj <- survfit(Surv(data.to.plot$years_to_death, data.to.plot$vital_status) ~ data.to.plot$Bentink.Haibe.Kains.subtypes)
   
   density.plot <- ggplot(data.to.plot, aes(x=score, colour=Bentink.Haibe.Kains.subtypes)) + geom_density() + theme(legend.position="bottom", legend.direction='vertical')
-  survival.plot <- survMisc::autoplot(surv.obj, title="Survival curves")$plot + theme(legend.position="bottom", legend.direction='vertical')
+  survival.plot <- survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot + theme(legend.position="bottom", legend.direction='vertical')
   #p <- grid.arrange(density.plot, survival.plot, ncol=2)                 
   return(list(density.plot, survival.plot, data.to.plot))
 })
