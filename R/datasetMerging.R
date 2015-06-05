@@ -33,17 +33,17 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   ## gene ids
   ugid <- lapply(esets, function(x) { return(Biobase::fData(x)) })
   ugid <- do.call(rbind, ugid)
-  ugid <- ugid[!is.na(ugid[ , "ENTREZID"]) & !duplicated(ugid[ , "ENTREZID"]), , drop=FALSE]
+  ugid <- ugid[!is.na(ugid[ , "EntrezGene.ID"]) & !duplicated(ugid[ , "EntrezGene.ID"]), , drop=FALSE]
   rownames(ugid) <- gsub(sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(ugid))
   switch (method,
     "union" = {
       feature.merged <- ugid
     },
     "intersect" = {
-      feature.merged <- lapply(esets, function(x) { return(stripWhiteSpace(as.character(Biobase::fData(x)[ , "ENTREZID"]))) })
+      feature.merged <- lapply(esets, function(x) { return(stripWhiteSpace(as.character(Biobase::fData(x)[ , "EntrezGene.ID"]))) })
       feature.merged <- table(unlist(feature.merged))
       feature.merged <- names(feature.merged)[feature.merged == length(esets)]
-      feature.merged <- ugid[match(feature.merged, stripWhiteSpace(as.character(ugid[ , "ENTREZID"]))), , drop=FALSE]
+      feature.merged <- ugid[match(feature.merged, stripWhiteSpace(as.character(ugid[ , "EntrezGene.ID"]))), , drop=FALSE]
     },
     {
       stop("Unknown method")
@@ -93,7 +93,7 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
     scrisp <- do.call(rbind, lapply(esets, getSubtype, method="crisp"))
     message("going to set the subtype")
     eset.merged <- setSubtype(eset=eset.merged, subtype.class=sclass, subtype.fuzzy=sfuzzy, subtype.crisp=scrisp)
-    rownames(fData(eset.merged)) <- fData(eset.merged)[,"ENTREZID"]
+    rownames(fData(eset.merged)) <- fData(eset.merged)[,"EntrezGene.ID"]
     message("set the subtype complete for merged")
   }
     
