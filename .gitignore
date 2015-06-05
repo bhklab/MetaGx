@@ -10,3 +10,4 @@ vignettes/*.log
 vignettes/*.pdf
 vignettes/*.toc
 vignettes/*.tex
+vignettes/cache
