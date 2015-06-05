@@ -73,7 +73,7 @@ This document reports the results of my initial implementations of ovarian cance
 % Konecny et al., 2014
 \pagebreak
 \section{Konecny et al., 2014}
-<<konecny>>=
+<<konecny, cache=FALSE>>=
 source("../R/getKonecnySubtypes.R")
 # validate on Bonome dataset
 bonome.eset <- getGeneMapping(esets$GSE26712)
@@ -86,20 +86,21 @@ rownames(konecny.predicted.subtypes) <- sub("GSE26712_", "", rownames(konecny.pr
 
 rownames(konecny.spreadsheet.data) <- konecny.spreadsheet.data$X
 
-merged <- merge(konecny.predicted.subtypes, konecny.spreadsheet.data[,"Mayo_assgn_subtype_vec",drop=FALSE], by="row.names")
-rownames(merged) <- merged$Row.names
-merged <- merged[,-1]
+konecny.merged <- merge(konecny.predicted.subtypes, konecny.spreadsheet.data[,"Mayo_assgn_subtype_vec",drop=FALSE], by="row.names")
+rownames(konecny.merged) <- konecny.merged$Row.names
+konecny.merged <- konecny.merged[,-1]
 
-merged$Konecny.subtypes <- as.factor(gsub("[^0-9]", "", merged$Konecny.subtypes))
-merged$Mayo_assgn_subtype_vec <- as.factor(merged$Mayo_assgn_subtype_vec)
+konecny.merged$Konecny.subtypes <- as.factor(gsub("[^0-9]", "", konecny.merged$Konecny.subtypes))
+konecny.merged$Mayo_assgn_subtype_vec <- as.factor(konecny.merged$Mayo_assgn_subtype_vec)
 # Remove observations which the authors left unclassified
-merged <- merged[complete.cases(merged),]
-merged[] <- sapply(merged, function(x) {levels(x) <- paste0("c", levels(x)); as.factor(x)})
-merged$Konecny.subtypes <- as.factor(merged$Konecny.subtypes)
-merged$Mayo_assgn_subtype_vec <- as.factor(merged$Mayo_assgn_subtype_vec)
+konecny.merged <- konecny.merged[complete.cases(konecny.merged),]
+konecny.merged[] <- sapply(konecny.merged, function(x) {levels(x) <- paste0("c", levels(x)); as.factor(x)})
+konecny.merged$Konecny.subtypes <- as.factor(konecny.merged$Konecny.subtypes)
+konecny.merged$Mayo_assgn_subtype_vec <- as.factor(konecny.merged$Mayo_assgn_subtype_vec)
+konecny.validation.accuracy <- round(mean(konecny.merged$Konecny.subtypes == konecny.merged$Mayo_assgn_subtype_vec) * 100, digits=2)
 @
 
-First, we implemented the subtyping classification scheme by Konecny et al., 2014. Their subtype classification scheme uses a nearest-centroids approach with Spearman's correlation coefficient as the distance measure. The authors provided a list of 635 selected probe sets for classifying new cases. To allow cross-platform applicability, we implemented the subtype classifier using the 575 unique Entrez gene IDs corresponding to these probe sets (with the mean value taken for multiple probe sets mapping to the same gene ID). In their supplementary materials, Konecny et al. report their predicted subtypes on a validation dataset (Bonome et al.). To assess our implementation, we compared our predicted subtypes on the Bonome dataset. The contingency matrix is given below, indicating a large degree of concordance between our implemented subtypes and the author's supplementary data. Overall, \Sexpr{round(mean(merged$Konecny.subtypes == merged$Mayo_assgn_subtype_vec) * 100, digits=2)}\% of samples were classified identically between our implementation and the supplementary results.
+First, we implemented the subtyping classification scheme by Konecny et al., 2014. Their subtype classification scheme uses a nearest-centroids approach with Spearman's correlation coefficient as the distance measure. The authors provided a list of 635 selected probe sets for classifying new cases. To allow cross-platform applicability, we implemented the subtype classifier using the 575 unique Entrez gene IDs corresponding to these probe sets (with the mean value taken for multiple probe sets mapping to the same gene ID). In their supplementary materials, Konecny et al. report their predicted subtypes on a validation dataset (Bonome et al.). To assess our implementation, we compared our predicted subtypes on the Bonome dataset. The contingency matrix is given below, indicating a large degree of concordance between our implemented subtypes and the author's supplementary data. Overall, \Sexpr{konecny.validation.accuracy}\% of samples were classified identically between our implementation and the supplementary results.
 
 <<konecny_table, results='asis'>>=
 addtorow <- list()
@@ -107,7 +108,7 @@ addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
 addtorow$pos[[2]] <- 0
 addtorow$command <- c('& Konecny Subtypes from Supplementary & & &\\\\\n', "Implemented Konecny Subtypes & c1 & c2 & c3 & c4 \\\\\n")
-print(xtable(as.table(ftable(merged)), caption="Contingency table showing strong concordance between using our implementation of the Konecny subtyping classifier and the predictions given in the supplementary materials of the Konecny manuscript. These predictions were made on the dataset of Bonome et al."), add.to.row=addtorow, include.colnames=FALSE)
+print(xtable(as.table(ftable(konecny.merged)), caption="Contingency table showing strong concordance between using our implementation of the Konecny subtyping classifier and the predictions given in the supplementary materials of the Konecny manuscript. These predictions were made on the dataset of Bonome et al."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
 We also generated survival curves for our implemented subtypes on the Bonome set. This plot resembles Figure 3A of the main text of Konecny et al.
@@ -197,34 +198,34 @@ colnames(implemented.ssgsea.scores)[1:2] <- c("DATASET", "ID")
 
 # subtypes predicted by our implementation
 
-merged <- merge(implemented.ssgsea.scores, verhaak.spreadsheet.data, by=c("DATASET", "ID"))
+verhaak.merged <- merge(implemented.ssgsea.scores, verhaak.spreadsheet.data, by=c("DATASET", "ID"))
 
 # Plot correlations between ssGSEA scores
 
-DIF.cor <- cor(merged$DIF, merged$Differentiated.ssGSEA.normalized.score)
-IMR.cor <- cor(merged$IMR, merged$Immunoreactive.ssGSEA.normalized.score)
-MES.cor <- cor(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score)
-PRO.cor <- cor(merged$PRO, merged$Proliferative.ssGSEA.normalized.score)
+DIF.cor <- cor(verhaak.merged$DIF, verhaak.merged$Differentiated.ssGSEA.normalized.score)
+IMR.cor <- cor(verhaak.merged$IMR, verhaak.merged$Immunoreactive.ssGSEA.normalized.score)
+MES.cor <- cor(verhaak.merged$MES, verhaak.merged$Mesenchymal.ssGSEA.normalized.score)
+PRO.cor <- cor(verhaak.merged$PRO, verhaak.merged$Proliferative.ssGSEA.normalized.score)
 
-accuracy.classification.with.thresholds <- mean(merged$implemented.subtype == merged$CloverLeaf)
-accuracy.classification.by.max <- mean(apply(merged[,3:6],1,which.max) == apply(merged[,9:12],1,which.max))
+accuracy.classification.with.thresholds <- mean(verhaak.merged$implemented.subtype == verhaak.merged$CloverLeaf)
+accuracy.classification.by.max <- mean(apply(verhaak.merged[,3:6],1,which.max) == apply(verhaak.merged[,9:12],1,which.max))
 @
 
 Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
 
 We implemented this subtype classification scheme using the provided gene sets and the ssGSEA implementation in \texttt{R} package \texttt{GSVA}. The parameters to the function \texttt{gsva} were: \texttt{method="ssgsea"}, \texttt{min.sz=10}, \texttt{tau=0.75}, which resemble default GenePattern parameters.\footnote{These parameters differ slightly from the function call used in Waldron et al. (2014)}
 
-To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf) & verhaak.spreadsheet.data$DATASET != "CRIJNS",])} patients reported in their supplementary;\footnote{These numbers exclude the dataset of Crijns et al., as the patient IDs in the supplementary did not match the IDs in MetaGxOvarian.} we matched \Sexpr{nrow(merged)} patients from MetaGxOvarian data. 
+To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf) & verhaak.spreadsheet.data$DATASET != "CRIJNS",])} patients reported in their supplementary;\footnote{These numbers exclude the dataset of Crijns et al., as the patient IDs in the supplementary did not match the IDs in MetaGxOvarian.} we matched \Sexpr{nrow(verhaak.merged)} patients from MetaGxOvarian data. 
 
-Due to different normalization methods, our ssGSEA scores differ in numeric range but are expected to correlate strongly with the values provided in the supplementary materials. of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(merged)} were matched. We observed Pearson's correlation coefficients of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
+Due to different normalization methods, our ssGSEA scores differ in numeric range but are expected to correlate strongly with the values provided in the supplementary materials. of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(verhaak.merged)} were matched. We observed Pearson's correlation coefficients of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
 
 \begin{figure}[H]
 <<verhaak_figures, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
 par(mfrow=c(2,2))
-plot(merged$DIF, merged$Differentiated.ssGSEA.normalized.score, xlab="Implemented DIF ssGSEA", ylab="Published DIF ssGSEA Score")
-plot(merged$IMR, merged$Immunoreactive.ssGSEA.normalized.score, xlab="Implemented IMR ssGSEA", ylab="Published IMR ssGSEA Score")
-plot(merged$MES, merged$Mesenchymal.ssGSEA.normalized.score, xlab="Implemented MES ssGSEA", ylab="Published MES ssGSEA Score")
-plot(merged$PRO, merged$Proliferative.ssGSEA.normalized.score, xlab="Implemented PRO ssGSEA", ylab="Published PRO ssGSEA Score")
+plot(verhaak.merged$DIF, verhaak.merged$Differentiated.ssGSEA.normalized.score, xlab="Implemented DIF ssGSEA", ylab="Published DIF ssGSEA Score")
+plot(verhaak.merged$IMR, verhaak.merged$Immunoreactive.ssGSEA.normalized.score, xlab="Implemented IMR ssGSEA", ylab="Published IMR ssGSEA Score")
+plot(verhaak.merged$MES, verhaak.merged$Mesenchymal.ssGSEA.normalized.score, xlab="Implemented MES ssGSEA", ylab="Published MES ssGSEA Score")
+plot(verhaak.merged$PRO, verhaak.merged$Proliferative.ssGSEA.normalized.score, xlab="Implemented PRO ssGSEA", ylab="Published PRO ssGSEA Score")
 par(par.original)
 @
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
@@ -233,8 +234,8 @@ par(par.original)
 From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-computed these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples were classified identically between our implementation and supplementary results.
 
 <<verhaak_table_bythreshold, results='asis'>>=
-implemented.classes.from.threshold <-  merged$implemented.subtype
-supplementary.classes.from.threshold <- merged$CloverLeaf
+implemented.classes.from.threshold <-  verhaak.merged$implemented.subtype
+supplementary.classes.from.threshold <- verhaak.merged$CloverLeaf
 addtorow <- list()
 addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
@@ -246,8 +247,8 @@ print(xtable(table(implemented.classes.from.threshold, supplementary.classes.fro
 The second method is to directly assign the subtype by the max ssGSEA score. Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.by.max, digits=2)}\% of samples classified identicially between our implementation and supplementary results.
 
 <<verhaak_table_bymax, results='asis'>>=
-implemented.classes.from.max <-  as.factor(c("DIF", "IMR", "MES", "PRO")[apply(merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)]) 
-supplementary.classes.from.max <- as.factor(c("DIF", "IMR", "MES", "PRO")[apply(merged[,paste0(c("Differentiated", "Immunoreactive", "Mesenchymal", "Proliferative"), ".ssGSEA.normalized.score")],1,which.max)])
+implemented.classes.from.max <-  as.factor(c("DIF", "IMR", "MES", "PRO")[apply(verhaak.merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)]) 
+supplementary.classes.from.max <- as.factor(c("DIF", "IMR", "MES", "PRO")[apply(verhaak.merged[,paste0(c("Differentiated", "Immunoreactive", "Mesenchymal", "Proliferative"), ".ssGSEA.normalized.score")],1,which.max)])
 addtorow <- list()
 addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
