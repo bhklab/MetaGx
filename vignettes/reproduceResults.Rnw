@@ -16,7 +16,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
@@ -36,13 +36,15 @@ library(gdata)
 library(HiDimDA)
 library(survival)
 library(reshape2)
-library(survMisc)
+library(genefu)
+library(annotate)
+library(hgu133plus2.db)
+# library(survMisc) 
 library(xtable)
 library(gridExtra)
 library(Biobase)
 library(GSVA)
 library(sparsediscrim)
-library(MetaGx2)
 library(MetaGxOvarian)
 library(survcomp)
 library(ggplot2)
@@ -51,6 +53,7 @@ library(ggplot2)
 <<load_data>>=
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
+#source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
 source("../inst/extdata/reproduce.results.patientselection.config")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
@@ -318,8 +321,16 @@ crijns.eset <- getGeneMapping(esets$GSE13876)
 tothill.eset <- getGeneMapping(esets$GSE9891)
 dressman.eset <- getGeneMapping(esets$PMID17290060)
 bentink.eset <- getGeneMapping(esets$E.MTAB.386)
+denkert.eset <- getGeneMapping(esets$GSE14764)
+mok.eset <- getGeneMapping(esets$GSE18520)
 
-implemented.bentink.esets <- list(crijns=crijns.eset, tothill=tothill.eset, dressman=dressman.eset, bentink=bentink.eset)
+implemented.bentink.esets <- list(
+  crijns=crijns.eset,
+  tothill=tothill.eset,
+  dressman=dressman.eset,
+  bentink=bentink.eset,
+  denkert=denkert.eset,
+  mok=mok.eset)
 
 implemented.bentink.esets <- lapply(implemented.bentink.esets, function(x) {
   x <- x[,x$histological_type=="ser" & x$summarygrade=="high" & x$summarystage=="late" & !is.na(x$histological_type) & !is.na(x$summarygrade) & !is.na(x$summarystage)]
@@ -364,7 +375,7 @@ Our implementation of the Bentink et al. subtype classifier on the Tothill et al
 
 \begin{figure}[H]
 {\centering
-<<bentink_tothill_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth">>=
+<<bentink_tothill_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth", cache=FALSE>>=
 grid.arrange(bentink.plots[["tothill"]][[1]], bentink.plots[["tothill"]][[2]], ncol=2)
 @
 }
@@ -377,7 +388,7 @@ grid.arrange(bentink.plots[["tothill"]][[1]], bentink.plots[["tothill"]][[2]], n
 Our implementation of the Bentink et al. subtype classifier on the Crijns et al. dataset classified \Sexpr{sum(bentink.plots[["crijns"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["crijns"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.\footnote{In this case, the survival curves appear to differ from the curves provided in the supplementary text.}
 \begin{figure}[H]
 {\centering
-<<bentink_crijns_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth">>=
+<<bentink_crijns_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth", cache=FALSE>>=
 grid.arrange(bentink.plots[["crijns"]][[1]], bentink.plots[["crijns"]][[2]], ncol=2)
 @
 }
@@ -386,18 +397,46 @@ grid.arrange(bentink.plots[["crijns"]][[1]], bentink.plots[["crijns"]][[2]], nco
 \end{figure}
 
 \pagebreak
+\subsection*{Validation: Denkert dataset}
+Our implementation of the Bentink et al. subtype classifier on the Denkert et al. dataset classified \Sexpr{sum(bentink.plots[["denkert"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["denkert"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.\footnote{In this case, the survival curves appear to differ from the curves provided in the supplementary text.}
+\begin{figure}[H]
+{\centering
+<<bentink_denkert_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth", cache=FALSE>>=
+grid.arrange(bentink.plots[["denkert"]][[1]], bentink.plots[["denkert"]][[2]], ncol=2)
+@
+}
+\includegraphics[width=\textwidth]{bentink_supp2_denkert.png}
+\caption{Denkert dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
+\end{figure}
+
+\pagebreak
 \subsection*{Validation: Dressman dataset}
 Our implementation of the Bentink et al. subtype classifier on the Dressman et al. dataset classified \Sexpr{sum(bentink.plots[["dressman"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["dressman"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.\footnote{Note the different x-axis range for the survival curves, as MetaGxOvarian has access to extended survival information. Other than this, the survival plots look very similar.}
 
 \begin{figure}[H]
 {\centering
-<<bentink_dressman_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth">>=
+<<bentink_dressman_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth", cache=FALSE>>=
 grid.arrange(bentink.plots[["dressman"]][[1]], bentink.plots[["dressman"]][[2]], ncol=2)
 @
 }
 \includegraphics[width=\textwidth]{bentink_supp2_dressman.png}
 \caption{Dressman dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
 \end{figure}
+
+\pagebreak
+\subsection*{Validation: Mok dataset}
+Our implementation of the Bentink et al. subtype classifier on the Mok et al. dataset classified \Sexpr{sum(bentink.plots[["mok"]][[3]]$Bentink.Haibe.Kains.subtypes=="Angiogenic")} patients as `angiogenic' and \Sexpr{sum(bentink.plots[["mok"]][[3]]$Bentink.Haibe.Kains.subtypes=="nonAngiogenic")} as `non-angiogenic'.\footnote{In this case, the survival curves appear to differ from the curves provided in the supplementary text.}
+\begin{figure}[H]
+{\centering
+<<bentink_mok_survival, fig.width=9, fig.height=5, out.width="0.75\\textwidth", cache=FALSE>>=
+grid.arrange(bentink.plots[["mok"]][[1]], bentink.plots[["mok"]][[2]], ncol=2)
+@
+}
+\includegraphics[width=\textwidth]{bentink_supp2_mok.png}
+\caption{Mok dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
+\end{figure}
+
+
 
 \section{Appendix: Summary of Subtyping Methods}
 \hspace*{-2cm}
