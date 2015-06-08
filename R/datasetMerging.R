@@ -52,10 +52,10 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   ## expression data
   exprs.merged <- lapply(esets, function (x, y) {
     ee <- Biobase::exprs(x)[is.element(rownames(exprs(x)),rownames(feature.merged)),]
-    print(dim(ee))
+    #print(dim(ee))
     eem <- matrix(NA, nrow=length(y), ncol=ncol(ee), dimnames=list(y, colnames(ee)))
-    print(dim(eem))
-    print(length(intersect(rownames(ee),rownames(eem))))
+    #print(dim(eem))
+    #print(length(intersect(rownames(ee),rownames(eem))))
     eem[rownames(ee), colnames(ee)] <- ee
     return (eem)
   }, y=rownames(feature.merged))
@@ -67,7 +67,7 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   clinicinfo.merged <- lapply(esets, function (x , y) {
     ee <- Biobase::pData(x)[ , y, drop=FALSE]
   }, y=ucid)
-  clinicinfo.merged <- do.call(rbind, clinicinfo.merged)
+  clinicinfo.merged <- do.call(gdata::combine, clinicinfo.merged)
   rownames(clinicinfo.merged) <- colnames(exprs.merged)
 #   rownames(clinicinfo.merged) <- gsub(   sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(clinicinfo.merged)         )
 #   ## create a merged expressionSet object

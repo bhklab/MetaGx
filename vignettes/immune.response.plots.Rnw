@@ -1,0 +1,69 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+%\newcommand{\sectionbreak}{\clearpage}
+
+\begin{document}
+
+\title{Immune-response Signatures with Ovarian Subtypes}
+
+\author{Gregory M. Chen}
+\date{\today}
+\maketitle
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+options(replace.assign=TRUE,width=90)
+library(gdata)
+source("../R/datasetMerging.R")
+source("../R/getSubtype.R")
+
+.getPooledEset <- function(only.hgs=TRUE) {
+  if(only.hgs) {
+    source("../inst/extdata/hgs.patientselection.config")
+  } else {
+    source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
+  }
+  source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+  esets <- lapply(esets, function(x) {
+    factor.indices <- sapply(pData(x), is.factor)
+    pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
+    return(x)
+    })
+  return(datasetMerging(esets))
+}
+@
+
+
+
+
+
+<<setup, include=FALSE, cache=FALSE>>=
+pooled.eset <- .getPooledEset(only.hgs = TRUE)
+
+for(gene.name in c("CTLA4", "CD274", "PDCD1")) {
+  index <- which(fData(pooled.eset)$gene == gene.name)
+  if(length(index) == 0) {
+    warnings(paste("Could not find gene name", gene.name))
+    }
+  if(length(index) > 1) {
+    warning(paste("Found more than one gene called", gene.name))
+    }
+  expression.values <- exprs(pooled.eset)[index,]
+  tertiles <- cut(expression.values, breaks=quantile(expression.values, probs=c(0,1/3,2/3,1)))
+  levels(tertiles) <- c("Low", "Mid", "High")
+  pData(pooled.eset) <- cbind(pData(pooled.eset), paste0(gene.name, "tertile"));
+}
+@
+
+\end{document}
