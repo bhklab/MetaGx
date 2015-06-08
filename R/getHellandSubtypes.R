@@ -14,7 +14,8 @@ getHellandSubtypes <- function(eset) {
     colnames(x)[1:2] <- c("PROBEID", "SYMBOL")
     mappings.with.unique.probeid <- current.mapping[ !(current.mapping$PROBEID %in% current.mapping$PROBEID[duplicated(current.mapping$PROBEID)]),]
     mappings.with.duplicate.probeid <- current.mapping[ current.mapping$PROBEID %in% current.mapping$PROBEID[duplicated(current.mapping$PROBEID)],]
-    mappings.with.duplicate.probeid <- merge(x, mappings.with.duplicate.probeid)[, c("PROBEID", "ENTREZID", "SYMBOL")]
+    mappings.with.duplicate.probeid <- merge(x, mappings.with.duplicate.probeid, by=c("PROBEID", "SYMBOL"))[, c("PROBEID", "ENTREZID", "SYMBOL")]
+    mappings.with.duplicate.probeid <- unique(mappings.with.duplicate.probeid)
     current.mapping <- rbind(mappings.with.unique.probeid, mappings.with.duplicate.probeid)
     to.return <- merge(x, current.mapping, by="PROBEID")[, c("ENTREZID", "PROBEID", "logFC")]
     return(to.return)
