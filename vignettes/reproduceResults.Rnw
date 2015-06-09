@@ -231,7 +231,7 @@ par(par.original)
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
 \end{figure}
 
-From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-computed these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples were classified identically between our implementation and supplementary results.
+From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-compute these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples classified identically between our implementation and supplementary results.
 
 <<verhaak_table_bythreshold, results='asis'>>=
 implemented.classes.from.threshold <-  verhaak.merged$implemented.subtype
@@ -349,6 +349,7 @@ helland.data.for.survival <- helland.data.for.survival[helland.data.for.survival
 # Remove patients with missing survival information
 helland.data.for.survival <- helland.data.for.survival[complete.cases(helland.data.for.survival),]
 helland.data.for.survival$months_to_death <- helland.data.for.survival$days_to_death / days.per.month
+helland.data.for.survival$days_to_death <- NULL
 helland.data.for.survival$vital_status <- helland.data.for.survival$vital_status == "deceased"
 helland.censored.out <- survcomp::censor.time(helland.data.for.survival$months_to_death, helland.data.for.survival$vital_status, time.cens=130)
 helland.data.for.survival$months_to_death <- helland.censored.out$surv.time.cens

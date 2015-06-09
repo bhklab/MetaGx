@@ -68,6 +68,7 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
     ee <- Biobase::pData(x)[ , y, drop=FALSE]
   }, y=ucid)
   clinicinfo.merged <- do.call(gdata::combine, clinicinfo.merged)
+  colnames(clinicinfo.merged)[which(colnames(clinicinfo.merged) == "source")] <- "data.source"
   rownames(clinicinfo.merged) <- colnames(exprs.merged)
 #   rownames(clinicinfo.merged) <- gsub(   sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(clinicinfo.merged)         )
 #   ## create a merged expressionSet object

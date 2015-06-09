@@ -37,6 +37,7 @@ getHellandSubtypes <- function(eset) {
   # Scale to mean=0, variance=1
   subtype.scores <- apply(subtype.scores, 2, scale)
   rownames(subtype.scores) <- old.rownames
-  eset$Helland.subtypes <- as.factor(colnames(subtype.scores)[apply(subtype.scores, 1, which.max)])
+  subclasses <- factor(colnames(subtype.scores)[apply(subtype.scores, 1, which.max)], levels=names(supplementary.tables))
+  eset$Helland.subtypes <- subclasses
   return(list(Annotated.eset=eset, subtype.scores=subtype.scores))
 }

@@ -24,8 +24,16 @@
 # Set options
 knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
+days.per.month <- 30.4368
+days.per.year <- 365.242
+par.original <- par()
 library(gdata)
+library(annotate)
+library(GSVA)
+library(ggplot2)
+library(hgu133plus2.db)
 source("../R/getHellandSubtypes.R")
+source("../R/getVerhaakSubtypes.R")
 source("../R/datasetMerging.R")
 source("../R/getSubtype.R")
 
@@ -37,39 +45,125 @@ source("../R/getSubtype.R")
   }
   source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
   esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
+  esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
   
   esets <- lapply(esets, function(x) {
     factor.indices <- sapply(pData(x), is.factor)
     pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
     return(x)
     })
-  return(datasetMerging(esets))
+  eset.toreturn <- datasetMerging(esets)
+  eset.toreturn$Helland.subtypes <- as.factor(eset.toreturn$Helland.subtypes)
+  eset.toreturn$Verhaak.subtypes <- as.factor(eset.toreturn$Verhaak.subtypes)
+  return(eset.toreturn)
 }
 @
 
 
-
-
+<<load_data>>=
+pooled.eset <- .getPooledEset(only.hgs = TRUE)
+@
 
 <<process_data>>=
-pooled.eset <- .getPooledEset(only.hgs = TRUE)
-
-for(gene.name in c("CTLA4", "CD274", "PDCD1")) {
-  index <- which(fData(pooled.eset)$gene == gene.name)
-  if(length(index) == 0) {
-    warnings(paste("Could not find gene name", gene.name))
+#for(gene.name in c("CTLA4", "CD274", "PDCD1")) {
+.get.survival.data.for.plotting <- function(eset, gene.name=NULL, entrez.id=NULL, num.quantiles=2, time.unit=c("days", "months", "years"), time.cens=NULL, include.sample=rep(TRUE, nrow(pData(eset)))) {
+  time.unit=match.arg(time.unit)
+ 
+  eset <- eset[,include.sample]
+  # Find the fData index of the gene 
+  if(is.null(gene.name) && is.null(entrez.id)) {
+    stop("One of gene.name and entrez.id should be provided")
+  }
+  if(!is.null(gene.name) && !is.null(entrez.id)) {
+    stop("Exactly one of gene.name and entrez.id should be provided")
+  }
+  if(!is.null(gene.name)) {
+    index <- which(fData(eset)$gene == gene.name)
+    if(length(index) == 0) {
+      warnings(paste("Could not find gene name", gene.name))
+      }
+    if(length(index) > 1) {
+      warning(paste("Found more than one gene called", gene.name))
     }
-  if(length(index) > 1) {
-    warning(paste("Found more than one gene called", gene.name))
+  }
+  if(!is.null(entrez.id)) {
+    index <- which(fData(eset)$EntrezGene.ID == entrez.id)
+    if(length(index) == 0) {
+      warnings(paste("Could not find Entrez ID", entrez.id))
+      }
+    if(length(index) > 1) {
+      warning(paste("Found more than one Entrez ID", entrez.id))
     }
-  expression.values <- exprs(pooled.eset)[index,]
-  tertiles.for.nonempy.cases <- cut(expression.values[!is.na(expression.values)], breaks=quantile(expression.values[!is.na(expression.values)], probs=c(0,1/3,2/3,1)))
-  tertiles <- factor(rep(NA, length(expression.values)), levels=levels(tertiles.for.nonempy.cases))
-  tertiles[!is.na(expression.values)] <- tertiles.for.nonempy.cases
-  levels(tertiles) <- c("Low", "Mid", "High")
-  pData(pooled.eset) <- cbind(pData(pooled.eset), tertiles);
-  colnames(pData(pooled.eset))[ ncol(pData(pooled.eset)) ] <- paste0(gene.name, ".tertile")
+  }
+ 
+  # Get the expression quantile 
+  expression.values <- exprs(eset)[index,]
+  if(sum(is.na(expression.values)) > 0) {
+    message(paste("Found", sum(is.na(expression.values)), "empty gene expression values. Including only the", sum(!is.na(expression.values)), "samples with nonempty values."))
+  }
+  eset <- eset[,!is.na(expression.values)]
+  
+  expression.values <- exprs(eset)[index,]
+  
+  expression.quantiles <- cut(expression.values, breaks=quantile(expression.values, probs=seq(0,1,length=num.quantiles+1)), include.lowest=TRUE)
+  
+  if(num.quantiles==2) {
+    levels(expression.quantiles) <- c("Low", "High")
+  } else if(num.quantiles==3) {
+    levels(expression.quantiles) <- c("Low", "Mid", "High")
+  } else {
+    levels(expression.quantiles) <- paste0("Expression.quantile.", 1:num.quantiles)
+  }
+  pData(eset) <- cbind(pData(eset), expression.quantiles);
+  colnames(pData(eset))[ ncol(pData(eset)) ] <- paste0(gene.name, ".quantile")
+  
+  survival.data <- pData(eset)[c("data.source", "days_to_death", "vital_status", paste0(gene.name, ".quantile"))]
+  
+  # only keep cases which has expression values
+  survival.data$vital_status <- survival.data$vital_status == "deceased"
+  if(time.unit=="months") {
+    survival.data$months_to_death <- survival.data$days_to_death / days.per.month
+    survival.data$days_to_death <- NULL
+    if(!is.null(time.cens)) {
+      censored.out <- survcomp::censor.time(survival.data$months_to_death, survival.data$vital_status, time.cens=time.cens)
+      survival.data$months_to_death <- censored.out$surv.time.cens
+      survival.data$vital_status <- censored.out$surv.event.cens
+    }
+  }
+  if(time.unit=="years") {
+    survival.data$years_to_death <- survival.data$days_to_death / days.per.year
+    survival.data$days_to_death <- NULL
+    if(!is.null(time.cens)) {
+      censored.out <- survcomp::censor.time(survival.data$years_to_death, survival.data$vital_status, time.cens=time.cens)
+      survival.data$years_to_death <- censored.out$surv.time.cens
+      survival.data$vital_status <- censored.out$surv.event.cens
+    }
+  }
+  
+  return(survival.data)
 }
 @
+
+\begin{figure}[H]
+<<CTLA4_survival, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
+
+ctla4.surv.obj <- survfit(Surv(ctla4.survival.data$years_to_death, ctla4.survival.data$vital_status) ~ ctla4.survival.data$CTLA4.tertile)
+survMisc::autoplot(ctla4.surv.obj, title="Survival curves for CTLA4 Expression Levels", censSize=0)$plot + theme(legend.position="bottom", legend.direction='vertical') + scale_colour_brewer(name="Strata", palette="Dark2")
+@
+\caption{Survival curves for CTLA4, all subtypes}
+\end{figure}
+
+
+\begin{figure}[H]
+<<CTLA4_survival, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
+ctla4.survival.plots <- lapply(levels(ctla4.survival.data$Helland.subtypes), function(x) {
+  ctla4.subtype.surv.obj <- survfit(Surv(ctla4.survival.data[ctla4.survival.data$Helland.subtypes==x,]$years_to_death, ctla4.survival.data[ctla4.survival.data$Helland.subtypes==x,]$vital_status) ~ ctla4.survival.data[ctla4.survival.data$Helland.subtypes==x,]$CTLA4.tertile)
+  ctla4.subtyle.plot <- survMisc::autoplot(ctla4.subtype.surv.obj, title="Survival curves for CTLA4 Expression Levels", censSize=0)$plot + scale_colour_brewer(name="Strata", palette="Dark2") + theme(legend.position='none')
+  })
+
+gridExtra::grid.arrange(ctla4.survival.plots[[1]], ctla4.survival.plots[[2]], ctla4.survival.plots[[3]], ctla4.survival.plots[[4]],ncol=2)
+@
+\caption{Survival curves for CTLA4 by subtype}
+\end{figure}
 
 \end{document}
