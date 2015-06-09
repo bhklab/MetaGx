@@ -45,7 +45,7 @@ getVerhaakSubtypes <- function(eset) {
     colnames(gsva.out)[which.max(x)]
     })
   
-  subclasses <- as.factor(subclasses)
+  subclasses <- factor(subclasses, levels=levels(supplementary.data.sheet7$CLASS))
   ## Append a new column for Verhaak subtypes
   eset$Verhaak.subtypes <- subclasses
   return(list(Annotated.eset=eset, gsva.out=gsva.out))

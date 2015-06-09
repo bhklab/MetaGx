@@ -25,6 +25,8 @@ getKonecnySubtypes <- function(eset) {
   
   subclasses <- apply(spearman.cc.vals, 1, function(x) as.factor(colnames(spearman.cc.vals)[which.max(x)]))
   
+  subclasses <- factor(subclasses, levels=colnames(centroids))
+  
   eset$Konecny.subtypes <- subclasses
   
   return(list(Annotated.eset=eset, spearman.cc.vals=spearman.cc.vals))
