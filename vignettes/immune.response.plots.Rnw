@@ -25,6 +25,7 @@
 knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
 library(gdata)
+source("../R/getHellandSubtypes.R")
 source("../R/datasetMerging.R")
 source("../R/getSubtype.R")
 
@@ -35,6 +36,8 @@ source("../R/getSubtype.R")
     source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
   }
   source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+  esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
+  
   esets <- lapply(esets, function(x) {
     factor.indices <- sapply(pData(x), is.factor)
     pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
@@ -48,7 +51,7 @@ source("../R/getSubtype.R")
 
 
 
-<<setup, include=FALSE, cache=FALSE>>=
+<<process_data>>=
 pooled.eset <- .getPooledEset(only.hgs = TRUE)
 
 for(gene.name in c("CTLA4", "CD274", "PDCD1")) {
@@ -60,9 +63,12 @@ for(gene.name in c("CTLA4", "CD274", "PDCD1")) {
     warning(paste("Found more than one gene called", gene.name))
     }
   expression.values <- exprs(pooled.eset)[index,]
-  tertiles <- cut(expression.values, breaks=quantile(expression.values, probs=c(0,1/3,2/3,1)))
+  tertiles.for.nonempy.cases <- cut(expression.values[!is.na(expression.values)], breaks=quantile(expression.values[!is.na(expression.values)], probs=c(0,1/3,2/3,1)))
+  tertiles <- factor(rep(NA, length(expression.values)), levels=levels(tertiles.for.nonempy.cases))
+  tertiles[!is.na(expression.values)] <- tertiles.for.nonempy.cases
   levels(tertiles) <- c("Low", "Mid", "High")
-  pData(pooled.eset) <- cbind(pData(pooled.eset), paste0(gene.name, "tertile"));
+  pData(pooled.eset) <- cbind(pData(pooled.eset), tertiles);
+  colnames(pData(pooled.eset))[ ncol(pData(pooled.eset)) ] <- paste0(gene.name, ".tertile")
 }
 @
 
