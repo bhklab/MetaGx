@@ -280,29 +280,31 @@ par(par.original)
 \caption{Survival curves for CD73 by Tothill subtype}
 \end{figure}
 
-%\pagebreak
-%Survival analysis was performed within each ovarian subtype as defined by TCGA, 2011 (using our implementation of the subtype classifier described in Verhaak al., 2013).
-%\begin{figure}[H]
-%<<CD73_survival_verhaak_subtypes, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
-%par(mfrow=c(2,2))
-%for(x in levels(pooled.eset$Verhaak.subtypes)) {
-%  nt5e.subtype.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="NT5E", num.quantiles=3, time.unit="years", time.cens=10, include.sample = pooled.eset$Verhaak.subtypes == x)
-%  create.survival.plot(
-%    surv.time=nt5e.subtype.survival.data$years_to_event,
-%    surv.event=nt5e.subtype.survival.data$event_status,
-%    groups=nt5e.subtype.survival.data$NT5E.quantile,
-%    xlab="Time (years)",
-%    main=paste("Survival for subtype", x),
-%    reverse.legend.order = TRUE,
-%    group.names=paste("CD73", gsub(".*=", "",levels(nt5e.subtype.survival.data$NT5E.quantile))),
-%    risk.vals=nt5e.subtype.survival.data$NT5E.expression,
-%    col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
-%    )
-%  }
-%par(par.original)
-%@
-%\caption{Survival curves for CD73 by Verhaak subtype}
-%\end{figure}
+\pagebreak
+Survival analysis was performed within each ovarian subtype as defined by TCGA, 2011 (using our implementation of the subtype classifier described in Verhaak al., 2013).
+\begin{figure}[H]
+<<CD73_survival_verhaak_subtypes, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+par(mfrow=c(2,2))
+for(x in levels(pooled.eset$Verhaak.subtypes)) {
+  nt5e.subtype.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="NT5E", num.quantiles=3, time.unit="years", time.cens=10, include.sample = pooled.eset$Verhaak.subtypes == x)
+  create.survival.plot(
+    surv.time=nt5e.subtype.survival.data$years_to_event,
+    surv.event=nt5e.subtype.survival.data$event_status,
+    groups=nt5e.subtype.survival.data$NT5E.quantile,
+    datasets=nt5e.subtype.survival.data$data.source,
+    xlab="Time (years)",
+    main=paste("Survival for subtype", x),
+    reverse.legend.order = TRUE,
+    group.names=paste("CD73", gsub(".*=", "",levels(nt5e.subtype.survival.data$NT5E.quantile))),
+    risk.vals=nt5e.subtype.survival.data$NT5E.expression,
+    stats.to.show=c("n","p"),
+    col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
+    )
+  }
+par(par.original)
+@
+\caption{Survival curves for CD73 by Verhaak subtype}
+\end{figure}
 
 %\pagebreak
 %Survival analysis was performed within each ovarian subtype as defined by Bentink et al., 2011 (using the subtype classifier in \texttt{genefu}).
