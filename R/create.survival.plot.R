@@ -19,11 +19,11 @@ create.survival.plot <- function(
                                  # Most relevant legend parameters are already covered, but allow further parameters
                                  legend.par=list(),
                                  ...) {
-  if(is.null(datasets)) {
+  #if(is.null(datasets)) {
     surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups)
-  } else {
-    surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups + strata(datasets))
-  }
+  #} else {
+  #  surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups + strata(datasets))
+  #}
  
    if(is.null(group.names)) {
     group.names <- names(surv.obj$strata)
