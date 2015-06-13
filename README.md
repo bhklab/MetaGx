@@ -1,4 +1,4 @@
-MetaGx2
+MetaGx
 =======
 
 Scripts to perform meta-analysis of cancer gene expression datasets
