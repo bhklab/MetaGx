@@ -91,8 +91,6 @@ create.survival.plot <- function(
   }
   n <- coxph.summary$n
   p <- coxph.summary$logtest[["pvalue"]]
-  c <- survcomp::concordance.index(risk.vals, surv.time, surv.event)$c.index
-  d <- survcomp::D.index(risk.vals, surv.time, surv.event)$d.index
   
   if(length(stats.to.show) > 0) {
     text.to.show <- ""
@@ -105,8 +103,10 @@ create.survival.plot <- function(
       } else if(stats.to.show[i] == "p") {
         text.to.show <- paste0(text.to.show, "Likelihood ratio test: p = ", round(p, digits=3))
       } else if(stats.to.show[i] == "c") {
+        c <- survcomp::concordance.index(risk.vals, surv.time, surv.event)$c.index
         text.to.show <- paste0(text.to.show, "c-index: ", round(c, digits=3))
       } else if(stats.to.show[i] == "d") {
+        d <- survcomp::D.index(risk.vals, surv.time, surv.event)$d.index
         text.to.show <- paste0(text.to.show, "d-index: ", round(d, digits=3))
       } 
     }
