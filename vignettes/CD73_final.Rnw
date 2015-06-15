@@ -1,0 +1,262 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage{verbatim}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+%\newcommand{\sectionbreak}{\clearpage}
+
+\begin{document}
+
+%\title{Prognostic relevance of CD73 in high-grade, late-stage ovarian carcinoma}
+\title{Prognostic relevance of CD73 and CD39 high-grade, late-stage ovarian carcinoma}
+
+\author{Gregory M. Chen}
+\date{\today}
+\maketitle
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+options(replace.assign=TRUE,width=90)
+days.per.month <- 30.4368
+days.per.year <- 365.242
+par.original <- par()
+library(gdata)
+library(annotate)
+library(GSVA)
+library(ggplot2)
+library(genefu)
+library(xtable)
+library(hgu133plus2.db)
+source("../R/getHellandSubtypes.R")
+source("../R/create.survival.plot.R")
+source("../R/getVerhaakSubtypes.R")
+source("../R/getBentinkHaibeKainsSubtypes.R")
+source("../R/datasetMerging.R")
+source("../R/getSubtype.R")
+source("../R/create.forest.plot.R")
+
+@
+
+
+<<load_data>>=
+source("../inst/extdata/hgs.patientselection.config")
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets$GSE51088 <- esets$GSE51088[complete.cases(exprs(esets$GSE51088)),]
+esets <- lapply(esets, function(x) {
+  factor.indices <- sapply(pData(x), is.factor)
+  pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
+  return(x)
+  })
+pooled.eset <- datasetMerging(esets)
+@
+
+<<process_data>>=
+
+# Helper function for extracting survival data with quantiles for a given gene.
+# The include.sample parameter can be used to specify a subset (e.g. by subtype)
+# TODO: extend for multiple entrez ids
+.get.survival.data.for.plotting <- function(eset, gene.names=NULL, entrez.ids=NULL, num.quantiles=2, survival.type=c("overall.survival", "tumor.recurrence"), time.unit=c("days", "months", "years"), include.sample=rep(TRUE, nrow(pData(eset)))) {
+  survival.type=match.arg(survival.type)
+  time.unit=match.arg(time.unit)
+ 
+  eset <- eset[,include.sample]
+  # Find the fData index of the gene 
+  if(is.null(gene.names) && is.null(entrez.ids)) {
+    stop("One of gene.name and entrez.id should be provided")
+  }
+  if(!is.null(gene.names) && !is.null(entrez.ids)) {
+    stop("Exactly one of gene.name and entrez.id should be provided")
+  }
+  indexes <- integer(0)
+  if(!is.null(gene.names)) {
+    for(gene.name in gene.names) {
+      index <- which(fData(eset)$gene == gene.name)
+      if(length(index) == 0) {
+        warning(paste("Could not find gene name", gene.name))
+        }
+      if(length(index) > 1) {
+        stop(paste("Found more than one gene called", gene.name))
+      }
+      indexes <- c(indexes, index)
+    }
+  }
+  if(!is.null(entrez.ids)) {
+    for(entrez.id in entrez.ids) {
+      index <- which(fData(eset)$EntrezGene.ID == entrez.id)
+      if(length(index) == 0) {
+        warning(paste("Could not find Entrez ID", entrez.id))
+        }
+      if(length(index) > 1) {
+        stop(paste("Found more than one Entrez ID", entrez.id))
+      }
+      indexes <- c(indexes, index)
+    }
+  }
+ 
+  # Get the expression quantile 
+  expression.values <- t(exprs(eset)[indexes,,drop=FALSE])
+  if(sum(is.na(expression.values)) > 0) {
+    stop(paste("Found", sum(is.na(expression.values)), "empty gene expression values. Including only the", sum(!is.na(expression.values)), "samples with nonempty values."))
+    #eset <- eset[,apply(is.na(expression.values)] etc
+  }
+  # re-populate expression values based on the possibly newly subsetted eset
+  expression.values <- t(exprs(eset)[indexes,,drop=FALSE])
+  colnames(expression.values) <- gene.names
+  
+  expression.quantiles <- as.data.frame(lapply(as.data.frame(expression.values), function(x) ordered(cut(x, breaks=quantile(x, probs=seq(0,1,length=num.quantiles+1)), include.lowest=TRUE))))
+  if(num.quantiles==2) {
+    expression.quantiles <- as.data.frame(lapply(expression.quantiles, function(x) {levels(x) <- c("Low", "High"); return(x)}))
+  } else if(num.quantiles==3) {
+    expression.quantiles <- as.data.frame(lapply(expression.quantiles, function(x) {levels(x) <- c("Low", "Mid", "High"); return(x)}))
+  } else {
+    expression.quantiles <- as.data.frame(lapply(expression.quantiles, function(x) {levels(x) <- paste0("Expression.quantile.", 1:num.quantiles); return(x)}))
+  }
+  for(gene.name in gene.names) {
+    pData(eset)[[paste0(gene.name, ".quantile")]] <- expression.quantiles[,gene.name]
+    pData(eset)[[paste0(gene.name, ".expression")]] <- expression.values[,gene.name]
+  }
+  
+  colnames.to.keep <- colnames(pData(eset))[c(grep(".quantile", colnames(pData(eset)), fixed=TRUE), grep(".expression", colnames(pData(eset)), fixed=TRUE))]
+  if("data.source" %in% colnames(pData(eset))) {
+    colnames.to.keep <- c("data.source", colnames.to.keep)
+  }
+  
+  if(survival.type=="overall.survival") {
+    colnames.to.keep <- c(colnames.to.keep, "days_to_death", "vital_status")
+    survival.data <- pData(eset)[colnames.to.keep]
+    survival.data$vital_status <- survival.data$vital_status == "deceased"
+  } else if(survival.type=="tumor.recurrence") {
+    colnames.to.keep <- c(colnames.to.keep, "days_to_tumor_recurrence", "recurrence_status")
+    survival.data <- pData(eset)[colnames.to.keep]
+    survival.data$recurrence_status <- survival.data$recurrence_status == "recurrence"
+  }
+  # Rename last two columns
+  colnames(survival.data)[length(colnames(survival.data))-1] <- "days_to_event"
+  colnames(survival.data)[length(colnames(survival.data))] <- "event_status"
+  
+  # Remove cases with missing survival data
+  survival.data <- survival.data[!is.na(survival.data$days_to_event) & !is.na(survival.data$event_status),]
+  
+  if(time.unit=="months") {
+    survival.data$months_to_event <- survival.data$days_to_event / days.per.month
+    survival.data$days_to_event <- NULL
+  }
+  if(time.unit=="years") {
+    survival.data$years_to_event <- survival.data$days_to_event / days.per.year
+    survival.data$days_to_event <- NULL
+  }
+  
+  return(survival.data)
+}
+
+
+survival.data.tertiles.pool.first <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=3, survival.type="overall.survival", time.unit="years")
+@
+
+
+\section{Datasets}
+
+\Sexpr{nrow(survival.data.tertiles.pool.first)} patients with late-stage, high-grade serous ovarian cancer were pooled from MetaGxOvarian, representing \Sexpr{length(unique(survival.data.tertiles.pool.first))} datasets.
+<<Dataset_table, results='asis', eval=TRUE>>=
+data.counts <- as.data.frame(table(as.character(survival.data.tertiles.pool.first$data.source)))
+data.counts <- data.counts[match(c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088"), data.counts[,1]),]
+colnames(data.counts) <- c("Dataset name", "Number of samples")
+print(xtable(data.counts), include.rownames=FALSE)
+@
+
+
+<<get_meta_stats>>=
+survival.data.list <- lapply(esets, function(x) .get.survival.data.for.plotting(x, gene.name="NT5E", num.quantiles = 3, time.unit = "years"))
+survival.data.list <- survival.data.list[sapply(survival.data.list, function(x) nrow(x)>0)]
+# order by date of original publication
+survival.data.list <- survival.data.list[c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088")]
+@
+
+\pagebreak
+\section{Survival curves}
+Method 1:
+
+
+<<NT5E_survival_tertiles, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+esets.with.data.annotation <- lapply(names(esets), function(x) {
+  current.eset <- esets[[x]]
+  current.eset$data.source <- x
+  return(current.eset)
+  })
+names(esets.with.data.annotation) <- names(esets)
+
+survival.data.tertiles.by.eset <- lapply(esets.with.data.annotation, function(x) .get.survival.data.for.plotting(x, gene.name="NT5E", num.quantiles=3, survival.type="overall.survival", time.unit="years"))
+survival.data.tertiles.by.eset <- survival.data.tertiles.by.eset[sapply(survival.data.tertiles.by.eset, function(x) nrow(x)>0)]
+survival.data.tertiles <- do.call(rbind, survival.data.tertiles.by.eset)
+
+@
+
+
+\pagebreak
+<<NT5E_survival_tertiles_pool_first, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+create.survival.plot(
+  main="Survival Plot: pooled samples",
+  surv.time=survival.data.tertiles.pool.first$years_to_event,
+  surv.event=survival.data.tertiles.pool.first$event_status,
+  groups=survival.data.tertiles.pool.first$NT5E.quantile,
+  datasets=survival.data.tertiles.pool.first$data.source,
+  xlab="Time (years)",
+  reverse.legend.order = TRUE,
+  group.names=paste("CD73", gsub(".*=", "",levels(survival.data.tertiles.pool.first$NT5E.quantile))),
+  #risk.vals=survival.data.tertiles.pool.first$NT5E.expression,
+  stats.to.show=c("n","p", "hr"),
+  time.cens=10,
+  col=c("black", "blue", "red")
+  )
+@
+
+
+
+
+<<NT5E_upper_signature_poolfirst, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+pair.survival.data.poolfirst <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
+pair.survival.data.poolfirst$Double.high.expression <- as.factor(pair.survival.data.poolfirst$NT5E.quantile == "High" & pair.survival.data.poolfirst$ENTPD1.quantile == "High")
+
+create.survival.plot(
+  main="Survival: CD39 and CD73",
+  surv.time=pair.survival.data.poolfirst$years_to_event,
+  surv.event=pair.survival.data.poolfirst$event_status,
+  groups=pair.survival.data.poolfirst$Double.high.expression,
+  group.names = c("CD39+ / CD73 +", "Other"),
+  datasets=pair.survival.data.poolfirst$data.source,
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p","hr")
+)
+@
+
+\pagebreak
+\section{Meta-analysis}
+The d- and c-indices in the forest plots below were generated by setting risk as positively associated with CD73 expression level - \textit{i.e.}, higher expression, higher risk.
+\begin{figure}[H]
+<<d_index_forestplot, fig.width=5, fig.height=4, out.width="0.6\\textwidth">>=
+pair.survival.data.by.eset <- pair.survival.data.by.eset[c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088")]
+stat.out <- create.forest.plot(survival.data = pair.survival.data.by.eset, surv.time.colname="years_to_event", surv.event.colname = "event_status", risk.val.colname = "NT5E.expression", stat="d.index", just.meta=TRUE, x.ticks=c(0.8,0.9,1.0,1.1,1.2,1.3,1.4))
+@
+\end{figure}
+
+%Pooled d-index (random): \Sexpr{stat.out$stat.vals["meta.random"]}, 95\% CI: (\Sexpr{stat.out$stat.lower["meta.random"]}, \Sexpr{stat.out$stat.upper["meta.random"]}  )
+%Pooled d-index (fixed): \Sexpr{stat.out$stat.vals["meta.fixed"]}, 95\% CI: (\Sexpr{stat.out$stat.lower["meta.random"]}, \Sexpr{stat.out$stat.upper["meta.fixed"]}  )
+
+<<d-custom_forestplot>>=
+@
+
+\pagebreak
+%\noindent Patient selection config (for initial data extraction from MetaGxOvarian):
+%\verbatiminput{../inst/extdata/hgs.patientselection.config}
+
+\end{document}
