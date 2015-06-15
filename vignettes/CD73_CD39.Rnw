@@ -1,0 +1,529 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage{verbatim}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+%\newcommand{\sectionbreak}{\clearpage}
+
+\begin{document}
+
+%\title{Prognostic relevance of CD73 in high-grade, late-stage ovarian carcinoma}
+\title{Prognostic relevance of CD73 and CD39 high-grade, late-stage ovarian carcinoma}
+
+\author{Gregory M. Chen}
+\date{\today}
+\maketitle
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+options(replace.assign=TRUE,width=90)
+days.per.month <- 30.4368
+days.per.year <- 365.242
+par.original <- par()
+library(gdata)
+library(annotate)
+library(GSVA)
+library(ggplot2)
+library(genefu)
+library(xtable)
+library(hgu133plus2.db)
+source("../R/getHellandSubtypes.R")
+source("../R/create.survival.plot.R")
+source("../R/getVerhaakSubtypes.R")
+source("../R/getBentinkHaibeKainsSubtypes.R")
+source("../R/datasetMerging.R")
+source("../R/getSubtype.R")
+source("../R/create.forest.plot.R")
+
+@
+
+
+<<load_data>>=
+source("../inst/extdata/hgs.patientselection.config")
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets$GSE51088 <- esets$GSE51088[complete.cases(exprs(esets$GSE51088)),]
+esets <- lapply(esets, function(x) {
+  factor.indices <- sapply(pData(x), is.factor)
+  pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
+  return(x)
+  })
+#esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
+#esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
+#esets <- lapply(esets, function(x) getBentinkHaibeKainsSubtypes(x)[[1]])
+pooled.eset <- datasetMerging(esets)
+@
+
+<<process_data>>=
+
+# Helper function for extracting survival data with quantiles for a given gene.
+# The include.sample parameter can be used to specify a subset (e.g. by subtype)
+# TODO: extend for multiple entrez ids
+.get.survival.data.for.plotting <- function(eset, gene.names=NULL, entrez.ids=NULL, num.quantiles=2, survival.type=c("overall.survival", "tumor.recurrence"), time.unit=c("days", "months", "years"), include.sample=rep(TRUE, nrow(pData(eset)))) {
+  survival.type=match.arg(survival.type)
+  time.unit=match.arg(time.unit)
+ 
+  eset <- eset[,include.sample]
+  # Find the fData index of the gene 
+  if(is.null(gene.names) && is.null(entrez.ids)) {
+    stop("One of gene.name and entrez.id should be provided")
+  }
+  if(!is.null(gene.names) && !is.null(entrez.ids)) {
+    stop("Exactly one of gene.name and entrez.id should be provided")
+  }
+  indexes <- integer(0)
+  if(!is.null(gene.names)) {
+    for(gene.name in gene.names) {
+      index <- which(fData(eset)$gene == gene.name)
+      if(length(index) == 0) {
+        warning(paste("Could not find gene name", gene.name))
+        }
+      if(length(index) > 1) {
+        stop(paste("Found more than one gene called", gene.name))
+      }
+      indexes <- c(indexes, index)
+    }
+  }
+  if(!is.null(entrez.ids)) {
+    for(entrez.id in entrez.ids) {
+      index <- which(fData(eset)$EntrezGene.ID == entrez.id)
+      if(length(index) == 0) {
+        warning(paste("Could not find Entrez ID", entrez.id))
+        }
+      if(length(index) > 1) {
+        stop(paste("Found more than one Entrez ID", entrez.id))
+      }
+      indexes <- c(indexes, index)
+    }
+  }
+ 
+  # Get the expression quantile 
+  expression.values <- t(exprs(eset)[indexes,,drop=FALSE])
+  if(sum(is.na(expression.values)) > 0) {
+    stop(paste("Found", sum(is.na(expression.values)), "empty gene expression values. Including only the", sum(!is.na(expression.values)), "samples with nonempty values."))
+    #eset <- eset[,apply(is.na(expression.values)] etc
+  }
+  # re-populate expression values based on the possibly newly subsetted eset
+  expression.values <- t(exprs(eset)[indexes,,drop=FALSE])
+  colnames(expression.values) <- gene.names
+  
+  expression.quantiles <- as.data.frame(lapply(as.data.frame(expression.values), function(x) ordered(cut(x, breaks=quantile(x, probs=seq(0,1,length=num.quantiles+1)), include.lowest=TRUE))))
+  if(num.quantiles==2) {
+    expression.quantiles <- as.data.frame(lapply(expression.quantiles, function(x) {levels(x) <- c("Low", "High"); return(x)}))
+  } else if(num.quantiles==3) {
+    expression.quantiles <- as.data.frame(lapply(expression.quantiles, function(x) {levels(x) <- c("Low", "Mid", "High"); return(x)}))
+  } else {
+    expression.quantiles <- as.data.frame(lapply(expression.quantiles, function(x) {levels(x) <- paste0("Expression.quantile.", 1:num.quantiles); return(x)}))
+  }
+  for(gene.name in gene.names) {
+    pData(eset)[[paste0(gene.name, ".quantile")]] <- expression.quantiles[,gene.name]
+    pData(eset)[[paste0(gene.name, ".expression")]] <- expression.values[,gene.name]
+  }
+  
+  colnames.to.keep <- colnames(pData(eset))[c(grep(".quantile", colnames(pData(eset)), fixed=TRUE), grep(".expression", colnames(pData(eset)), fixed=TRUE))]
+  if("data.source" %in% colnames(pData(eset))) {
+    colnames.to.keep <- c("data.source", colnames.to.keep)
+  }
+  
+  if(survival.type=="overall.survival") {
+    colnames.to.keep <- c(colnames.to.keep, "days_to_death", "vital_status")
+    survival.data <- pData(eset)[colnames.to.keep]
+    survival.data$vital_status <- survival.data$vital_status == "deceased"
+  } else if(survival.type=="tumor.recurrence") {
+    colnames.to.keep <- c(colnames.to.keep, "days_to_tumor_recurrence", "recurrence_status")
+    survival.data <- pData(eset)[colnames.to.keep]
+    survival.data$recurrence_status <- survival.data$recurrence_status == "recurrence"
+  }
+  # Rename last two columns
+  colnames(survival.data)[length(colnames(survival.data))-1] <- "days_to_event"
+  colnames(survival.data)[length(colnames(survival.data))] <- "event_status"
+  
+  # Remove cases with missing survival data
+  survival.data <- survival.data[!is.na(survival.data$days_to_event) & !is.na(survival.data$event_status),]
+  
+  if(time.unit=="months") {
+    survival.data$months_to_event <- survival.data$days_to_event / days.per.month
+    survival.data$days_to_event <- NULL
+  }
+  if(time.unit=="years") {
+    survival.data$years_to_event <- survival.data$days_to_event / days.per.year
+    survival.data$days_to_event <- NULL
+  }
+  
+  return(survival.data)
+}
+@
+
+
+<<NT5E_load_data, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+nt5e.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="NT5E", num.quantiles=3, survival.type="overall.survival", time.unit="years")
+@
+
+\section{Datasets}
+
+\Sexpr{nrow(nt5e.survival.data)} patients with late-stage, high-grade serous ovarian cancer were pooled from MetaGxOvarian, representing \Sexpr{length(unique(nt5e.survival.data$data.source))} datasets.
+<<Dataset_table, results='asis', eval=FALSE>>=
+data.counts <- as.data.frame(table(as.character(nt5e.survival.data$data.source)))
+data.counts <- data.counts[match(c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088"), data.counts[,1]),]
+colnames(data.counts) <- c("Dataset name", "Number of samples")
+print(xtable(data.counts), include.rownames=FALSE)
+@
+
+
+<<get_meta_stats>>=
+survival.data.list <- lapply(esets, function(x) .get.survival.data.for.plotting(x, gene.name="NT5E", num.quantiles = 3, time.unit = "years"))
+survival.data.list <- survival.data.list[sapply(survival.data.list, function(x) nrow(x)>0)]
+# order by date of original publication
+survival.data.list <- survival.data.list[c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088")]
+@
+
+
+%\section{Survival curves}
+
+%All \Sexpr{nrow(nt5e.survival.data)} samples in the pooled dataset had expression levels for CD73. CD73 expression levels were separated into tertiles.\footnote{The survival curves were generated by plotting \texttt{survfit(Surv(surv.time, surv.event) \textasciitilde groups)}. The p-value was calculated using \texttt{coxph(Surv(surv.time, surv.event) \textasciitilde groups + strata(datasets))}. The model \texttt{coxph(Surv(surv.time, surv.event) \textasciitilde groups)} has a likelihood ratio p-value of \Sexpr{round(summary(coxph(Surv(nt5e.survival.data$years_to_event, nt5e.survival.data$event_status) ~ nt5e.survival.data$NT5E.quantile))$logtest[["pvalue"]], digits = 3)}.}
+
+%\begin{figure}[H]
+<<NT5E_survival, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth", eval=FALSE>>=
+create.survival.plot(
+  main="Survival Plot: pooled samples",
+  surv.time=nt5e.survival.data$years_to_event,
+  surv.event=nt5e.survival.data$event_status,
+  groups=nt5e.survival.data$NT5E.quantile,
+  datasets=nt5e.survival.data$data.source,
+  xlab="Time (years)",
+  reverse.legend.order = TRUE,
+  group.names=paste("CD73", gsub(".*=", "",levels(nt5e.survival.data$NT5E.quantile))),
+  risk.vals=nt5e.survival.data$NT5E.expression,
+  stats.to.show=c("n","p"),
+  col=c("black", "blue", "red")
+  )
+@
+%\caption{Survival curves for CD73 tertiles, all patients}
+%\end{figure}
+
+%\begin{figure}[H]
+<<NT5E_survival_TCGA, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth", eval=FALSE>>=
+tcga.nt5e.survival.data <- .get.survival.data.for.plotting(esets$TCGA, gene.name="NT5E", num.quantiles=3, survival.type="overall.survival", time.unit="years")
+create.survival.plot(
+  main="Survival Plot: TCGA",
+  surv.time=tcga.nt5e.survival.data$years_to_event,
+  surv.event=tcga.nt5e.survival.data$event_status,
+  groups=tcga.nt5e.survival.data$NT5E.quantile,
+  xlab="Time (years)",
+  reverse.legend.order = TRUE,
+  group.names=paste("CD73", gsub(".*=", "",levels(tcga.nt5e.survival.data$NT5E.quantile))),
+  risk.vals=tcga.nt5e.survival.data$NT5E.expression,
+  stats.to.show=c("n","p"),
+  col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
+  )
+@
+%\caption{Survival curves for CD73 tertiles, only TCGA}
+%\end{figure}
+%\pagebreak
+%Survival analysis was performed within each ovarian subtype as defined by Tothill et al., 2008 (using our implementation of their group's subtype classifier, described in Helland et al., 2011).
+%\begin{figure}[H]
+%<<CD73_survival_tothill_subtypes, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+%par(mfrow=c(2,2))
+%for(x in levels(pooled.eset$Helland.subtypes)) {
+%  nt5e.subtype.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="NT5E", num.quantiles=3, time.unit="years", include.sample = pooled.eset$Helland.subtypes == x)
+%  create.survival.plot(
+%    surv.time=nt5e.subtype.survival.data$years_to_event,
+%    surv.event=nt5e.subtype.survival.data$event_status,
+%    groups=nt5e.subtype.survival.data$NT5E.quantile,
+%    xlab="Time (years)",
+%    main=paste("Survival for subtype", x),
+%    reverse.legend.order = TRUE,
+%    group.names=paste("CD73", gsub(".*=", "",levels(nt5e.subtype.survival.data$NT5E.quantile))),
+%    risk.vals=nt5e.subtype.survival.data$NT5E.expression,
+%    col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
+%    )
+%  }
+%par(par.original)
+%@
+%\caption{Survival curves for CD73 by Tothill subtype}
+%\end{figure}
+
+<<CD73_forestplot_tothill_subtypes>>=
+#subtype.survival.data.list <- lapply(esets, function(x) .get.survival.data.for.plotting(x, gene.name="NT5E", num.quantiles = 3, time.unit = "years", include.sample=x$Helland.subtypes==levels(esets$TCGA$Helland.subtypes)[[1]]))
+#subtype.survival.data.list <- subtype.survival.data.list[sapply(subtype.survival.data.list, function(x) nrow(x)>0)]
+#create.forest.plot(survival.data = subtype.survival.data.list, surv.time.colname="years_to_event", surv.event.colname = "event_status", risk.val.colname = "NT5E.expression", stat="d.index")
+#}
+@
+
+
+
+%\caption{Survival curves for CD73 by Tothill subtype}
+%\end{figure}
+
+%\pagebreak
+%Survival analysis was performed within each ovarian subtype as defined by TCGA, 2011 (using our implementation of the subtype classifier described in Verhaak al., 2013).
+%\begin{figure}[H]
+%<<CD73_survival_verhaak_subtypes, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+%par(mfrow=c(2,2))
+%for(x in levels(pooled.eset$Verhaak.subtypes)) {
+%  nt5e.subtype.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="NT5E", num.quantiles=3, time.unit="years", include.sample = pooled.eset$Verhaak.subtypes == x)
+%  create.survival.plot(
+%    surv.time=nt5e.subtype.survival.data$years_to_event,
+%    surv.event=nt5e.subtype.survival.data$event_status,
+%    groups=nt5e.subtype.survival.data$NT5E.quantile,
+%    datasets=nt5e.subtype.survival.data$data.source,
+%    xlab="Time (years)",
+%    main=paste("Survival for subtype", x),
+%    reverse.legend.order = TRUE,
+%    group.names=paste("CD73", gsub(".*=", "",levels(nt5e.subtype.survival.data$NT5E.quantile))),
+%    risk.vals=nt5e.subtype.survival.data$NT5E.expression,
+%    stats.to.show=c("n","p"),
+%    col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
+%    )
+%  }
+%par(par.original)
+%@
+%\caption{Survival curves for CD73 by Verhaak subtype}
+%\end{figure}
+
+%\pagebreak
+%Survival analysis was performed within each ovarian subtype as defined by Bentink et al., 2011 (using the subtype classifier in \texttt{genefu}).
+%\begin{figure}[H]
+%<<CD73_survival_bentink_subtypes, eval=TRUE, fig.width=6.75, fig.height=4, out.width="0.8\\textwidth">>=
+%par(mfrow=c(1,2))
+%for(x in levels(pooled.eset$Bentink.Haibe.Kains.subtypes)) {
+%  nt5e.subtype.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="NT5E", num.quantiles=3, time.unit="years", include.sample = pooled.eset$Bentink.Haibe.Kains.subtypes == x)
+%  create.survival.plot(
+%    surv.time=nt5e.subtype.survival.data$years_to_event,
+%    surv.event=nt5e.subtype.survival.data$event_status,
+%    groups=nt5e.subtype.survival.data$NT5E.quantile,
+%    xlab="Time (years)",
+%    main=paste("Survival for subtype", x),
+%    reverse.legend.order = TRUE,
+%    group.names=paste("CD73", gsub(".*=", "",levels(nt5e.subtype.survival.data$NT5E.quantile))),
+%    risk.vals=nt5e.subtype.survival.data$NT5E.expression,
+%    col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
+%    )
+%  }
+%par(par.original)
+%@
+%\caption{Survival curves for CD73 by Bentink subtype}
+%\end{figure}
+\section{Histograms}
+
+<<get_pair_data>>=
+esets.with.data.annotation <- lapply(names(esets), function(x) {
+  current.eset <- esets[[x]]
+  current.eset$data.source <- x
+  return(current.eset)
+  })
+names(esets.with.data.annotation) <- names(esets)
+pair.survival.data.by.eset <- lapply(esets.with.data.annotation, function(x) .get.survival.data.for.plotting(x, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years"))
+pair.survival.data.by.eset <- pair.survival.data.by.eset[sapply(pair.survival.data.by.eset, function(x) nrow(x)>0)]
+pair.survival.data.2 <- do.call(rbind, pair.survival.data.by.eset)
+pair.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
+#pair.survival.data.tertiles <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=3, survival.type="overall.survival", time.unit="years", time.cens=10)
+@
+\begin{figure}[H]
+<<CD73_histogram, out.width="0.37\\textwidth">>=
+hist(pair.survival.data.2$NT5E.expression, main="CD73 Expression", xlab="Normalized expression")
+@
+\end{figure}
+\begin{figure}[H]
+<<CD39_histogram, out.width="0.37\\textwidth">>=
+hist(pair.survival.data.2$ENTPD1.expression, main="CD39 Expression", xlab="Normalized expression")
+@
+\end{figure}
+
+<<quantile_combination_plot, fig.width=5, fig.height=5>>=
+pair.survival.data$quadrants <- as.factor(as.factor(paste0(paste0("CD73-",pair.survival.data$NT5E.quantile), ", ", paste0("CD39-",pair.survival.data$ENTPD1.quantile))))
+pair.survival.data.2$quadrants <- as.factor(as.factor(paste0(paste0("CD73-",pair.survival.data.2$NT5E.quantile), ", ", paste0("CD39-",pair.survival.data.2$ENTPD1.quantile))))
+create.survival.plot(
+  main="Survival: CD39 and CD73",
+  surv.time=pair.survival.data$years_to_event,
+  surv.event=pair.survival.data$event_status,
+  groups=pair.survival.data$quadrants,
+  datasets=pair.survival.data$data.source,
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+create.survival.plot(
+  main="Survival: CD39 and CD73",
+  surv.time=pair.survival.data.2$years_to_event,
+  surv.event=pair.survival.data.2$event_status,
+  groups=pair.survival.data.2$quadrants,
+  datasets=pair.survival.data.2$data.source,
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+@
+
+%The ``Upper quantile signature'' is positive when both CD39 and CD73 are in the respective upper quantiles.
+<<double_high_plot, fig.width=5, fig.height=5>>=
+pair.survival.data$Double.high.expression <- as.factor(pair.survival.data$NT5E.quantile == "High" & pair.survival.data$ENTPD1.quantile == "High")
+pair.survival.data.2$Double.high.expression <- as.factor(pair.survival.data.2$NT5E.quantile == "High" & pair.survival.data.2$ENTPD1.quantile == "High")
+create.survival.plot(
+  main="Survival: CD39 and CD73, both upper quantiles",
+  surv.time=pair.survival.data$years_to_event,
+  surv.event=pair.survival.data$event_status,
+  groups=pair.survival.data$Double.high.expression,
+  group.names = c("Upper quantile signature: -", "Upper quantile signature: +"),
+  datasets=pair.survival.data$data.source,
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+create.survival.plot(
+  main="Survival: CD39 and CD73, both upper quantiles",
+  surv.time=pair.survival.data.2$years_to_event,
+  surv.event=pair.survival.data.2$event_status,
+  groups=pair.survival.data.2$Double.high.expression,
+  group.names = c("Upper quantile signature: -", "Upper quantile signature: +"),
+  datasets=pair.survival.data.2$data.source,
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+@
+
+<<nt5e_alone, fig.width=5, fig.height=5>>=
+create.survival.plot(
+  main="Survival: CD73, median-dichotomized",
+  surv.time=pair.survival.data$years_to_event,
+  surv.event=pair.survival.data$event_status,
+  groups=pair.survival.data$NT5E.quantile,
+  datasets=pair.survival.data$data.source,
+  group.names=c("CD73 Low", "CD73 High"),
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+create.survival.plot(
+  main="Survival: CD73, median-dichotomized",
+  surv.time=pair.survival.data.2$years_to_event,
+  surv.event=pair.survival.data.2$event_status,
+  groups=pair.survival.data.2$NT5E.quantile,
+  datasets=pair.survival.data.2$data.source,
+  group.names=c("CD73 Low", "CD73 High"),
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+@
+
+<<ENTPD1 alone, fig.width=5, fig.height=5>>=
+create.survival.plot(
+  main="Survival: ENTPD1, median-dichotomized",
+  surv.time=pair.survival.data$years_to_event,
+  surv.event=pair.survival.data$event_status,
+  groups=pair.survival.data$ENTPD1.quantile,
+  datasets=pair.survival.data$data.source,
+  #group.names=c("CD73 Low", "CD73 High"),
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+create.survival.plot(
+  main="Survival: ENTPD1, median-dichotomized",
+  surv.time=pair.survival.data.2$years_to_event,
+  surv.event=pair.survival.data.2$event_status,
+  groups=pair.survival.data.2$ENTPD1.quantile,
+  datasets=pair.survival.data.2$data.source,
+  #group.names=c("CD73 Low", "CD73 High"),
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+@
+\pagebreak
+\section{Meta-analysis}
+The d- and c-indices in the forest plots below were generated by setting risk as positively associated with CD73 expression level - \textit{i.e.}, higher expression, higher risk.
+\begin{figure}[H]
+<<d_index_forestplot, fig.width=5, fig.height=4, out.width="0.6\\textwidth">>=
+pair.survival.data.by.eset <- pair.survival.data.by.eset[c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088")]
+create.forest.plot(survival.data = pair.survival.data.by.eset, surv.time.colname="years_to_event", surv.event.colname = "event_status", risk.val.colname = "NT5E.expression", stat="d.index")
+@
+\end{figure}
+Concordance indices:
+\begin{figure}[H]
+<<c_index_forestplot, fig.width=5, fig.height=4, out.width="0.6\\textwidth">>=
+create.forest.plot(survival.data = pair.survival.data.by.eset, surv.time.colname="years_to_event", surv.event.colname = "event_status", risk.val.colname = "NT5E.expression", stat="concordance.index")
+@
+\end{figure}
+
+\pagebreak
+CD73 tertiles:
+
+<<NT5E_survival_tertiles, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+survival.data.tertiles.by.eset <- lapply(esets.with.data.annotation, function(x) .get.survival.data.for.plotting(x, gene.name="NT5E", num.quantiles=3, survival.type="overall.survival", time.unit="years"))
+survival.data.tertiles.by.eset <- survival.data.tertiles.by.eset[sapply(survival.data.tertiles.by.eset, function(x) nrow(x)>0)]
+survival.data.tertiles <- do.call(rbind, survival.data.tertiles.by.eset)
+create.survival.plot(
+  main="Survival Plot: pooled samples",
+  surv.time=survival.data.tertiles$years_to_event,
+  surv.event=survival.data.tertiles$event_status,
+  groups=survival.data.tertiles$NT5E.quantile,
+  datasets=survival.data.tertiles$data.source,
+  xlab="Time (years)",
+  reverse.legend.order = TRUE,
+  #group.names=paste("CD73", gsub(".*=", "",levels(nt5e.survival.data$NT5E.quantile))),
+  #risk.vals=survival.data.tertiles$NT5E.expression,
+  stats.to.show=c("n","p"),
+  time.cens=10,
+  col=c("black", "blue", "red")
+  )
+@
+<NT5E_survival_tertiles_pool
+pair.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
+
+<<NT5E_survival_bipartition, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+create.survival.plot(
+  main="Survival: CD73, median-dichotomized",
+  surv.time=pair.survival.data.2$years_to_event,
+  surv.event=pair.survival.data.2$event_status,
+  groups=pair.survival.data.2$NT5E.quantile,
+  datasets=pair.survival.data.2$data.source,
+  group.names=c("CD73 Low", "CD73 High"),
+  xlab="Time (years)",
+  time.cens=10,
+  stats.to.show = c("n","p")
+)
+@
+
+<<stat_comparisons, eval=FALSE>>=
+stat.objects.nt5e <- lapply(unique(pair.survival.data$data.source), function(x) {
+  survival.data.subset <- pair.survival.data[pair.survival.data$data.source==x,]
+  c <- survcomp::concordance.index(survival.data.subset$NT5E.expression, survival.data.subset$years_to_event, survival.data.subset$event_status, method="noether")
+  d <- survcomp::D.index(survival.data.subset$NT5E.expression, survival.data.subset$years_to_event, survival.data.subset$event_status)
+  return(list(c=c,d=d))
+})
+stat.objects.entpd1 <- lapply(unique(pair.survival.data$data.source), function(x) {
+  survival.data.subset <- pair.survival.data[pair.survival.data$data.source==x,]
+  c <- survcomp::concordance.index(survival.data.subset$ENTPD1.expression, survival.data.subset$years_to_event, survival.data.subset$event_status, method="noether")
+  d <- survcomp::D.index(survival.data.subset$ENTPD1.expression, survival.data.subset$years_to_event, survival.data.subset$event_status)
+  return(list(c=c,d=d))
+})
+names(stat.objects) <- unique(pair.survival.data$data.source)
+@
+
+<<stripplot, fig.width=8, fig.height=6>>=
+tcga.eset <- esets$TCGA
+tcga.nt5e.index <- which(fData(tcga.eset)$gene == "NT5E")
+pData(tcga.eset)$NT5E.expression <- t(exprs(tcga.eset)[tcga.nt5e.index,,drop=FALSE])
+f.test.pval <- anova(lm(NT5E.expression ~ primary_therapy_outcome_success, data=pData(tcga.eset)))$`Pr(>F)`[1]
+set.seed(1000)
+stripchart(NT5E.expression ~ primary_therapy_outcome_success, data=pData(tcga.eset), method="jitter", vertical=TRUE, main="TCGA data: response to primary therapy")
+@
+
+F-test p-value: \Sexpr{round(f.test.pval, digits=3)}
+
+\pagebreak
+\noindent Patient selection config (for initial data extraction from MetaGxOvarian):
+\verbatiminput{../inst/extdata/hgs.patientselection.config}
+
+\end{document}

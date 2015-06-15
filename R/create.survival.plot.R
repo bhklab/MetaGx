@@ -9,6 +9,7 @@ create.survival.plot <- function(
                                  ylab="Survival",
                                  main="Survival Plot",
                                  cex=0.8,
+                                 time.cens=NULL,
                                  col=RColorBrewer::brewer.pal(length(surv.obj$strata), name="Dark2"),
                                  group.names=NULL,
                                  reverse.colour.order=FALSE,
@@ -20,7 +21,17 @@ create.survival.plot <- function(
                                  legend.par=list(),
                                  ...) {
   #if(is.null(datasets)) {
-    surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups)
+  
+  surv.time.to.plot <- surv.time
+  surv.event.to.plot <- surv.event
+  
+  if(!is.null(time.cens)) {
+    censored.out <- survcomp::censor.time(surv.time=surv.time, surv.event=surv.event, time.cens=time.cens)
+    surv.time.to.plot <- censored.out$surv.time.cens
+    surv.event.to.plot <- censored.out$surv.event.cens
+  }
+  
+    surv.obj <- survfit(Surv(surv.time.to.plot, surv.event.to.plot) ~ groups)
   #} else {
   #  surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups + strata(datasets))
   #}
@@ -91,8 +102,6 @@ create.survival.plot <- function(
   }
   n <- coxph.summary$n
   p <- coxph.summary$logtest[["pvalue"]]
-  c <- survcomp::concordance.index(risk.vals, surv.time, surv.event)$c.index
-  d <- survcomp::D.index(risk.vals, surv.time, surv.event)$d.index
   
   if(length(stats.to.show) > 0) {
     text.to.show <- ""
@@ -105,8 +114,10 @@ create.survival.plot <- function(
       } else if(stats.to.show[i] == "p") {
         text.to.show <- paste0(text.to.show, "Likelihood ratio test: p = ", round(p, digits=3))
       } else if(stats.to.show[i] == "c") {
+        c <- survcomp::concordance.index(risk.vals, surv.time, surv.event)$c.index
         text.to.show <- paste0(text.to.show, "c-index: ", round(c, digits=3))
       } else if(stats.to.show[i] == "d") {
+        d <- survcomp::D.index(risk.vals, surv.time, surv.event)$d.index
         text.to.show <- paste0(text.to.show, "d-index: ", round(d, digits=3))
       } 
     }
