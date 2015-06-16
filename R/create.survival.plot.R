@@ -16,11 +16,12 @@ create.survival.plot <- function(
                                  reverse.legend.order=FALSE,
                                  legend.pos="topright",
                                  legend.lwd=5,
-                                 stats.to.show=c("n","p","d","c"), # an ordered vector of stats to show: n for the number of samples, p for p-value of the likelihood-ratio test, d for d-index, c for c-index
+                                 stats.to.show=c("n","p","d","c", "hr"), # an ordered vector of stats to show: n for the number of samples, p for p-value of the likelihood-ratio test, d for d-index, c for c-index
                                  # Most relevant legend parameters are already covered, but allow further parameters
                                  legend.par=list(),
                                  ...) {
   #if(is.null(datasets)) {
+  groups <- factor(groups, levels(groups), ordered=FALSE)
   
   surv.time.to.plot <- surv.time
   surv.event.to.plot <- surv.event
@@ -40,9 +41,9 @@ create.survival.plot <- function(
     group.names <- names(surv.obj$strata)
   }
   
-  if(!is.null(stats.to.show) && !all(stats.to.show %in% c("n","p","d","c"))) {
-    stop("Argument stats.to.show should only contain 'n', 'p', 'd', 'c'.")
-  }
+  #if(!is.null(stats.to.show) && !all(stats.to.show %in% c("n","p","d","c"))) {
+  #  stop("Argument stats.to.show should only contain 'n', 'p', 'd', 'c'.")
+  #}
   if(any(c("c", "d") %in% stats.to.show)) {
     if(is.null(risk.vals)) {
       stop("For calculation of c-index and d-index, risk.vals must be provided")
@@ -84,6 +85,7 @@ create.survival.plot <- function(
   
   legend.par$col <- legend.col
   legend.par$legend <- legend.groups
+  legend.par$bty <- "n"
   
   if(!("x" %in% names(legend.par))) {
     legend.par$x <- legend.pos
@@ -103,6 +105,8 @@ create.survival.plot <- function(
   n <- coxph.summary$n
   p <- coxph.summary$logtest[["pvalue"]]
   
+  hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event, strat=datasets)
+  
   if(length(stats.to.show) > 0) {
     text.to.show <- ""
     for(i in 1:length(stats.to.show)) {
@@ -113,6 +117,17 @@ create.survival.plot <- function(
         text.to.show <- paste0(text.to.show, "n = ", n)
       } else if(stats.to.show[i] == "p") {
         text.to.show <- paste0(text.to.show, "Likelihood ratio test: p = ", round(p, digits=3))
+      } else if(stats.to.show[i] == "hr") {
+        if(length(hr.out$hazard.ratio) == 1) {
+          text.to.show <- paste0(text.to.show, sprintf("HR: %.3f, 95%% CI: [%.3f-%.3f]", hr.out$hazard.ratio, hr.out$lower, hr.out$upper))
+        } else {
+          for(j in 1:length(hr.out$hazard.ratio)) {
+            if(j != 1) {
+                text.to.show <- paste0(text.to.show, "\n")
+              }
+            text.to.show <- paste0(text.to.show, sprintf("HR %d: %.3f, 95%% CI: [%.3f-%.3f]", j, hr.out$hazard.ratio[j], hr.out$lower[j], hr.out$upper[j]))
+          }
+        }
       } else if(stats.to.show[i] == "c") {
         c <- survcomp::concordance.index(risk.vals, surv.time, surv.event)$c.index
         text.to.show <- paste0(text.to.show, "c-index: ", round(c, digits=3))

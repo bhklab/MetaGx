@@ -26,8 +26,6 @@
 # Set options
 knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
-days.per.month <- 30.4368
-days.per.year <- 365.242
 par.original <- par()
 library(gdata)
 library(annotate)
@@ -203,6 +201,7 @@ survival.data.tertiles <- do.call(rbind, survival.data.tertiles.by.eset)
 
 \pagebreak
 <<NT5E_survival_tertiles_pool_first, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+
 create.survival.plot(
   main="Survival Plot: pooled samples",
   surv.time=survival.data.tertiles.pool.first$years_to_event,
@@ -224,7 +223,27 @@ create.survival.plot(
 
 <<NT5E_upper_signature_poolfirst, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
 pair.survival.data.poolfirst <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
-pair.survival.data.poolfirst$Double.high.expression <- as.factor(pair.survival.data.poolfirst$NT5E.quantile == "High" & pair.survival.data.poolfirst$ENTPD1.quantile == "High")
+pair.survival.data.poolfirst$Double.high.expression <- factor(pair.survival.data.poolfirst$NT5E.quantile == "High" & pair.survival.data.poolfirst$ENTPD1.quantile == "High", levels=c("FALSE", "TRUE"), ordered=TRUE)
+
+
+create.survival.plot(
+  main="Survival: CD39 and CD73",
+  surv.time=pair.survival.data.poolfirst$years_to_event,
+  surv.event=pair.survival.data.poolfirst$event_status,
+  groups=pair.survival.data.poolfirst$Double.high.expression,
+ group.names = c("Other", "CD39+ / CD73 +"),
+  reverse.legend.order = TRUE,
+  datasets=pair.survival.data.poolfirst$data.source,
+  xlab="Time (years)",
+  time.cens=10,
+  col=c("#1b9e77" ,"#d95f02"),
+  stats.to.show = c("n","p","hr")
+)
+@
+
+<<NT5E_upper_vs_lower_poolfirst, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+pair.survival.data.poolfirst <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
+pair.survival.data.poolfirst$Double.low.expression <- factor(pair.survival.data.poolfirst$NT5E.quantile == "Low" & pair.survival.data.poolfirst$ENTPD1.quantile == "Low", levels=c("FALSE", "TRUE"), ordered=TRUE)
 
 create.survival.plot(
   main="Survival: CD39 and CD73",

@@ -8,7 +8,9 @@ create.forest.plot <- function(
                           dataset.names = names(survival.data),
                           pooling.method = c("both", "fixed", "random"),
                           random.pooled.name = "Pooled estimate (random)",
-                          fixed.pooled.name = "Pooled estimate (fixed)"
+                          fixed.pooled.name = "Pooled estimate (fixed)",
+                          just.meta=FALSE,
+                          x.ticks=NULL
                           ) {
   
   stat <- match.arg(stat)
@@ -43,16 +45,16 @@ create.forest.plot <- function(
     dataset.names <- c(dataset.names, random.pooled.name)
     stat.vals <- c(stat.vals, meta.random=pooled.stat.random$estimate)
     stat.se <- c(stat.se, meta.random=pooled.stat.random$se)
-    stat.lower <- c(stat.lower, pooled.stat.random$estimate - pooled.stat.random$se*qnorm(0.975))
-    stat.upper <- c(stat.upper, pooled.stat.random$estimate + pooled.stat.random$se*qnorm(0.975))
+    stat.lower <- c(stat.lower, meta.random=pooled.stat.random$estimate - pooled.stat.random$se*qnorm(0.975))
+    stat.upper <- c(stat.upper, meta.random=pooled.stat.random$estimate + pooled.stat.random$se*qnorm(0.975))
   }
   if(pooling.method=="fixed" || pooling.method=="both") {
     pooled.stat.fixed <- combine.est(stat.vals, stat.se, hetero=FALSE)
     dataset.names <- c(dataset.names, fixed.pooled.name)
     stat.vals <- c(stat.vals, meta.fixed=pooled.stat.fixed$estimate)
     stat.se <- c(stat.se, meta.fixed=pooled.stat.fixed$se)
-    stat.lower <- c(stat.lower, pooled.stat.fixed$estimate - pooled.stat.fixed$se*qnorm(0.975))
-    stat.upper <- c(stat.upper, pooled.stat.fixed$estimate + pooled.stat.fixed$se*qnorm(0.975))
+    stat.lower <- c(stat.lower, meta.fixed=pooled.stat.fixed$estimate - pooled.stat.fixed$se*qnorm(0.975))
+    stat.upper <- c(stat.upper, meta.fixed=pooled.stat.fixed$estimate + pooled.stat.fixed$se*qnorm(0.975))
   }
   
   labeltext <- cbind(dataset.names, c(rep(myspace,length(dataset.names))))
@@ -71,6 +73,10 @@ create.forest.plot <- function(
     zero <- 1
     xlab <- "D-index"
   }
-  
-  survcomp::forestplot.surv(labeltext=labeltext, mean=stat.vals, lower=stat.lower, upper=stat.upper, is.summary = c(rep(FALSE, length(stat.vals)-num.summary.stats), rep(TRUE, num.summary.stats)), zero=zero, xlab=xlab)
+  if(!just.meta) {
+    survcomp::forestplot.surv(labeltext=labeltext, mean=stat.vals, lower=stat.lower, upper=stat.upper, is.summary = c(rep(FALSE, length(stat.vals)-num.summary.stats), rep(TRUE, num.summary.stats)), zero=zero, xlab=xlab)
+  } else {
+    survcomp::forestplot.surv(labeltext=labeltext[c(nrow(labeltext)-1, nrow(labeltext)),], mean=stat.vals[c(nrow(labeltext)-1, nrow(labeltext))], lower=stat.lower[c(nrow(labeltext)-1, nrow(labeltext))], upper=stat.upper[c(nrow(labeltext)-1, nrow(labeltext))], is.summary = c(FALSE, FALSE), zero=zero, xlab=xlab, x.ticks=x.ticks)
+  }
+  return(list(stat.vals=stat.vals, stat.se=stat.se, stat.lower=stat.lower, stat.upper=stat.upper))
 }
