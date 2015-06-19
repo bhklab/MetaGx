@@ -1,0 +1,144 @@
+\pagebreak
+\section{Three genes - combined}
+\noindent Expression values for all genes were present in \Sexpr{nrow(survival.data.three.genes)} patients from \Sexpr{length(unique(survival.data.three.genes$data.source))} datasets. We performed principal components analysis on the three genes, and used the value of the first principal component as the risk score. PCA and tertile stratification were performed on the pooled dataset, with gene expression values quantile normalized.
+
+<<get_pc_data>>=
+
+esets.with.three.genes <- esets[sapply(esets, function(x) all(entrez.ids %in% fData(x)$EntrezGene.ID))]
+
+pooled.eset.three.genes <- datasetMerging(esets.with.three.genes)
+
+survival.data.three.genes <- get.survival.data.for.plotting(pooled.eset.three.genes, entrez.ids=entrez.ids, num.quantiles=3, survival.type="overall.survival", time.unit="years", gene.name.as.output.colname=TRUE, additional.colnames.to.keep = c("Helland.subtypes", "Verhaak.subtypes", "Bentink.Haibe.Kains.subtypes"))
+
+expression.df <- t(survival.data.three.genes[,grepl(".expression", colnames(survival.data.three.genes))])
+pc1.vals <- prcomp(expression.df)$rotation[,1]
+
+num.quantiles <- 3
+pc1.quantiles <- cut(pc1.vals, breaks=quantile(pc1.vals, probs=seq(0,1,length=num.quantiles+1)), include.lowest=TRUE)
+
+if(num.quantiles==2) {
+  levels(pc1.quantiles) <- c("Low", "High")
+} else if(num.quantiles==3) {
+  levels(pc1.quantiles) <- c("Low", "Mid", "High")
+} else {
+  levels(pc1.quantiles) <- paste0("PC1.quantile.", 1:num.quantiles)
+}
+
+survival.data.three.genes$pc1.val <- pc1.vals
+survival.data.three.genes$pc1.quantile <- pc1.quantiles
+@
+
+<<3_gene_pca_dataset_table, results='asis'>>=
+
+print(.get.ordered.data.table(survival.data.three.genes$data.source), include.rownames=FALSE)
+@
+
+
+<<3_gene_pca_survival_all, fig.width=5, fig.height=5, out.width="0.6\\textwidth">>=
+surv.time <- survival.data.three.genes$years_to_event
+surv.event <- survival.data.three.genes$event_status
+groups <- survival.data.three.genes$pc1.quantile
+risk.vals <- -survival.data.three.genes$pc1.val
+group.names <- paste("PC1", levels(survival.data.three.genes[,"pc1.quantile"]))
+datasets <- survival.data.three.genes$data.source
+main.title <- paste("Three-gene Survival:", "PC1")
+
+stat.objects.survplot <- create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups <- groups,
+  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+  time.cens=10,
+  stats.to.show = c("n", "p", "d")
+)
+@
+\pagebreak
+\noindent Survival by the Tothill subtypes (using our implementation of their subtype classifer described in Helland et al.)
+<<3_gene_pca_survival_Helland_subtypes>>=
+par(mfrow=c(2,2))
+for(current.helland.subtype in levels(survival.data.three.genes$Helland.subtypes)) {
+  cases.to.include <- survival.data.three.genes$Helland.subtypes == current.helland.subtype
+  surv.time <- survival.data.three.genes$years_to_event[cases.to.include]
+  surv.event <- survival.data.three.genes$event_status[cases.to.include]
+  groups <- survival.data.three.genes$pc1.quantile[cases.to.include]
+  risk.vals <- -survival.data.three.genes$pc1.val[cases.to.include]
+  group.names <- paste("PC1", levels(survival.data.three.genes[,"pc1.quantile"][cases.to.include]))
+  datasets <- survival.data.three.genes$data.source[cases.to.include]
+  main.title <- paste("Three-gene Survival:", "PC1", "in subtype", current.helland.subtype)
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups <- groups,
+    risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    time.cens=10,
+    stats.to.show = c("n", "p", "d")
+  )
+}
+@
+
+\pagebreak
+\noindent Survival by the TCGA subtypes (using our implementation of their subtype classifer described in Verhaak et al.)
+<<3_gene_pca_survival_Verhaak_subtypes>>=
+par(mfrow=c(2,2))
+for(current.verhaak.subtype in levels(survival.data.three.genes$Verhaak.subtypes)) {
+  cases.to.include <- survival.data.three.genes$Verhaak.subtypes == current.verhaak.subtype
+  surv.time <- survival.data.three.genes$years_to_event[cases.to.include]
+  surv.event <- survival.data.three.genes$event_status[cases.to.include]
+  groups <- survival.data.three.genes$pc1.quantile[cases.to.include]
+  risk.vals <- -survival.data.three.genes$pc1.val[cases.to.include]
+  group.names <- paste("PC1", levels(survival.data.three.genes[,"pc1.quantile"][cases.to.include]))
+  datasets <- survival.data.three.genes$data.source[cases.to.include]
+  main.title <- paste("Three-gene Survival:", "PC1", "in subtype", current.verhaak.subtype)
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups <- groups,
+    risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    time.cens=10,
+    stats.to.show = c("n", "p", "d")
+  )
+}
+@
+
+\pagebreak
+\noindent Survival by the Bentink subtypes (using our implementation of their subtype classifer in \texttt{genefu})
+<<3_gene_pca_survival_Bentink_subtypes, fig.width=10, fig.height=5.5>>=
+par(mfrow=c(1,2))
+for(current.bentink.subtype in levels(survival.data.three.genes$Bentink.Haibe.Kains.subtypes)) {
+  cases.to.include <- survival.data.three.genes$Bentink.Haibe.Kains.subtypes == current.bentink.subtype
+  surv.time <- survival.data.three.genes$years_to_event[cases.to.include]
+  surv.event <- survival.data.three.genes$event_status[cases.to.include]
+  groups <- survival.data.three.genes$pc1.quantile[cases.to.include]
+  risk.vals <- -survival.data.three.genes$pc1.val[cases.to.include]
+  group.names <- paste("PC1", levels(survival.data.three.genes[,"pc1.quantile"][cases.to.include]))
+  datasets <- survival.data.three.genes$data.source[cases.to.include]
+  main.title <- paste("Three-gene Survival:", "PC1", "in subtype", current.bentink.subtype)
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups <- groups,
+    risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    time.cens=10,
+    stats.to.show = c("n", "p", "d")
+  )
+}
+@

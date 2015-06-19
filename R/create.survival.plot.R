@@ -8,20 +8,21 @@ create.survival.plot <- function(
                                  xlab="Time",
                                  ylab="Survival",
                                  main="Survival Plot",
-                                 cex=0.8,
+                                 cex=0.5,
                                  time.cens=NULL,
                                  col=RColorBrewer::brewer.pal(length(surv.obj$strata), name="Dark2"),
-                                 group.names=NULL,
+                                 group.names=NULL, # the names to use on the legend. The order of names should correspond with levels(groups)
                                  reverse.colour.order=FALSE,
                                  reverse.legend.order=FALSE,
                                  legend.pos="topright",
                                  legend.lwd=5,
                                  stats.to.show=c("n","p","d","c", "hr"), # an ordered vector of stats to show: n for the number of samples, p for p-value of the likelihood-ratio test, d for d-index, c for c-index
+                                 show.confidence.intervals=TRUE,
+                                 pooling.method=c("random", "fixed"), #pooling method for concordance index, and D-index
                                  # Most relevant legend parameters are already covered, but allow further parameters
                                  legend.par=list(),
                                  ...) {
-  #if(is.null(datasets)) {
-  groups <- factor(groups, levels(groups), ordered=FALSE)
+  pooling.method = match.arg(pooling.method)
   
   surv.time.to.plot <- surv.time
   surv.event.to.plot <- surv.event
@@ -47,9 +48,6 @@ create.survival.plot <- function(
   if(any(c("c", "d") %in% stats.to.show)) {
     if(is.null(risk.vals)) {
       stop("For calculation of c-index and d-index, risk.vals must be provided")
-    }
-    if(!is.ordered(groups)) {
-      stop("For calculation of c-index and d-index, groups must be an ordered factor")
     }
   }
   
@@ -129,13 +127,68 @@ create.survival.plot <- function(
           }
         }
       } else if(stats.to.show[i] == "c") {
-        c <- survcomp::concordance.index(risk.vals, surv.time, surv.event)$c.index
-        text.to.show <- paste0(text.to.show, "c-index: ", round(c, digits=3))
+        if(is.null(datasets) || length(unique(datasets)) == 1) {
+          ci.out <- survcomp::concordance.index(risk.vals, surv.time, surv.event, method='noether', strat=datasets)
+          c.index <- ci.out$c.index
+          c.lower <- ci.out$lower
+          c.upper <- ci.out$upper
+        } else {
+          # pooled stat via meta-analysis
+          stat.objects <- lapply(unique(datasets), function(current.dataset) {
+              survcomp::concordance.index(x=risk.vals[datasets == current.dataset], surv.time=surv.time[datasets == current.dataset], surv.event=surv.event[datasets == current.dataset], method='noether')
+              })
+          names(stat.objects) <- unique(datasets)
+          stat.vals <- sapply(stat.objects, function(x) x$c.index)
+          stat.se <- sapply(stat.objects, function(x) x$se)
+          if(pooling.method=="random") {
+            pooled.stat <- combine.est(stat.vals, stat.se, hetero=TRUE)
+          } else { # fixed effects
+            pooled.stat <- combine.est(stat.vals, stat.se, hetero=FALSE)
+          }
+          c.index = pooled.stat$estimate
+          c.lower <- pooled.stat$estimate - pooled.stat$se*qnorm(0.975)
+          c.upper <- pooled.stat$estimate + pooled.stat$se*qnorm(0.975)
+          stat.vals <- c(stat.vals, meta.random=pooled.stat$estimate)
+          stat.se <- c(stat.se, meta.random=pooled.stat$se)
+        }
+        if(show.confidence.intervals) {
+          text.to.show <- paste0(text.to.show, sprintf("Concordance index: %.3f, 95%% CI: [%.3f-%.3f]", c.index, c.lower, c.upper))
+        } else {
+          text.to.show <- paste0(text.to.show, sprintf("Concordance index: %.3f", c.index))
+        }
       } else if(stats.to.show[i] == "d") {
-        d <- survcomp::D.index(risk.vals, surv.time, surv.event)$d.index
-        text.to.show <- paste0(text.to.show, "d-index: ", round(d, digits=3))
+        if(is.null(datasets) || length(unique(datasets)) == 1) {
+          di.out <- survcomp::D.index(risk.vals, surv.time, surv.event, strat=datasets)
+          d.index <- di.out$d.index
+          d.lower <- di.out$lower
+          d.upper <- di.out$upper
+        } else {
+          # pooled stat via meta-analysis
+          stat.objects <- lapply(unique(datasets), function(current.dataset) {
+              survcomp::D.index(x=risk.vals[datasets == current.dataset], surv.time=surv.time[datasets == current.dataset], surv.event=surv.event[datasets == current.dataset])
+              })
+          names(stat.objects) <- unique(datasets)
+          stat.vals <- sapply(stat.objects, function(x) x$d.index)
+          stat.se <- sapply(stat.objects, function(x) x$se)
+          if(pooling.method=="random") {
+            pooled.stat <- combine.est(stat.vals, stat.se, hetero=TRUE)
+          } else { # fixed effects
+            pooled.stat <- combine.est(stat.vals, stat.se, hetero=FALSE)
+          }
+          d.index = pooled.stat$estimate
+          d.lower <- pooled.stat$estimate - pooled.stat$se*qnorm(0.975)
+          d.upper <- pooled.stat$estimate + pooled.stat$se*qnorm(0.975)
+          stat.vals <- c(stat.vals, meta.random=pooled.stat$estimate)
+          stat.se <- c(stat.se, meta.random=pooled.stat$se)
+        }
+        if(show.confidence.intervals) {
+          text.to.show <- paste0(text.to.show, sprintf("D-Index: %.3f, 95%% CI: [%.3f-%.3f]", d.index, d.lower, d.upper))
+        } else {
+          text.to.show <- paste0(text.to.show, sprintf("D-Index: %.3f", d.index))
+        }
       } 
     }
     invisible(plotrix::corner.label(text.to.show, x=-1, y=-1))
   }
+  return(stat.objects)
 }

@@ -23,7 +23,7 @@ days.per.month <- 30.4368
 days.per.year <- 365.242
 @
 
-\title{Reproduction of Published Ovarian Subtyping Schemes - Initial Results}
+\title{Reproduction of Published Ovarian Subtyping Schemes}
 
 \author{Gregory M. Chen}
 \date{\today}

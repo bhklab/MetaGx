@@ -1,0 +1,120 @@
+\pagebreak
+\section{\Sexpr{gene.names[1]}}
+\noindent Expression values for \Sexpr{gene.names[1]} were present in \Sexpr{nrow(survival.data.individual.genes[[1]])} patients from \Sexpr{length(unique(survival.data.individual.genes[[1]]$data.source))} datasets.
+<<Gene1_dataset_table, results='asis'>>=
+
+print(.get.ordered.data.table(survival.data.individual.genes[[1]]$data.source), include.rownames=FALSE)
+@
+
+<<Gene1_survival_all, fig.width=5, fig.height=5, out.width="0.6\\textwidth">>=
+
+surv.time <- survival.data.individual.genes[[1]]$years_to_event
+surv.event <- survival.data.individual.genes[[1]]$event_status
+groups <- survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")]
+risk.vals <- -survival.data.individual.genes[[1]][,paste0(gene.names[1], ".expression")]
+group.names <- paste(gene.names[1], levels(survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")]))
+datasets <- survival.data.individual.genes[[1]]$data.source
+main.title <- paste("Survival:", gene.names[1])
+
+stat.objects.survplot <- create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups = groups,
+  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+  time.cens=10,
+  stats.to.show = c("n", "p", "d")
+)
+@
+\pagebreak
+\noindent Survival by the Tothill subtypes (using our implementation of their subtype classifer described in Helland et al.)
+<<Gene1_survival_Helland_subtypes>>=
+
+par(mfrow=c(2,2))
+for(current.helland.subtype in levels(survival.data.individual.genes[[1]]$Helland.subtypes)) {
+  cases.to.include <- survival.data.individual.genes[[1]]$Helland.subtypes == current.helland.subtype
+  surv.time <- survival.data.individual.genes[[1]]$years_to_event[cases.to.include]
+  surv.event <- survival.data.individual.genes[[1]]$event_status[cases.to.include]
+  groups <- survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")][cases.to.include]
+  risk.vals <- -survival.data.individual.genes[[1]][,paste0(gene.names[1], ".expression")][cases.to.include]
+  group.names <- paste(gene.names[1], levels(survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")][cases.to.include]))
+  datasets <- survival.data.individual.genes[[1]]$data.source[cases.to.include]
+  main.title <- paste("Survival:", gene.names[1], "in subtype", current.helland.subtype)
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups = groups,
+    risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    time.cens=10,
+    stats.to.show = c("n", "p", "d")
+  )
+}
+@
+
+\pagebreak
+\noindent Survival by the TCGA subtypes (using our implementation of their subtype classifer described in Verhaak et al.)
+<<Gene1_survival_Verhaak_subtypes>>=
+
+par(mfrow=c(2,2))
+for(current.verhaak.subtype in levels(survival.data.individual.genes[[1]]$Verhaak.subtypes)) {
+  cases.to.include <- survival.data.individual.genes[[1]]$Verhaak.subtypes == current.verhaak.subtype
+  surv.time <- survival.data.individual.genes[[1]]$years_to_event[cases.to.include]
+  surv.event <- survival.data.individual.genes[[1]]$event_status[cases.to.include]
+  groups <- survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")][cases.to.include]
+  risk.vals <- -survival.data.individual.genes[[1]][,paste0(gene.names[1], ".expression")][cases.to.include]
+  group.names <- paste(gene.names[1], levels(survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")][cases.to.include]))
+  datasets <- survival.data.individual.genes[[1]]$data.source[cases.to.include]
+  main.title <- paste("Survival:", gene.names[1], "in subtype", current.verhaak.subtype)
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups = groups,
+    risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    time.cens=10,
+    stats.to.show = c("n", "p", "d")
+  )
+}
+@
+
+\pagebreak
+\noindent Survival by the Bentink subtypes (using our implementation of their subtype classifer in \texttt{genefu})
+<<Gene1_survival_Bentink_subtypes, fig.width=10, fig.height=5.5>>=
+
+par(mfrow=c(1,2))
+for(current.bentink.subtype in levels(survival.data.individual.genes[[1]]$Bentink.Haibe.Kains.subtypes)) {
+  cases.to.include <- survival.data.individual.genes[[1]]$Bentink.Haibe.Kains.subtypes == current.bentink.subtype
+  surv.time <- survival.data.individual.genes[[1]]$years_to_event[cases.to.include]
+  surv.event <- survival.data.individual.genes[[1]]$event_status[cases.to.include]
+  groups <- survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")][cases.to.include]
+  risk.vals <- -survival.data.individual.genes[[1]][,paste0(gene.names[1], ".expression")][cases.to.include]
+  group.names <- paste(gene.names[1], levels(survival.data.individual.genes[[1]][,paste0(gene.names[1], ".quantile")][cases.to.include]))
+  datasets <- survival.data.individual.genes[[1]]$data.source[cases.to.include]
+  main.title <- paste("Survival:", gene.names[1], "in subtype", current.bentink.subtype)
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups = groups,
+    risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    time.cens=10,
+    stats.to.show = c("n", "p", "d")
+  )
+}
+@

@@ -32,176 +32,111 @@ library(annotate)
 library(GSVA)
 library(ggplot2)
 library(xtable)
+library(genefu)
 library(hgu133plus2.db)
 source("../R/getHellandSubtypes.R")
+source("../R/getBentinkHaibeKainsSubtypes.R")
 source("../R/create.survival.plot.R")
 source("../R/getVerhaakSubtypes.R")
 source("../R/datasetMerging.R")
 source("../R/getSubtype.R")
+source("../R/get.survival.data.for.plotting.R") 
+@
 
-.getPooledEset <- function(only.hgs=TRUE) {
-  if(only.hgs) {
-    source("../inst/extdata/hgs.patientselection.config")
-  } else {
-    source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
-  }
-  source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-  esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
-  esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
-  
-  esets <- lapply(esets, function(x) {
-    factor.indices <- sapply(pData(x), is.factor)
-    pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
-    return(x)
+
+<<load_data, cache=TRUE>>=
+source("../inst/extdata/hgs.patientselection.config")
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets$GSE51088 <- esets$GSE51088[complete.cases(exprs(esets$GSE51088)),]
+
+esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
+esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
+esets <- lapply(esets, function(x) getBentinkHaibeKainsSubtypes(x)[[1]])
+
+pooled.eset <- datasetMerging(esets)
+esets.with.data.annotation <- lapply(names(esets), function(x) {
+  current.eset <- esets[[x]]
+  current.eset$data.source <- x
+  return(current.eset)
+  })
+names(esets.with.data.annotation) <- names(esets)
+@
+
+<<get_immune_response_data>>=
+entrez.ids <- scan("immune.entrez.ids", what=integer(0))
+
+# Get a list of lists of dataframes. 
+individual.survival.dataframe.lists <- lapply(entrez.ids, function(entrez.id) {
+  individual.survival.data.tertiles.by.eset <- lapply(esets.with.data.annotation, function(y) {
+    if(!(entrez.id %in% fData(y)$EntrezGene.ID)) {
+      return(NA)
+      }
+    get.survival.data.for.plotting(y, entrez.ids=entrez.id, num.quantiles=3, survival.type="overall.survival", time.unit="years", gene.name.as.output.colname=TRUE, additional.colnames.to.keep = c("Helland.subtypes", "Verhaak.subtypes", "Bentink.Haibe.Kains.subtypes"))
     })
-  eset.toreturn <- datasetMerging(esets)
-  eset.toreturn$Helland.subtypes <- as.factor(eset.toreturn$Helland.subtypes)
-  eset.toreturn$Verhaak.subtypes <- as.factor(eset.toreturn$Verhaak.subtypes)
-  return(eset.toreturn)
-}
+  individual.survival.data.tertiles.by.eset <- individual.survival.data.tertiles.by.eset[sapply(individual.survival.data.tertiles.by.eset, function(x) !is.na(x) && nrow(x)>0)]
+  individual.survival.data.tertiles.by.eset <- lapply(individual.survival.data.tertiles.by.eset, function(x) {
+    colnames(x)[colnames(x)=="PDCD1LG1.quantile"]  <- "CD274.quantile"
+    colnames(x)[colnames(x)=="PDCD1LG1.expression"]  <- "CD274.expression"
+  return(x)
+  })
+  return(individual.survival.data.tertiles.by.eset)
+  })
+
+survival.data.individual.genes <- lapply(individual.survival.dataframe.lists, function(x) do.call(rbind, x))
+
+gene.names <- sapply(survival.data.individual.genes, function(x) sub(".quantile", "", grep(".quantile",colnames(x), value=TRUE)))
+  
+names(individual.survival.dataframe.lists) <- gene.names
+names(survival.data.individual.genes) <- gene.names
+
+combined.genes.survival.list <- lapply(esets.with.data.annotation, function(y) {
+  if(!all(entrez.ids %in% fData(y)$EntrezGene.ID)) {
+    return(NA)
+    }
+  get.survival.data.for.plotting(y, entrez.ids=entrez.ids, num.quantiles=3, survival.type="overall.survival", time.unit="years", gene.name.as.output.colname=TRUE, additional.colnames.to.keep = c("Helland.subtypes", "Verhaak.subtypes", "Bentink.Haibe.Kains.subtypes"))
+  })
+combined.genes.survival.list <- combined.genes.survival.list[sapply(combined.genes.survival.list, function(x) !is.na(x) && nrow(x)>0)]
+combined.genes.survival.list <- lapply(combined.genes.survival.list, function(x) {
+  colnames(x)[colnames(x)=="PDCD1LG1.quantile"]  <- "CD274.quantile"
+  colnames(x)[colnames(x)=="PDCD1LG1.expression"]  <- "CD274.expression"
+  return(x)
+  })
+survival.data.combined.genes <- do.call(rbind, combined.genes.survival.list)
+
+num.late.hgs <- nrow(pData(pooled.eset))
+pooled.eset.complete.survival <- pooled.eset[,!is.na(pooled.eset$days_to_death) & !is.na(pooled.eset$vital_status)]
+num.late.hgs.with.survival <- nrow(pData(pooled.eset.complete.survival))
+
 @
-
-
-<<load_data>>=
-pooled.eset <- .getPooledEset(only.hgs = TRUE)
-@
-
-<<process_data>>=
-#for(gene.name in c("CTLA4", "CD274", "PDCD1")) {
-# Helper function for extracting survival data with quantiles for a given gene.
-# The include.sample parameter can be used to specify a subset (e.g. by subtype)
-.get.survival.data.for.plotting <- function(eset, gene.name=NULL, entrez.id=NULL, num.quantiles=2, time.unit=c("days", "months", "years"), time.cens=NULL, include.sample=rep(TRUE, nrow(pData(eset)))) {
-  time.unit=match.arg(time.unit)
- 
-  eset <- eset[,include.sample]
-  # Find the fData index of the gene 
-  if(is.null(gene.name) && is.null(entrez.id)) {
-    stop("One of gene.name and entrez.id should be provided")
-  }
-  if(!is.null(gene.name) && !is.null(entrez.id)) {
-    stop("Exactly one of gene.name and entrez.id should be provided")
-  }
-  if(!is.null(gene.name)) {
-    index <- which(fData(eset)$gene == gene.name)
-    if(length(index) == 0) {
-      warnings(paste("Could not find gene name", gene.name))
-      }
-    if(length(index) > 1) {
-      warning(paste("Found more than one gene called", gene.name))
-    }
-  }
-  if(!is.null(entrez.id)) {
-    index <- which(fData(eset)$EntrezGene.ID == entrez.id)
-    if(length(index) == 0) {
-      warnings(paste("Could not find Entrez ID", entrez.id))
-      }
-    if(length(index) > 1) {
-      warning(paste("Found more than one Entrez ID", entrez.id))
-    }
-  }
- 
-  # Get the expression quantile 
-  expression.values <- exprs(eset)[index,]
-  if(sum(is.na(expression.values)) > 0) {
-    message(paste("Found", sum(is.na(expression.values)), "empty gene expression values. Including only the", sum(!is.na(expression.values)), "samples with nonempty values."))
-  }
-  eset <- eset[,!is.na(expression.values)]
-  
-  expression.values <- exprs(eset)[index,]
-  
-  expression.quantiles <- ordered(cut(expression.values, breaks=quantile(expression.values, probs=seq(0,1,length=num.quantiles+1)), include.lowest=TRUE))
-  
-  if(num.quantiles==2) {
-    levels(expression.quantiles) <- c("Low", "High")
-  } else if(num.quantiles==3) {
-    levels(expression.quantiles) <- c("Low", "Mid", "High")
-  } else {
-    levels(expression.quantiles) <- paste0("Expression.quantile.", 1:num.quantiles)
-  }
-  pData(eset) <- cbind(pData(eset), expression.quantiles);
-  colnames(pData(eset))[ ncol(pData(eset)) ] <- paste0(gene.name, ".quantile")
-  
-  survival.data <- pData(eset)[c("data.source", "days_to_death", "vital_status", paste0(gene.name, ".quantile"))]
-  
-  # only keep cases which has expression values
-  survival.data$vital_status <- survival.data$vital_status == "deceased"
-  if(time.unit=="months") {
-    survival.data$months_to_death <- survival.data$days_to_death / days.per.month
-    survival.data$days_to_death <- NULL
-    if(!is.null(time.cens)) {
-      censored.out <- survcomp::censor.time(survival.data$months_to_death, survival.data$vital_status, time.cens=time.cens)
-      survival.data$months_to_death <- censored.out$surv.time.cens
-      survival.data$vital_status <- censored.out$surv.event.cens
-    }
-  }
-  if(time.unit=="years") {
-    survival.data$years_to_death <- survival.data$days_to_death / days.per.year
-    survival.data$days_to_death <- NULL
-    if(!is.null(time.cens)) {
-      censored.out <- survcomp::censor.time(survival.data$years_to_death, survival.data$vital_status, time.cens=time.cens)
-      survival.data$years_to_death <- censored.out$surv.time.cens
-      survival.data$vital_status <- censored.out$surv.event.cens
-    }
-  }
-  
-  return(survival.data)
-}
-@
-
+\tableofcontents
 \section{Datasets}
 
-\Sexpr{nrow(pData(pooled.eset))} patients were pooled from \Sexpr{length(levels(pData(pooled.eset)$data.source))} datasets:
+\Sexpr{length(unique(pooled.eset.complete.survival$data.source))} independent ovarian cancer gene expression datasets were identified from MetaGxOvarian. Of this meta-dataset, we identified \Sexpr{num.late.hgs} patients with late-stage, high-grade serous ovarian cancer, of which survival data was available for \Sexpr{num.late.hgs.with.survival} patients:
 <<Dataset_table, results='asis'>>=
-data.counts <- as.data.frame(table(pData(pooled.eset)$data.source))
-colnames(data.counts) <- c("Dataset name", "Num samples")
-print(xtable(data.counts), include.rownames=FALSE)
+.get.ordered.data.table <- function(data.source) {
+  data.counts <- as.data.frame(addmargins(table(data.source)))
+  data.counts$Freq <- as.integer(data.counts$Freq)
+  data.counts <- data.counts[match(c("PMID17290060", "GSE26712", "GSE9891", "GSE13876", "GSE14764", "GSE18520", "GSE17260", "GSE26193", "TCGA", "E.MTAB.386", "GSE32062", "GSE49997", "GSE51088", "Sum"), data.counts[,1]),]
+  data.counts <- data.counts[complete.cases(data.counts),]
+  colnames(data.counts) <- c("Dataset name", "Number of samples")
+  return(xtable(data.counts))
+}
+
+print(.get.ordered.data.table(pooled.eset.complete.survival$data.source), include.rownames=FALSE)
 @
 
-\section{CTLA}
-
-\begin{figure}[H]
-<<CTLA4_load_data, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
-ctla4.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="CTLA4", num.quantiles=3, time.unit="years", time.cens=10)
+<<gene1, child='immune.response.plots.1.Rnw'>>=
 @
 
-All \Sexpr{nrow(ctla4.survival.data)} samples in the pooled dataset had expression levels for CTLA4. CTLA4 expression levels were separated into tertiles, and below is a survival curve for the pooled dataset. The p-value is for the likelihood ratio test, and the d- and c-indices were generated by 
-
-<<CTLA4_survival, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
-create.survival.plot(
-  surv.time=ctla4.survival.data$years_to_death,
-  surv.event=ctla4.survival.data$vital_status,
-  groups=ctla4.survival.data$CTLA4.quantile,
-  xlab="Time (years)",
-  reverse.legend.order = TRUE,
-  strata.names=paste("CTLA4", gsub(".*=", "",levels(ctla4.survival.data$CTLA4.quantile))),
-  risk.order.same.as.groups=FALSE,
-  col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
-  )
+<<gene2, child='immune.response.plots.2.Rnw'>>=
 @
-\caption{Survival curves for CTLA4 tertiles, all subtypes}
-\end{figure}
 
-
-\begin{figure}[H]
-<<CTLA4_survival_subtypes, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
-par(mfrow=c(2,2))
-ctla4.survival.plots <- lapply(levels(pooled.eset$Verhaak.subtypes), function(x) {
-  ctla4.subtype.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name="CTLA4", num.quantiles=3, time.unit="years", time.cens=10, include.sample = pooled.eset$Verhaak.subtypes == x)
-  create.survival.plot(
-    surv.time=ctla4.subtype.survival.data$years_to_death,
-    surv.event=ctla4.subtype.survival.data$vital_status,
-    groups=ctla4.subtype.survival.data$CTLA4.quantile,
-    xlab="Time (years)",
-    main=paste("Survival for subtype", x),
-    reverse.legend.order = TRUE,
-    strata.names=paste("CTLA4", gsub(".*=", "",levels(ctla4.subtype.survival.data$CTLA4.quantile))),
-    risk.order.same.as.groups=FALSE,
-    col=RColorBrewer::brewer.pal(9, name="YlGnBu")[c(4,6,8)]
-    )
-  })
-par(par.original)
+<<gene3, child='immune.response.plots.3.Rnw'>>=
 @
-\caption{Survival curves for CTLA4 by subtype}
-\end{figure}
 
+<<gene4, child='immune.response.plots.4.Rnw'>>=
+@
+
+<<gene5, child='immune.response.plots.5.Rnw'>>=
+@
 \end{document}
