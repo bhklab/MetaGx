@@ -10,5 +10,6 @@ vignettes/*.log
 vignettes/*.pdf
 vignettes/*.toc
 vignettes/*.tex
+*.aux
 vignettes/cache
 vignettes/figures

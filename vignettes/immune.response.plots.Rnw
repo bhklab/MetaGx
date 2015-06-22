@@ -118,7 +118,7 @@ num.late.hgs.with.survival <- nrow(pData(pooled.eset.complete.survival))
 \tableofcontents
 \section{Datasets}
 
-\Sexpr{length(unique(pooled.eset.complete.survival$data.source))} independent ovarian cancer gene expression datasets were identified from MetaGxOvarian. Of this meta-dataset, we identified \Sexpr{num.late.hgs} patients with late-stage, high-grade serous ovarian cancer, of which survival data was available for \Sexpr{num.late.hgs.with.survival} patients:
+\Sexpr{length(unique(pooled.eset.complete.survival$data.source))} independent ovarian cancer gene expression datasets were identified from MetaGxOvarian. Of this meta-dataset, we identified \Sexpr{num.late.hgs} patients with late-stage, high-grade serous ovarian cancer, of which survival data was available for \Sexpr{num.late.hgs.with.survival} patients. For these datasets, expression values were pooled with quantile normalization.
 <<Dataset_table, results='asis'>>=
 .get.ordered.data.table <- function(data.source) {
   data.counts <- as.data.frame(addmargins(table(data.source)))
@@ -149,8 +149,11 @@ sink("/dev/null")
 gmt.contents <- GSA::GSA.read.gmt("c5.all.v5.0.entrez.gmt")
 sink()
 immune.geneset.names <- grep("IMMUNE", gmt.contents$geneset.names, value = TRUE)
+counter <- 1
 for(geneset.name in immune.geneset.names) {
+  print(counter)
   knit2pdf("immune.response.plots.5.Rnw", output=paste0("immune_response_", geneset.name, ".tex"))
+  counter <- counter + 1
   }
 @
 \end{document}
