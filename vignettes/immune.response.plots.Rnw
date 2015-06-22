@@ -37,6 +37,7 @@ library(hgu133plus2.db)
 source("../R/getHellandSubtypes.R")
 source("../R/getBentinkHaibeKainsSubtypes.R")
 source("../R/create.survival.plot.R")
+source("../R/stripWhiteSpace.R")
 source("../R/getVerhaakSubtypes.R")
 source("../R/datasetMerging.R")
 source("../R/getSubtype.R")
@@ -49,11 +50,17 @@ source("../inst/extdata/hgs.patientselection.config")
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 esets$GSE51088 <- esets$GSE51088[complete.cases(exprs(esets$GSE51088)),]
 
+esets <- lapply(esets, function(x) {
+  factor.indices <- sapply(pData(x), is.factor)
+  pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
+  return(x)
+  })
+
 esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
 esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
 esets <- lapply(esets, function(x) getBentinkHaibeKainsSubtypes(x)[[1]])
 
-pooled.eset <- datasetMerging(esets)
+pooled.eset <- datasetMerging(esets, method="intersect")
 esets.with.data.annotation <- lapply(names(esets), function(x) {
   current.eset <- esets[[x]]
   current.eset$data.source <- x
@@ -137,6 +144,13 @@ print(.get.ordered.data.table(pooled.eset.complete.survival$data.source), includ
 <<gene4, child='immune.response.plots.4.Rnw'>>=
 @
 
-<<gene5, child='immune.response.plots.5.Rnw'>>=
+<<gene_ontology_pdfs, cache=FALSE, include=FALSE>>=
+sink("/dev/null")
+gmt.contents <- GSA::GSA.read.gmt("c5.all.v5.0.entrez.gmt")
+sink()
+immune.geneset.names <- grep("IMMUNE", gmt.contents$geneset.names, value = TRUE)
+for(geneset.name in immune.geneset.names) {
+  knit2pdf("immune.response.plots.5.Rnw", output=paste0("immune_response_", geneset.name, ".tex"))
+  }
 @
 \end{document}

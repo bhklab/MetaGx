@@ -1,9 +1,7 @@
 \pagebreak
 \section{Three genes - combined}
-\noindent Expression values for all genes were present in \Sexpr{nrow(survival.data.three.genes)} patients from \Sexpr{length(unique(survival.data.three.genes$data.source))} datasets. We performed principal components analysis on the three genes, and used the value of the first principal component as the risk score. PCA and tertile stratification were performed on the pooled dataset, with gene expression values quantile normalized.
 
 <<get_pc_data>>=
-
 esets.with.three.genes <- esets[sapply(esets, function(x) all(entrez.ids %in% fData(x)$EntrezGene.ID))]
 
 pooled.eset.three.genes <- datasetMerging(esets.with.three.genes)
@@ -27,9 +25,9 @@ if(num.quantiles==2) {
 survival.data.three.genes$pc1.val <- pc1.vals
 survival.data.three.genes$pc1.quantile <- pc1.quantiles
 @
+\noindent Expression values for all genes were present in \Sexpr{nrow(survival.data.three.genes)} patients from \Sexpr{length(unique(survival.data.three.genes$data.source))} datasets. We performed principal components analysis on the three genes, and used the value of the first principal component as the risk score. PCA and tertile stratification were performed on the pooled dataset, with gene expression values quantile normalized.
 
 <<3_gene_pca_dataset_table, results='asis'>>=
-
 print(.get.ordered.data.table(survival.data.three.genes$data.source), include.rownames=FALSE)
 @
 
@@ -42,6 +40,7 @@ risk.vals <- -survival.data.three.genes$pc1.val
 group.names <- paste("PC1", levels(survival.data.three.genes[,"pc1.quantile"]))
 datasets <- survival.data.three.genes$data.source
 main.title <- paste("Three-gene Survival:", "PC1")
+
 
 stat.objects.survplot <- create.survival.plot(
   surv.time = surv.time,
@@ -99,6 +98,7 @@ for(current.verhaak.subtype in levels(survival.data.three.genes$Verhaak.subtypes
   datasets <- survival.data.three.genes$data.source[cases.to.include]
   main.title <- paste("Three-gene Survival:", "PC1", "in subtype", current.verhaak.subtype)
   
+  
   create.survival.plot(
     surv.time = surv.time,
     surv.event = surv.event,
@@ -117,6 +117,7 @@ for(current.verhaak.subtype in levels(survival.data.three.genes$Verhaak.subtypes
 \pagebreak
 \noindent Survival by the Bentink subtypes (using our implementation of their subtype classifer in \texttt{genefu})
 <<3_gene_pca_survival_Bentink_subtypes, fig.width=10, fig.height=5.5>>=
+
 par(mfrow=c(1,2))
 for(current.bentink.subtype in levels(survival.data.three.genes$Bentink.Haibe.Kains.subtypes)) {
   cases.to.include <- survival.data.three.genes$Bentink.Haibe.Kains.subtypes == current.bentink.subtype

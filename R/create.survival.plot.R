@@ -18,7 +18,7 @@ create.survival.plot <- function(
                                  legend.lwd=5,
                                  stats.to.show=c("n","p","d","c", "hr"), # an ordered vector of stats to show: n for the number of samples, p for p-value of the likelihood-ratio test, d for d-index, c for c-index
                                  show.confidence.intervals=TRUE,
-                                 pooling.method=c("random", "fixed"), #pooling method for concordance index, and D-index
+                                 pooling.method=c("none", "random", "fixed"), #pooling method for concordance index, and D-index. If "none", treat the meta-dataset as a single dataset.
                                  # Most relevant legend parameters are already covered, but allow further parameters
                                  legend.par=list(),
                                  ...) {
@@ -127,7 +127,7 @@ create.survival.plot <- function(
           }
         }
       } else if(stats.to.show[i] == "c") {
-        if(is.null(datasets) || length(unique(datasets)) == 1) {
+        if(is.null(datasets) || length(unique(datasets)) == 1 || pooling.method == "none") {
           ci.out <- survcomp::concordance.index(risk.vals, surv.time, surv.event, method='noether', strat=datasets)
           c.index <- ci.out$c.index
           c.lower <- ci.out$lower
@@ -157,7 +157,7 @@ create.survival.plot <- function(
           text.to.show <- paste0(text.to.show, sprintf("Concordance index: %.3f", c.index))
         }
       } else if(stats.to.show[i] == "d") {
-        if(is.null(datasets) || length(unique(datasets)) == 1) {
+        if(is.null(datasets) || length(unique(datasets)) == 1 || pooling.method == "none") {
           di.out <- survcomp::D.index(risk.vals, surv.time, surv.event, strat=datasets)
           d.index <- di.out$d.index
           d.lower <- di.out$lower
@@ -190,5 +190,5 @@ create.survival.plot <- function(
     }
     invisible(plotrix::corner.label(text.to.show, x=-1, y=-1))
   }
-  return(stat.objects)
+  #return(stat.objects)
 }
