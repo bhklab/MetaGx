@@ -29,7 +29,7 @@ function (eset, model=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2
   sbtn2.ssp <- c("Basal", "Her2", "Lums", "LumB", "LumA", "Normal")
   
   datage <- t(Biobase::exprs(eset))   
-  annotge <- cbind("probe"=rownames(Biobase::fData(eset)), "EntrezGene.ID"=stripWhiteSpace(as.character(Biobase::fData(eset)[ , "ENTREZID"])), "SYMBOL"=Biobase::fData(eset)[ , "SYMBOL"])
+  annotge <- cbind("probe"=rownames(Biobase::fData(eset)), "EntrezGene.ID"=stripWhiteSpace(as.character(Biobase::fData(eset)[ , "EntrezGene.ID"])), "gene"=Biobase::fData(eset)[ , "gene"])
   rownames(annotge) <- stripWhiteSpace(as.character(annotge[ , "probe"]))
   
   ## SCM family
@@ -109,9 +109,9 @@ function (eset, model=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2
   ## IntClust family
   if (model %in% c("intClust")) {
     
-    myx <- !is.na(annotge[ , "SYMBOL"]) & !duplicated(annotge[ , "SYMBOL"])
+    myx <- !is.na(annotge[ , "gene"]) & !duplicated(annotge[ , "gene"])
     dd <- t(datage[ , myx, drop=FALSE])
-    rownames(dd) <- annotge[myx, "SYMBOL"]
+    rownames(dd) <- annotge[myx, "gene"]
     ## remove patients with more than 80% missing values
     rix <- apply(dd, 2, function (x, y) { return ((sum(is.na(x) / length(x))) > y) }, y=0.8)
     cix <- apply(dd, 2, function (x, y) { return ((sum(is.na(x) / length(x))) > y) }, y=0.8)

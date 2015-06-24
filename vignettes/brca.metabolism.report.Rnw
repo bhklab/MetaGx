@@ -1,0 +1,135 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+%\newcommand{\sectionbreak}{\clearpage}
+
+\begin{document}
+
+\title{Metabolic Genes and Breast Cancer}
+
+\author{Gregory M. Chen}
+\date{\today}
+\maketitle
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+options(replace.assign=TRUE,width=90)
+days.per.month <- 30.4368
+days.per.year <- 365.242
+par.original <- par()
+library(gdata)
+library(annotate)
+library(ggplot2)
+library(xtable)
+library(genefu)
+library(hgu133plus2.db)
+source("../R/create.survival.plot.R")
+source("../R/stripWhiteSpace.R")
+source("../R/getSubtype.R")
+source("../R/datasetMerging.R")
+source("../R/get.survival.data.for.plotting.R")
+source("../R/subtypeClassification.R")
+source("../R/setSubtype.R")
+@
+
+
+<<load_data, cache=TRUE>>=
+source("../inst/extdata/brca.patientselection.config")
+source(system.file("extdata", "createEsetList.R", package="MetaGxBreast"))
+
+# order by publication date. Note that EXPO was set to the year it was public on GEO (2005).
+publication.dates <- read.table("../inst/extdata/MetaGxBreast_publication_dates.txt", header=TRUE, stringsAsFactors = FALSE)
+if(!all(names(esets) %in% publication.dates$Dataset)) {
+  stop("Not all eset names are present in MetaGxBreast_publication_dates.txt")
+}
+publication.dates <- publication.dates[publication.dates$Dataset %in% names(esets),]
+publication.dates <- publication.dates[order(publication.dates$Publication_date),]
+# publication.dates$Dataset is guaranteed to be equal to names(esets)
+esets <- esets[publication.dates$Dataset]
+
+
+esets <- lapply(esets, function(x) {
+  factor.indices <- sapply(pData(x), is.factor)
+  pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
+  return(x)
+  })
+
+## Populate the "days_to_death" field in phenotypic data of TCGA for status "living"
+tcga.clinical.data <- read.delim("nationwidechildrens.org_clinical_patient_brca.txt", skip=1, stringsAsFactors = FALSE)
+tcga.clinical.data <- tcga.clinical.data[,c("bcr_patient_uuid", "days_to_last_followup")]
+tcga.clinical.data <- tcga.clinical.data[-1,]
+tcga.clinical.data <- tcga.clinical.data[tcga.clinical.data$days_to_last_followup != "[Not Available]",]
+tcga.clinical.data$days_to_last_followup <- as.integer(tcga.clinical.data$days_to_last_followup)
+tcga.clinical.data <- tcga.clinical.data[!is.na(match(tcga.clinical.data$bcr_patient_uuid, esets$TCGA$unique_patient_ID)),]
+
+esets$TCGA$days_to_death[match(tcga.clinical.data$bcr_patient_uuid, esets$TCGA$unique_patient_ID)] <- tcga.clinical.data$days_to_last_followup
+
+metabolic.genes <- read.table("metabolic.genes", sep="\t", header=TRUE)
+gene.names <- metabolic.genes$Gene.name
+entrez.ids <- metabolic.genes$Entrez.ID
+
+#required.genes <- c(entrez.ids, )
+
+# Only keep patients with expression values for all genes
+esets <- lapply(esets, function(eset) {
+  expression.subset <- exprs(eset)[fData(eset)$EntrezGene.ID %in% entrez.ids,]
+  to.keep <- apply(expression.subset, 2, function(x) all(!is.na(x)))
+  return(eset[,to.keep])
+  })
+
+# For each dataset, remove genes that are not represented in all patients
+esets <- lapply(esets, function(eset) eset[complete.cases(exprs(eset)),])
+
+## Remove datasets that do not contain all genes
+## esets <- esets[sapply(esets, ...)]
+
+esets <- lapply(esets, function(x) {
+  x <- subtypeClassification(x, model = "scmod2")
+  x$subtype <- experimentData(x)@other$class
+  return(x)
+  })
+esets <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
+
+#TODO: switch this around, remove empty survival first
+pooled.eset <- datasetMerging(esets, method="intersect")
+# Only keep patients with complete survival data
+@
+
+\tableofcontents
+\section{Datasets}
+
+\Sexpr{length(unique(pooled.eset$data.source))} independent breast cancer gene expression datasets were identified from MetaGxBreast. Of this meta-dataset, we identified \Sexpr{nrow(pData(pooled.eset))} patients with survival data. For these datasets, expression values were pooled with quantile normalization.
+<<Dataset_table, results='asis'>>=
+.get.ordered.data.table <- function(data.source) {
+  data.source <- as.character(data.source)
+  data.counts <- as.data.frame(addmargins(table(data.source)))
+  data.counts$Freq <- as.integer(data.counts$Freq)
+  colnames(data.counts) <- c("Dataset name", "Number of samples")
+  return(xtable(data.counts))
+}
+
+print(.get.ordered.data.table(pooled.eset$data.source), include.rownames=FALSE)
+@
+
+%\Sexpr{knit_expand('single.gene.brca.survival.Rnw')}
+
+<<multi_gene, cache=FALSE, include=FALSE>>=
+sink("/dev/null")
+gmt.contents <- GSA::GSA.read.gmt("c5.all.v5.0.entrez.gmt")
+sink()
+current.eset <- pooled.eset
+counter <- 1
+knit2pdf("multi.gene.brca.survival.Rnw", output=paste0("metabolic_brca_multigenes.tex"))
+counter <- counter + 1
+@
+\end{document}

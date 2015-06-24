@@ -1,3 +1,9 @@
+% This is a template knitr file that generates a pdf report for the prognostic
+% value of a gene set on ovarian cancer subtypes.
+% This file should be run in a loop from a driver R file, in which the following
+% variables have been defined: gmt.contents, geneset.name, pooled.eset
+%
+
 %\VignetteEngine{knitr::knitr}
 \documentclass{article}
 
@@ -25,17 +31,17 @@
 @
 
 <<read_gmt, include=FALSE, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
-immune.index <- which(gmt.contents$geneset.names == geneset.name)
-immune.entrez.ids <- unlist(gmt.contents$genesets[immune.index])
+index <- which(gmt.contents$geneset.names == geneset.name)
+entrez.ids <- unlist(gmt.contents$genesets[index])
 
-intersecting.immune.entrez.ids <- intersect(fData(pooled.eset)$EntrezGene.ID, immune.entrez.ids)
+intersecting.entrez.ids <- intersect(fData(pooled.eset)$EntrezGene.ID, entrez.ids)
 
-current.immune.survival.df <- get.survival.data.for.plotting(pooled.eset, entrez.ids=intersecting.immune.entrez.ids, num.quantiles=3, survival.type="overall.survival", time.unit="years", gene.name.as.output.colname=FALSE, additional.colnames.to.keep = c("Helland.subtypes", "Verhaak.subtypes", "Bentink.Haibe.Kains.subtypes"))
+current.survival.df <- get.survival.data.for.plotting(pooled.eset, entrez.ids=intersecting.entrez.ids, num.quantiles=3, survival.type="overall.survival", time.unit="years", gene.name.as.output.colname=FALSE, additional.colnames.to.keep = c("Helland.subtypes", "Verhaak.subtypes", "Bentink.Haibe.Kains.subtypes"))
 
-current.immune.survival.df <- current.immune.survival.df[,!grepl(".quantile", colnames(current.immune.survival.df))]
+current.survival.df <- current.survival.df[,!grepl(".quantile", colnames(current.survival.df))]
 
 
-expression.df <- t(current.immune.survival.df[,grepl(".expression", colnames(current.immune.survival.df))])
+expression.df <- t(current.survival.df[,grepl(".expression", colnames(current.survival.df))])
 pc1.vals <- prcomp(expression.df)$rotation[,1]
 
 num.quantiles <- 3
@@ -49,24 +55,24 @@ if(num.quantiles==2) {
   levels(pc1.quantiles) <- paste0("PC1.quantile.", 1:num.quantiles)
 }
 
-current.immune.survival.df$pc1.val <- pc1.vals
-current.immune.survival.df$pc1.quantile <- pc1.quantiles
+current.survival.df$pc1.val <- pc1.vals
+current.survival.df$pc1.quantile <- pc1.quantiles
 @
 
-\noindent We considered the \Sexpr{length(intersecting.immune.entrez.ids)} genes that were present in all datasets (out of \Sexpr{length(immune.entrez.ids)} in \texttt{\Sexpr{gsub("_", " ", geneset.name)}}). We merged  performed principal components analysis on the genes, and used the value of the first principal component as the risk score. PCA and tertile stratification were performed on the pooled dataset, with gene expression values quantile normalized.
+\noindent We considered the \Sexpr{length(intersecting.entrez.ids)} genes that were present in all datasets (out of \Sexpr{length(entrez.ids)} in \texttt{\Sexpr{gsub("_", " ", geneset.name)}}). We merged  performed principal components analysis on the genes, and used the value of the first principal component as the risk score. PCA and tertile stratification were performed on the pooled dataset, with gene expression values quantile normalized.
 
 <<GO_gene_pca_dataset_table, results='asis', cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
-print(.get.ordered.data.table(current.immune.survival.df$data.source), include.rownames=FALSE)
+print(.get.ordered.data.table(current.survival.df$data.source), include.rownames=FALSE)
 @
 
 
 <<GO_gene_pca_survival_all, fig.width=5, fig.height=5, out.width="0.6\\textwidth", cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
-surv.time <- current.immune.survival.df$years_to_event
-surv.event <- current.immune.survival.df$event_status
-groups <- current.immune.survival.df$pc1.quantile
-risk.vals <- -current.immune.survival.df$pc1.val
-group.names <- paste("PC1", levels(current.immune.survival.df[,"pc1.quantile"]))
-datasets <- current.immune.survival.df$data.source
+surv.time <- current.survival.df$years_to_event
+surv.event <- current.survival.df$event_status
+groups <- current.survival.df$pc1.quantile
+risk.vals <- -current.survival.df$pc1.val
+group.names <- paste("PC1", levels(current.survival.df[,"pc1.quantile"]))
+datasets <- current.survival.df$data.source
 main.title <- paste("Survival: Immune genes, PC1")
 
 stat.objects.survplot <- create.survival.plot(
@@ -84,16 +90,16 @@ stat.objects.survplot <- create.survival.plot(
 @
 \pagebreak
 \noindent Survival by the Tothill subtypes (using our implementation of their subtype classifer described in Helland et al.)
-<<immune_genes_pca_survival_Helland_subtypes, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+<<genes_pca_survival_Helland_subtypes, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
 par(mfrow=c(2,2))
-for(current.helland.subtype in levels(current.immune.survival.df$Helland.subtypes)) {
-  cases.to.include <- current.immune.survival.df$Helland.subtypes == current.helland.subtype
-  surv.time <- current.immune.survival.df$years_to_event[cases.to.include]
-  surv.event <- current.immune.survival.df$event_status[cases.to.include]
-  groups <- current.immune.survival.df$pc1.quantile[cases.to.include]
-  risk.vals <- -current.immune.survival.df$pc1.val[cases.to.include]
-  group.names <- paste("PC1", levels(current.immune.survival.df[,"pc1.quantile"][cases.to.include]))
-  datasets <- current.immune.survival.df$data.source[cases.to.include]
+for(current.helland.subtype in levels(current.survival.df$Helland.subtypes)) {
+  cases.to.include <- current.survival.df$Helland.subtypes == current.helland.subtype
+  surv.time <- current.survival.df$years_to_event[cases.to.include]
+  surv.event <- current.survival.df$event_status[cases.to.include]
+  groups <- current.survival.df$pc1.quantile[cases.to.include]
+  risk.vals <- -current.survival.df$pc1.val[cases.to.include]
+  group.names <- paste("PC1", levels(current.survival.df[,"pc1.quantile"][cases.to.include]))
+  datasets <- current.survival.df$data.source[cases.to.include]
   main.title <- paste("Survival: Immune genes, PC1", "in subtype", current.helland.subtype)
   
   create.survival.plot(
@@ -113,16 +119,16 @@ for(current.helland.subtype in levels(current.immune.survival.df$Helland.subtype
 
 \pagebreak
 \noindent Survival by the TCGA subtypes (using our implementation of their subtype classifer described in Verhaak et al.)
-<<immune_genes_pca_survival_Verhaak_subtypes, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+<<genes_pca_survival_Verhaak_subtypes, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
 par(mfrow=c(2,2))
-for(current.verhaak.subtype in levels(current.immune.survival.df$Verhaak.subtypes)) {
-  cases.to.include <- current.immune.survival.df$Verhaak.subtypes == current.verhaak.subtype
-  surv.time <- current.immune.survival.df$years_to_event[cases.to.include]
-  surv.event <- current.immune.survival.df$event_status[cases.to.include]
-  groups <- current.immune.survival.df$pc1.quantile[cases.to.include]
-  risk.vals <- -current.immune.survival.df$pc1.val[cases.to.include]
-  group.names <- paste("PC1", levels(current.immune.survival.df[,"pc1.quantile"][cases.to.include]))
-  datasets <- current.immune.survival.df$data.source[cases.to.include]
+for(current.verhaak.subtype in levels(current.survival.df$Verhaak.subtypes)) {
+  cases.to.include <- current.survival.df$Verhaak.subtypes == current.verhaak.subtype
+  surv.time <- current.survival.df$years_to_event[cases.to.include]
+  surv.event <- current.survival.df$event_status[cases.to.include]
+  groups <- current.survival.df$pc1.quantile[cases.to.include]
+  risk.vals <- -current.survival.df$pc1.val[cases.to.include]
+  group.names <- paste("PC1", levels(current.survival.df[,"pc1.quantile"][cases.to.include]))
+  datasets <- current.survival.df$data.source[cases.to.include]
   main.title <- paste("Survival: Immune genes, PC1", "in subtype", current.verhaak.subtype)
   
   create.survival.plot(
@@ -142,16 +148,16 @@ for(current.verhaak.subtype in levels(current.immune.survival.df$Verhaak.subtype
 
 \pagebreak
 \noindent Survival by the Bentink subtypes (using our implementation of their subtype classifer in \texttt{genefu})
-<<immune_genes_pca_survival_Bentink_subtypes, fig.width=10, fig.height=5.5, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+<<genes_pca_survival_Bentink_subtypes, fig.width=10, fig.height=5.5, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
 par(mfrow=c(1,2))
-for(current.bentink.subtype in levels(current.immune.survival.df$Bentink.Haibe.Kains.subtypes)) {
-  cases.to.include <- current.immune.survival.df$Bentink.Haibe.Kains.subtypes == current.bentink.subtype
-  surv.time <- current.immune.survival.df$years_to_event[cases.to.include]
-  surv.event <- current.immune.survival.df$event_status[cases.to.include]
-  groups <- current.immune.survival.df$pc1.quantile[cases.to.include]
-  risk.vals <- -current.immune.survival.df$pc1.val[cases.to.include]
-  group.names <- paste("PC1", levels(current.immune.survival.df[,"pc1.quantile"][cases.to.include]))
-  datasets <- current.immune.survival.df$data.source[cases.to.include]
+for(current.bentink.subtype in levels(current.survival.df$Bentink.Haibe.Kains.subtypes)) {
+  cases.to.include <- current.survival.df$Bentink.Haibe.Kains.subtypes == current.bentink.subtype
+  surv.time <- current.survival.df$years_to_event[cases.to.include]
+  surv.event <- current.survival.df$event_status[cases.to.include]
+  groups <- current.survival.df$pc1.quantile[cases.to.include]
+  risk.vals <- -current.survival.df$pc1.val[cases.to.include]
+  group.names <- paste("PC1", levels(current.survival.df[,"pc1.quantile"][cases.to.include]))
+  datasets <- current.survival.df$data.source[cases.to.include]
   main.title <- paste("Survival: Immune genes, PC1", "in subtype\n", current.bentink.subtype)
   
   create.survival.plot(

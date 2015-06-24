@@ -49,6 +49,9 @@ source("../R/create.forest.plot.R")
 source("../inst/extdata/hgs.patientselection.config")
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 esets$GSE51088 <- esets$GSE51088[complete.cases(exprs(esets$GSE51088)),]
+esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
+esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
+esets <- lapply(esets, function(x) getBentinkHaibeKainsSubtypes(x)[[1]])
 esets <- lapply(esets, function(x) {
   factor.indices <- sapply(pData(x), is.factor)
   pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)

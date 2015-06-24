@@ -312,7 +312,7 @@ create.survival.plot(
 %@
 %\caption{Survival curves for CD73 by Bentink subtype}
 %\end{figure}
-\section{Histograms}
+%\section{Histograms}
 
 <<get_pair_data>>=
 esets.with.data.annotation <- lapply(names(esets), function(x) {
@@ -325,20 +325,21 @@ pair.survival.data.by.eset <- lapply(esets.with.data.annotation, function(x) .ge
 pair.survival.data.by.eset <- pair.survival.data.by.eset[sapply(pair.survival.data.by.eset, function(x) nrow(x)>0)]
 pair.survival.data.2 <- do.call(rbind, pair.survival.data.by.eset)
 pair.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
+pair.survival.data$Double.high.expression <- factor(pair.survival.data$Double.high.expression, levels=c("FALSE", "TRUE"), ordered=TRUE)
 #pair.survival.data.tertiles <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=3, survival.type="overall.survival", time.unit="years", time.cens=10)
 @
-\begin{figure}[H]
-<<CD73_histogram, out.width="0.37\\textwidth">>=
+%\begin{figure}[H]
+<<CD73_histogram, out.width="0.37\\textwidth", eval=FALSE>>=
 hist(pair.survival.data.2$NT5E.expression, main="CD73 Expression", xlab="Normalized expression")
 @
-\end{figure}
-\begin{figure}[H]
-<<CD39_histogram, out.width="0.37\\textwidth">>=
+%\end{figure}
+%\begin{figure}[H]
+<<CD39_histogram, out.width="0.37\\textwidth", eval=FALSE>>=
 hist(pair.survival.data.2$ENTPD1.expression, main="CD39 Expression", xlab="Normalized expression")
 @
-\end{figure}
+%\end{figure}
 
-<<quantile_combination_plot, fig.width=5, fig.height=5>>=
+<<quantile_combination_plot, fig.width=5, fig.height=5, eval=FALSE>>=
 pair.survival.data$quadrants <- as.factor(as.factor(paste0(paste0("CD73-",pair.survival.data$NT5E.quantile), ", ", paste0("CD39-",pair.survival.data$ENTPD1.quantile))))
 pair.survival.data.2$quadrants <- as.factor(as.factor(paste0(paste0("CD73-",pair.survival.data.2$NT5E.quantile), ", ", paste0("CD39-",pair.survival.data.2$ENTPD1.quantile))))
 create.survival.plot(
@@ -364,11 +365,11 @@ create.survival.plot(
 @
 
 %The ``Upper quantile signature'' is positive when both CD39 and CD73 are in the respective upper quantiles.
-<<double_high_plot, fig.width=5, fig.height=5>>=
+<<double_high_plot, fig.width=5, fig.height=5, eval=FALSE>>=
 pair.survival.data$Double.high.expression <- as.factor(pair.survival.data$NT5E.quantile == "High" & pair.survival.data$ENTPD1.quantile == "High")
 pair.survival.data.2$Double.high.expression <- as.factor(pair.survival.data.2$NT5E.quantile == "High" & pair.survival.data.2$ENTPD1.quantile == "High")
 create.survival.plot(
-  main="Survival: CD39 and CD73, both upper quantiles",
+  main="Survival: CD39 and CD73",
   surv.time=pair.survival.data$years_to_event,
   surv.event=pair.survival.data$event_status,
   groups=pair.survival.data$Double.high.expression,
@@ -376,7 +377,7 @@ create.survival.plot(
   datasets=pair.survival.data$data.source,
   xlab="Time (years)",
   time.cens=10,
-  stats.to.show = c("n","p")
+  stats.to.show = c("n","p", "hr")
 )
 create.survival.plot(
   main="Survival: CD39 and CD73, both upper quantiles",
@@ -391,7 +392,7 @@ create.survival.plot(
 )
 @
 
-<<nt5e_alone, fig.width=5, fig.height=5>>=
+<<nt5e_alone, fig.width=5, fig.height=5, eval=FALSE>>=
 create.survival.plot(
   main="Survival: CD73, median-dichotomized",
   surv.time=pair.survival.data$years_to_event,
@@ -416,7 +417,7 @@ create.survival.plot(
 )
 @
 
-<<ENTPD1 alone, fig.width=5, fig.height=5>>=
+<<ENTPD1 alone, fig.width=5, fig.height=5, eval=FALSE>>=
 create.survival.plot(
   main="Survival: ENTPD1, median-dichotomized",
   surv.time=pair.survival.data$years_to_event,
@@ -471,17 +472,33 @@ create.survival.plot(
   datasets=survival.data.tertiles$data.source,
   xlab="Time (years)",
   reverse.legend.order = TRUE,
-  #group.names=paste("CD73", gsub(".*=", "",levels(nt5e.survival.data$NT5E.quantile))),
+  #group.names=paste("CD73", gsub(".*=", "",levels(survival.data.tertiles$NT5E.quantile))),
   #risk.vals=survival.data.tertiles$NT5E.expression,
   stats.to.show=c("n","p"),
   time.cens=10,
   col=c("black", "blue", "red")
   )
 @
-<NT5E_survival_tertiles_pool
-pair.survival.data <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=2, survival.type="overall.survival", time.unit="years")
 
-<<NT5E_survival_bipartition, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+<<NT5E_survival_tertiles_pool_first, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth">>=
+survival.data.tertiles.pool.first <- .get.survival.data.for.plotting(pooled.eset, gene.name=c("NT5E", "ENTPD1"), num.quantiles=3, survival.type="overall.survival", time.unit="years")
+create.survival.plot(
+  main="Survival Plot: pooled samples",
+  surv.time=survival.data.tertiles.pool.first$years_to_event,
+  surv.event=survival.data.tertiles.pool.first$event_status,
+  groups=survival.data.tertiles.pool.first$NT5E.quantile,
+  datasets=survival.data.tertiles.pool.first$data.source,
+  xlab="Time (years)",
+  reverse.legend.order = TRUE,
+  #group.names=paste("CD73", gsub(".*=", "",levels(survival.data.tertiles.pool.first$NT5E.quantile))),
+  #risk.vals=survival.data.tertiles.pool.first$NT5E.expression,
+  stats.to.show=c("n","p"),
+  time.cens=10,
+  col=c("black", "blue", "red")
+  )
+@
+
+<<NT5E_survival_bipartition, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.8\\textwidth", eval=FALSE>>=
 create.survival.plot(
   main="Survival: CD73, median-dichotomized",
   surv.time=pair.survival.data.2$years_to_event,
@@ -495,7 +512,7 @@ create.survival.plot(
 )
 @
 
-<<stat_comparisons, eval=FALSE>>=
+<<stat_comparisons, eval=FALSE, eval=FALSE>>=
 stat.objects.nt5e <- lapply(unique(pair.survival.data$data.source), function(x) {
   survival.data.subset <- pair.survival.data[pair.survival.data$data.source==x,]
   c <- survcomp::concordance.index(survival.data.subset$NT5E.expression, survival.data.subset$years_to_event, survival.data.subset$event_status, method="noether")
@@ -511,7 +528,7 @@ stat.objects.entpd1 <- lapply(unique(pair.survival.data$data.source), function(x
 names(stat.objects) <- unique(pair.survival.data$data.source)
 @
 
-<<stripplot, fig.width=8, fig.height=6>>=
+<<stripplot, fig.width=8, fig.height=6, eval=FALSE>>=
 tcga.eset <- esets$TCGA
 tcga.nt5e.index <- which(fData(tcga.eset)$gene == "NT5E")
 pData(tcga.eset)$NT5E.expression <- t(exprs(tcga.eset)[tcga.nt5e.index,,drop=FALSE])
@@ -520,10 +537,10 @@ set.seed(1000)
 stripchart(NT5E.expression ~ primary_therapy_outcome_success, data=pData(tcga.eset), method="jitter", vertical=TRUE, main="TCGA data: response to primary therapy")
 @
 
-F-test p-value: \Sexpr{round(f.test.pval, digits=3)}
+%F-test p-value: \Sexpr{round(f.test.pval, digits=3)}
 
-\pagebreak
-\noindent Patient selection config (for initial data extraction from MetaGxOvarian):
-\verbatiminput{../inst/extdata/hgs.patientselection.config}
+%\pagebreak
+%\noindent Patient selection config (for initial data extraction from MetaGxOvarian):
+%\verbatiminput{../inst/extdata/hgs.patientselection.config}
 
 \end{document}
