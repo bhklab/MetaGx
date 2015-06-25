@@ -103,7 +103,11 @@ create.survival.plot <- function(
   n <- coxph.summary$n
   p <- coxph.summary$logtest[["pvalue"]]
   
-  hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event, strat=datasets)
+  if(is.null(datasets)) {
+    hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event)
+  } else {
+    hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event, strat=datasets)
+  }
   
   if(length(stats.to.show) > 0) {
     text.to.show <- ""

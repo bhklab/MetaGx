@@ -27,6 +27,7 @@ options(replace.assign=TRUE,width=90)
 days.per.month <- 30.4368
 days.per.year <- 365.242
 par.original <- par()
+library(knitr)
 library(gdata)
 library(annotate)
 library(ggplot2)
@@ -78,38 +79,41 @@ metabolic.genes <- read.table("metabolic.genes", sep="\t", header=TRUE)
 gene.names <- metabolic.genes$Gene.name
 entrez.ids <- metabolic.genes$Entrez.ID
 
-#required.genes <- c(entrez.ids, )
-
-# Only keep patients with expression values for all genes
-esets <- lapply(esets, function(eset) {
-  expression.subset <- exprs(eset)[fData(eset)$EntrezGene.ID %in% entrez.ids,]
-  to.keep <- apply(expression.subset, 2, function(x) all(!is.na(x)))
-  return(eset[,to.keep])
-  })
+# For each dataset: if it contains some patients with the genes, remove patients with NA values for these genes
+#esets <- lapply(esets, function(eset) {
+#  for(entrez.id in entrez.ids) {
+#    if(entrez.id %in% fData(eset)$EntrezGene.ID) {
+#      index <- which(fData(eset)$EntrezGene.ID == entrez.id)
+#      eset <- eset[, !is.na(exprs(eset)[index,,drop=FALSE]) ]
+#      }
+#  }
+#  return(eset)
+#})
 
 # For each dataset, remove genes that are not represented in all patients
-esets <- lapply(esets, function(eset) eset[complete.cases(exprs(eset)),])
+#esets <- lapply(esets, function(eset) eset[complete.cases(exprs(eset)),])
 
-## Remove datasets that do not contain all genes
-## esets <- esets[sapply(esets, ...)]
+# only keep patients with survival data
+esets <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
+
+## Remove datasets that are empty
+esets <- esets[sapply(esets, function(x) ncol(exprs(x)) > 0)]
 
 esets <- lapply(esets, function(x) {
   x <- subtypeClassification(x, model = "scmod2")
   x$subtype <- experimentData(x)@other$class
   return(x)
   })
-esets <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
 
-#TODO: switch this around, remove empty survival first
-pooled.eset <- datasetMerging(esets, method="intersect")
-# Only keep patients with complete survival data
+pooled.eset <- datasetMerging(esets, nthread=2)
 @
 
 \tableofcontents
 \section{Datasets}
 
-\Sexpr{length(unique(pooled.eset$data.source))} independent breast cancer gene expression datasets were identified from MetaGxBreast. Of this meta-dataset, we identified \Sexpr{nrow(pData(pooled.eset))} patients with survival data. For these datasets, expression values were pooled with quantile normalization.
+From MetaGxBreast, we selected patients from studies which tracked overall survival. We identified \Sexpr{sum(sapply(esets, function(x) ncol(exprs(x))))} patients from \Sexpr{length(esets)} datasets.
 <<Dataset_table, results='asis'>>=
+
 .get.ordered.data.table <- function(data.source) {
   data.source <- as.character(data.source)
   data.counts <- as.data.frame(addmargins(table(data.source)))
@@ -118,18 +122,18 @@ pooled.eset <- datasetMerging(esets, method="intersect")
   return(xtable(data.counts))
 }
 
-print(.get.ordered.data.table(pooled.eset$data.source), include.rownames=FALSE)
+data.counts <- as.data.frame(sapply(esets, function(x) ncol(exprs(x))))
+colnames(data.counts) <- "Number of samples"
+data.counts <- rbind(data.counts, sum(data.counts[,1]))
+rownames(data.counts)[nrow(data.counts)] <- "Sum"
+xtable(data.counts)
 @
 
-%\Sexpr{knit_expand('single.gene.brca.survival.Rnw')}
-
-<<multi_gene, cache=FALSE, include=FALSE>>=
-sink("/dev/null")
-gmt.contents <- GSA::GSA.read.gmt("c5.all.v5.0.entrez.gmt")
-sink()
-current.eset <- pooled.eset
-counter <- 1
-knit2pdf("multi.gene.brca.survival.Rnw", output=paste0("metabolic_brca_multigenes.tex"))
-counter <- counter + 1
+<<single_gene, cache=FALSE, include=FALSE>>=
+single.gene.knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
+#single.gene.knitr.text <- lapply(1:1, function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
 @
+
+\Sexpr{knit(text=unlist(single.gene.knitr.text))}
+
 \end{document}
