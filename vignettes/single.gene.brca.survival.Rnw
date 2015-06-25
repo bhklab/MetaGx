@@ -1,0 +1,176 @@
+\pagebreak
+\section{\Sexpr{gene.names[{{current.index}}]}}
+
+<<Single_gene_load_data_{{current.index}}, include=FALSE, cache=FALSE>>=
+# Remove patients with NA values for that gene
+esets.with.gene <- esets[sapply(esets, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
+esets.with.gene <- lapply(esets.with.gene, function(eset) {
+  current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
+  return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
+  })
+
+#current.entrez.id.index <- which(fData(pooled.eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
+#pooled.eset.six.subset <- pooled.eset[,pooled.eset$data.source %in% c("STK", "DUKE", "TRANSBIG", "IRB", "UPP", "UNT")]
+#pooled.eset.with.gene <- pooled.eset[,!is.na(exprs(pooled.eset)[current.entrez.id.index,])]
+
+survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+
+@
+
+\noindent Expression values for \Sexpr{gene.names[{{current.index}}]} were present in \Sexpr{nrow(survival.df)} patients from \Sexpr{length(unique(survival.df$data.source))} datasets.
+<<Single_gene_dataset_table_{{current.index}}, results='asis', include=FALSE, cache=FALSE>>=
+print(.get.ordered.data.table(survival.df$data.source), include.rownames=FALSE)
+@
+
+<<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, cache=FALSE>>=
+par(mfrow=c(1,2))
+surv.time <- survival.df$years_to_event
+surv.event <- survival.df$event_status
+groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
+#risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
+group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
+datasets <- survival.df$data.source
+main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}])
+
+create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups = groups,
+#  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+#  time.cens=10,
+  stats.to.show = c("n", "p", "hr")
+)
+
+# Basal-like
+
+cases.to.include <- survival.df$subtype == "Basal"
+surv.time <- survival.df$years_to_event[cases.to.include]
+surv.event <- survival.df$event_status[cases.to.include]
+groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
+#risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
+group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
+datasets <- survival.df$data.source[cases.to.include]
+main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}], ": Basal-like")
+
+create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups = groups,
+#  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+#  time.cens=10,
+  stats.to.show = c("n", "p", "hr")
+)
+
+@
+
+
+<<Single_gene_survival_except_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, cache=FALSE>>=
+par(mfrow=c(1,2))
+
+cases.to.include <- survival.df$data.source != "METABRIC"
+surv.time <- survival.df$years_to_event[cases.to.include]
+surv.event <- survival.df$event_status[cases.to.include]
+groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
+#risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
+group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
+datasets <- survival.df$data.source[cases.to.include]
+main.title <- paste0("Meta-dataset (Excluding METABRIC): ", gene.names[{{current.index}}])
+
+create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups = groups,
+#  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+#  time.cens=10,
+  stats.to.show = c("n", "p", "hr")
+)
+
+# Basal-like
+
+cases.to.include <- survival.df$subtype == "Basal" & survival.df$data.source != "METABRIC"
+surv.time <- survival.df$years_to_event[cases.to.include]
+surv.event <- survival.df$event_status[cases.to.include]
+groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
+#risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
+group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
+datasets <- survival.df$data.source[cases.to.include]
+main.title <- paste0("Meta-dataset (Excluding METABRIC): ", gene.names[{{current.index}}], ": Basal-like")
+
+create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups = groups,
+#  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+#  time.cens=10,
+  stats.to.show = c("n", "p", "hr")
+)
+
+@
+
+<<Single_gene_survival_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, cache=FALSE>>=
+metabric.entrez.id.index <- which(fData(esets$METABRIC)$EntrezGene.ID == entrez.ids[{{current.index}}])
+if(length(metabric.entrez.id.index) != 0) {
+  metabric.cleaned <- esets$METABRIC[,!is.na(exprs(esets$METABRIC)[current.entrez.id.index,])]
+  metabric.df <- get.survival.data.for.plotting(metabric.cleaned, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+  
+  par(mfrow=c(1,2))
+  surv.time <- metabric.df$years_to_event
+  surv.event <- metabric.df$event_status
+  groups <- metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
+  #risk.vals <- -metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
+  group.names <- paste(gene.names[{{current.index}}], levels(metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
+  datasets <- metabric.df$data.source
+  main.title <- paste0("METABRIC: ", gene.names[{{current.index}}])
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups = groups,
+  #  risk.vals = risk.vals,
+    group.names = group.names,
+    xlab = "Time (years)",
+    main = main.title,
+  #  time.cens=10,
+    stats.to.show = c("n", "p", "hr")
+  )
+  
+  # Basal-like
+  cases.to.include <- metabric.df$subtype == "Basal"
+  surv.time <- metabric.df$years_to_event[cases.to.include]
+  surv.event <- metabric.df$event_status[cases.to.include]
+  groups <- metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
+  #risk.vals <- -metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
+  group.names <- paste(gene.names[{{current.index}}], levels(metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
+  datasets <- metabric.df$data.source[cases.to.include]
+  main.title <- paste0("METABRIC: ", gene.names[{{current.index}}], ": Basal-like")
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups = groups,
+  #  risk.vals = risk.vals,
+    group.names = group.names,
+    xlab = "Time (years)",
+    main = main.title,
+  #  time.cens=10,
+    stats.to.show = c("n", "p", "hr")
+  )
+}
+
+@
