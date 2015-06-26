@@ -1,28 +1,42 @@
 \pagebreak
 \section{\Sexpr{gene.names[{{current.index}}]}}
 
-<<Single_gene_load_data_{{current.index}}, include=FALSE, cache=FALSE>>=
+<<Single_gene_load_data_{{current.index}}, include=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
 # Remove patients with NA values for that gene
 esets.with.gene <- esets[sapply(esets, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
 esets.with.gene <- lapply(esets.with.gene, function(eset) {
   current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
   return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
   })
+# annotate with dataset
+eset.names <- names(esets.with.gene)
+esets.with.gene <- lapply(names(esets.with.gene), function(x) {
+  eset.toreturn <- esets.with.gene[[x]]
+  eset.toreturn$data.source <- x
+  return(eset.toreturn)
+  })
+names(esets.with.gene) <- eset.names
 
 #current.entrez.id.index <- which(fData(pooled.eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
 #pooled.eset.six.subset <- pooled.eset[,pooled.eset$data.source %in% c("STK", "DUKE", "TRANSBIG", "IRB", "UPP", "UNT")]
 #pooled.eset.with.gene <- pooled.eset[,!is.na(exprs(pooled.eset)[current.entrez.id.index,])]
 
-survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+survival.df.list <- lapply(esets.with.gene, function(x) {
+  current.df <- get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+})
 
+survival.df <- do.call(rbind, survival.df.list)
+survival.df <- survival.df[-grep(".expression$", colnames(survival.df))]
+
+#survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
 @
 
 \noindent Expression values for \Sexpr{gene.names[{{current.index}}]} were present in \Sexpr{nrow(survival.df)} patients from \Sexpr{length(unique(survival.df$data.source))} datasets.
-<<Single_gene_dataset_table_{{current.index}}, results='asis', include=FALSE, cache=FALSE>>=
+<<Single_gene_dataset_table_{{current.index}}, results='asis', include=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
 print(.get.ordered.data.table(survival.df$data.source), include.rownames=FALSE)
 @
 
-<<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, cache=FALSE>>=
+<<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
 par(mfrow=c(1,2))
 surv.time <- survival.df$years_to_event
 surv.event <- survival.df$event_status
@@ -72,7 +86,7 @@ create.survival.plot(
 @
 
 
-<<Single_gene_survival_except_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, cache=FALSE>>=
+<<Single_gene_survival_except_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
 par(mfrow=c(1,2))
 
 cases.to.include <- survival.df$data.source != "METABRIC"
@@ -123,10 +137,10 @@ create.survival.plot(
 
 @
 
-<<Single_gene_survival_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, cache=FALSE>>=
+<<Single_gene_survival_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
 metabric.entrez.id.index <- which(fData(esets$METABRIC)$EntrezGene.ID == entrez.ids[{{current.index}}])
 if(length(metabric.entrez.id.index) != 0) {
-  metabric.cleaned <- esets$METABRIC[,!is.na(exprs(esets$METABRIC)[current.entrez.id.index,])]
+  metabric.cleaned <- esets$METABRIC[,!is.na(exprs(esets$METABRIC)[metabric.entrez.id.index,])]
   metabric.df <- get.survival.data.for.plotting(metabric.cleaned, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
   
   par(mfrow=c(1,2))

@@ -75,7 +75,7 @@ tcga.clinical.data <- tcga.clinical.data[!is.na(match(tcga.clinical.data$bcr_pat
 
 esets$TCGA$days_to_death[match(tcga.clinical.data$bcr_patient_uuid, esets$TCGA$unique_patient_ID)] <- tcga.clinical.data$days_to_last_followup
 
-metabolic.genes <- read.table("metabolic.genes", sep="\t", header=TRUE)
+metabolic.genes <- read.table("metabolic.genes", sep="\t", header=TRUE, stringsAsFactors = FALSE)
 gene.names <- metabolic.genes$Gene.name
 entrez.ids <- metabolic.genes$Entrez.ID
 
@@ -105,10 +105,11 @@ esets <- lapply(esets, function(x) {
   return(x)
   })
 
-pooled.eset <- datasetMerging(esets, nthread=2)
+#pooled.eset <- datasetMerging(esets, nthread=2)
 @
 
 \tableofcontents
+\pagebreak
 \section{Datasets}
 
 From MetaGxBreast, we selected patients from studies which tracked overall survival. We identified \Sexpr{sum(sapply(esets, function(x) ncol(exprs(x))))} patients from \Sexpr{length(esets)} datasets.
@@ -129,11 +130,91 @@ rownames(data.counts)[nrow(data.counts)] <- "Sum"
 xtable(data.counts)
 @
 
+\pagebreak
 <<single_gene, cache=FALSE, include=FALSE>>=
 single.gene.knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
 #single.gene.knitr.text <- lapply(1:1, function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
 @
 
 \Sexpr{knit(text=unlist(single.gene.knitr.text))}
+
+\pagebreak
+\section{Replication of original study}
+The study ``Dysregulation of the mevalonate pathway promotes transformation'' (Clendening et al., 2010, PNAS) figure 5 gives survival curves for HMGCR, HMGCS1, MVD, FDPS, ACAT2, and MVK using six datasets. It is unclear from the manuscript text and supplementary what survival outcome was used.
+
+The six studies correspond to STK, DUKE, TRANSBIG, IRB, UPP, and UNT in MetaGxBreast. Of these six datasets, only DUKE and TRANSBIG had overall survival data in MetaGxBreast.
+
+MetaGxBreast has three clinical annotations that are present in different studies: vital-status, recurrence-status, and dmfs-status.
+
+From reading through the original papers: 
+\begin{itemize}
+\item STK (Pawitan et al., 2005): In the original paper, they used distant metastasis or death as the event in their survival analysis. \\
+      In MetaGxBreast, the recurrence-status is populated; vital-status and dmfs-status are empty.
+\item DUKE (Bild et al., 2006): In the original study, recurrence-free survival and overall survival were used. \\
+      In MetaGxBreast, vital-status is populated; recurrence-status and dmfs-status are empty.
+\item TRANSBIG (Desmedt et al., 2007). The original paper reports distant metastasis-free survival, as well as overall survival. \\
+      In MetaGxBreast, dmfs-status, recurrence-status, and vital-status are all populated.
+\item IRB (Loi, Haibe-Kains et al., 2008). The original paper used distant metastasis-free survival. \\
+      In MetaGxBreast, dmfs-status, recurrence-status, and vital-status are all empty.
+\item UPP (Miller er al., 2005). The original paper used disease-free survival as their primary endpoint. \\
+      In MetaGxBreast, the recurrence-status is populated; vital-status and dmfs-status are empty.
+\item UNT (Sotiriou et al., 2005). In the original paper, the authors reported relapse-free survival and distant metastasis-free survival. \\
+      In MetaGxBreast, the recurrence-status and dmfs-status are populated; vital-status is empty.
+\end{itemize}
+
+\pagebreak
+
+<<replicate_original, fig.width=12, fig.height=8, out.width="0.95\\textwidth">>=
+par(mfrow=c(2,3))
+# only include expression sets from the original study
+esets.to.include <- esets[c("DUKE", "TRANSBIG")]
+for(current.index in match(c("HMGCR", "HMGCS1", "MVD", "FDPS", "ACAT2", "MVK"), gene.names)) {
+  esets.with.gene <- esets.to.include[sapply(esets.to.include, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
+  esets.with.gene <- lapply(esets.with.gene, function(eset) {
+    current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
+    return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
+    })
+  # annotate with dataset
+  eset.names <- names(esets.with.gene)
+  esets.with.gene <- lapply(names(esets.with.gene), function(x) {
+    eset.toreturn <- esets.with.gene[[x]]
+    eset.toreturn$data.source <- x
+    return(eset.toreturn)
+    })
+  names(esets.with.gene) <- eset.names
+  
+  survival.df.list <- lapply(esets.with.gene, function(x) {
+    current.df <- get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+    current.df <- current.df[-grep(".expression$", colnames(current.df))]
+  })
+  
+  survival.df <- do.call(rbind, survival.df.list)
+  
+  surv.time <- survival.df$years_to_event
+  surv.event <- survival.df$event_status
+  groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
+  #risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
+  group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
+  datasets <- survival.df$data.source
+  main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}])
+  
+  create.survival.plot(
+    surv.time = surv.time,
+    surv.event = surv.event,
+    groups = groups,
+  #  risk.vals = risk.vals,
+    group.names = group.names,
+    datasets = datasets,
+    xlab = "Time (years)",
+    main = main.title,
+    pooling.method="random",
+  #  time.cens=10,
+    stats.to.show = c("n", "p", "hr")
+  )
+}
+@
+Original figure:
+
+\includegraphics[width=0.9\textwidth]{metabolism-survival.jpg}
 
 \end{document}

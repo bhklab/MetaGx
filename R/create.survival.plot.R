@@ -1,4 +1,3 @@
-
 create.survival.plot <- function(
                                  surv.time,
                                  surv.event,
@@ -101,12 +100,28 @@ create.survival.plot <- function(
     coxph.summary <- summary(survival::coxph(Surv(surv.time, surv.event) ~ groups + strata(datasets)))
   }
   n <- coxph.summary$n
-  p <- coxph.summary$logtest[["pvalue"]]
+  p <- coxph.summary$waldtest[["pvalue"]]
   
-  if(is.null(datasets)) {
+  if(is.null(datasets) || length(unique(datasets)) == 1) {
     hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event)
+  } else if(pooling.method == "none") {
+    hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event, strat = datasets)
   } else {
-    hr.out <- survcomp::hazard.ratio(groups, surv.time, surv.event, strat=datasets)
+    stat.objects <- lapply(unique(datasets), function(current.dataset) {
+      survcomp::hazard.ratio(x=groups[datasets == current.dataset], surv.time=surv.time[datasets == current.dataset], surv.event=surv.event[datasets == current.dataset])
+    })
+    names(stat.objects) <- unique(datasets)
+    stat.vals <- sapply(stat.objects, function(x) x$hazard.ratio)
+    stat.se <- sapply(stat.objects, function(x) x$se)
+    if(pooling.method=="random") {
+      pooled.stat <- combine.est(stat.vals, stat.se, hetero=TRUE)
+    } else { # fixed effects
+      pooled.stat <- combine.est(stat.vals, stat.se, hetero=FALSE)
+    }
+    hr.out <- list()
+    hr.out$hazard.ratio <- pooled.stat$estimate
+    hr.out$lower <- pooled.stat$estimate - pooled.stat$se*qnorm(0.975)
+    hr.out$upper <- pooled.stat$estimate + pooled.stat$se*qnorm(0.975)
   }
   
   if(length(stats.to.show) > 0) {
@@ -118,7 +133,7 @@ create.survival.plot <- function(
       if(stats.to.show[i] == "n") {
         text.to.show <- paste0(text.to.show, "n = ", n)
       } else if(stats.to.show[i] == "p") {
-        text.to.show <- paste0(text.to.show, "Likelihood ratio test: p = ", round(p, digits=3))
+        text.to.show <- paste0(text.to.show, sprintf("Wald test: p = %.4f", p))
       } else if(stats.to.show[i] == "hr") {
         if(length(hr.out$hazard.ratio) == 1) {
           text.to.show <- paste0(text.to.show, sprintf("HR: %.3f, 95%% CI: [%.3f-%.3f]", hr.out$hazard.ratio, hr.out$lower, hr.out$upper))
@@ -131,7 +146,12 @@ create.survival.plot <- function(
           }
         }
       } else if(stats.to.show[i] == "c") {
-        if(is.null(datasets) || length(unique(datasets)) == 1 || pooling.method == "none") {
+        if(is.null(datasets) || length(unique(datasets)) == 1) {
+          ci.out <- survcomp::concordance.index(risk.vals, surv.time, surv.event, method='noether')
+          c.index <- ci.out$c.index
+          c.lower <- ci.out$lower
+          c.upper <- ci.out$upper
+        } else if(pooling.method == "none") {
           ci.out <- survcomp::concordance.index(risk.vals, surv.time, surv.event, method='noether', strat=datasets)
           c.index <- ci.out$c.index
           c.lower <- ci.out$lower
@@ -152,8 +172,6 @@ create.survival.plot <- function(
           c.index = pooled.stat$estimate
           c.lower <- pooled.stat$estimate - pooled.stat$se*qnorm(0.975)
           c.upper <- pooled.stat$estimate + pooled.stat$se*qnorm(0.975)
-          stat.vals <- c(stat.vals, meta.random=pooled.stat$estimate)
-          stat.se <- c(stat.se, meta.random=pooled.stat$se)
         }
         if(show.confidence.intervals) {
           text.to.show <- paste0(text.to.show, sprintf("Concordance index: %.3f, 95%% CI: [%.3f-%.3f]", c.index, c.lower, c.upper))
@@ -161,7 +179,12 @@ create.survival.plot <- function(
           text.to.show <- paste0(text.to.show, sprintf("Concordance index: %.3f", c.index))
         }
       } else if(stats.to.show[i] == "d") {
-        if(is.null(datasets) || length(unique(datasets)) == 1 || pooling.method == "none") {
+        if(is.null(datasets) || length(unique(datasets)) == 1) {
+          di.out <- survcomp::D.index(risk.vals, surv.time, surv.event)
+          d.index <- di.out$d.index
+          d.lower <- di.out$lower
+          d.upper <- di.out$upper
+        } else if(pooling.method == "none"){
           di.out <- survcomp::D.index(risk.vals, surv.time, surv.event, strat=datasets)
           d.index <- di.out$d.index
           d.lower <- di.out$lower
@@ -182,8 +205,6 @@ create.survival.plot <- function(
           d.index = pooled.stat$estimate
           d.lower <- pooled.stat$estimate - pooled.stat$se*qnorm(0.975)
           d.upper <- pooled.stat$estimate + pooled.stat$se*qnorm(0.975)
-          stat.vals <- c(stat.vals, meta.random=pooled.stat$estimate)
-          stat.se <- c(stat.se, meta.random=pooled.stat$se)
         }
         if(show.confidence.intervals) {
           text.to.show <- paste0(text.to.show, sprintf("D-Index: %.3f, 95%% CI: [%.3f-%.3f]", d.index, d.lower, d.upper))
