@@ -92,8 +92,24 @@ get.survival.data.for.plotting <- function(
     survival.data$vital_status <- survival.data$vital_status == "deceased"
   } else if(survival.type=="tumor.recurrence") {
     colnames.to.keep <- c(colnames.to.keep, "days_to_tumor_recurrence", "recurrence_status")
+    if("dmfs_status" %in% colnames(pData(eset))) {
+      colnames.to.keep <- c(colnames.to.keep, "dmfs_days", "dmfs_status")
+      }
     survival.data <- pData(eset)[colnames.to.keep]
-    survival.data$recurrence_status <- survival.data$recurrence_status == "recurrence"
+    
+    # If dmfs is available: use dmfs only if recurrence_status is NA.
+    if("dmfs_status" %in% colnames(pData(eset))) {
+      survival.data$recurrence_status <- survival.data$recurrence_status == "recurrence" | survival.data$recurrence_status == "deceased_or_recurrence"
+      survival.data$dmfs_status <- survival.data$dmfs_status == "deceased_or_recurrence"
+      
+      use.dmfs.logical <- is.na(survival.data$days_to_tumor_recurrence) & is.na(survival.data$recurrence_status) & !is.na(survival.data$dmfs_days) & !is.na(survival.data$dmfs_status)
+      
+      survival.data$days_to_tumor_recurrence[use.dmfs.logical] <- survival.data$dmfs_days[use.dmfs.logical]
+      survival.data$recurrence_status[use.dmfs.logical] <- survival.data$dmfs_status[use.dmfs.logical]
+      
+      survival.data$dmfs_days <- NULL
+      survival.data$dmfs_status <- NULL
+    }
   }
   # Rename last two columns
   colnames(survival.data)[length(colnames(survival.data))-1] <- "days_to_event"
