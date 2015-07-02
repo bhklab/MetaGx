@@ -48,6 +48,7 @@ library(sparsediscrim)
 library(MetaGxOvarian)
 library(survcomp)
 library(ggplot2)
+library(e1071)
 @
 
 <<load_data>>=
@@ -183,22 +184,22 @@ implemented.ssgsea.scores$Dataset.name <- as.character(implemented.ssgsea.scores
 implemented.ssgsea.scores$Dataset.name[implemented.ssgsea.scores$Dataset.name == "TCGA"] <- "TCGA-validation"
 implemented.ssgsea.scores$Dataset.name <- as.factor(implemented.ssgsea.scores$Dataset.name)
 
-verhaak.spreadsheet.data <- verhaak.spreadsheet.data[c(1,2,13,grep(".ssGSEA.normalized.score", colnames(verhaak.spreadsheet.data)))]
+verhaak.spreadsheet.data.subset <- verhaak.spreadsheet.data[c(1,2,13,grep(".ssGSEA.normalized.score", colnames(verhaak.spreadsheet.data)))]
 levels(implemented.ssgsea.scores$Dataset.name) <- toupper(levels(implemented.ssgsea.scores$Dataset.name))
 levels(implemented.ssgsea.scores$sample.name) <- toupper(levels(implemented.ssgsea.scores$sample.name))
-levels(verhaak.spreadsheet.data$ID) <- toupper(levels(verhaak.spreadsheet.data$ID))
-levels(verhaak.spreadsheet.data$DATASET) <- toupper(levels(verhaak.spreadsheet.data$DATASET))
+levels(verhaak.spreadsheet.data.subset$ID) <- toupper(levels(verhaak.spreadsheet.data.subset$ID))
+levels(verhaak.spreadsheet.data.subset$DATASET) <- toupper(levels(verhaak.spreadsheet.data.subset$DATASET))
 
-verhaak.spreadsheet.data$CloverLeaf <- as.character(verhaak.spreadsheet.data$CloverLeaf)
-verhaak.spreadsheet.data$CloverLeaf <- sub("_Good", "", as.character(verhaak.spreadsheet.data$CloverLeaf))
-verhaak.spreadsheet.data$CloverLeaf <- sub("_Poor", "", as.character(verhaak.spreadsheet.data$CloverLeaf))
-verhaak.spreadsheet.data$CloverLeaf <- as.factor(verhaak.spreadsheet.data$CloverLeaf)
+verhaak.spreadsheet.data.subset$CloverLeaf <- as.character(verhaak.spreadsheet.data.subset$CloverLeaf)
+verhaak.spreadsheet.data.subset$CloverLeaf <- sub("_Good", "", as.character(verhaak.spreadsheet.data.subset$CloverLeaf))
+verhaak.spreadsheet.data.subset$CloverLeaf <- sub("_Poor", "", as.character(verhaak.spreadsheet.data.subset$CloverLeaf))
+verhaak.spreadsheet.data.subset$CloverLeaf <- as.factor(verhaak.spreadsheet.data.subset$CloverLeaf)
 
 colnames(implemented.ssgsea.scores)[1:2] <- c("DATASET", "ID")
 
 # subtypes predicted by our implementation
 
-verhaak.merged <- merge(implemented.ssgsea.scores, verhaak.spreadsheet.data, by=c("DATASET", "ID"))
+verhaak.merged <- merge(implemented.ssgsea.scores, verhaak.spreadsheet.data.subset, by=c("DATASET", "ID"))
 
 # Plot correlations between ssGSEA scores
 
@@ -209,6 +210,46 @@ PRO.cor <- cor(verhaak.merged$PRO, verhaak.merged$Proliferative.ssGSEA.normalize
 
 accuracy.classification.with.thresholds <- mean(verhaak.merged$implemented.subtype == verhaak.merged$CloverLeaf)
 accuracy.classification.by.max <- mean(apply(verhaak.merged[,3:6],1,which.max) == apply(verhaak.merged[,9:12],1,which.max))
+@
+
+<<verhaak_classifiers>>=
+# Get the labels from the original publication clustering algorithm
+verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery",c("ID", "SUBTYPE")]
+colnames(verhaak.labels.table)[2] <- "clustering_subtype"
+levels(verhaak.labels.table[,2]) <- sub("Immunoreactive", "IMR",levels(verhaak.labels.table[,2]))
+levels(verhaak.labels.table[,2]) <- sub("Proliferative", "PRO",levels(verhaak.labels.table[,2]))
+levels(verhaak.labels.table[,2]) <- sub("Differentiated", "DIF",levels(verhaak.labels.table[,2]))
+levels(verhaak.labels.table[,2]) <- sub("Mesenchymal", "MES",levels(verhaak.labels.table[,2]))
+
+tcga.discovery.eset <- getGeneMapping(esets$TCGA[,match(verhaak.labels.table$ID, esets$TCGA$unique_patient_ID)])
+
+implemented.verhaak.output.subtypes <- getVerhaakSubtypes(tcga.discovery.eset)$Annotated.eset$Verhaak.subtypes
+
+verhaak.supplementary.data.sheet7 <- read.xls("../inst/extdata/JCI65833sd1.xls", sheet=7, skip=1)
+verhaak.gene.names <- verhaak.supplementary.data.sheet7$Gene.Symbol
+# populate verhaak.train.data with expression data. Rows are samples, columns are genes.
+verhaak.train.data <- t(exprs(tcga.discovery.eset))
+verhaak.train.data <- verhaak.train.data[,fData(tcga.discovery.eset)$gene %in% verhaak.gene.names]
+verhaak.train.data <- as.data.frame(verhaak.train.data)
+verhaak.train.data$clustering_subtype <- verhaak.labels.table$clustering_subtype
+
+set.seed(150)
+num.repetitions <- 1000
+
+bootstrap.accuracy.vals <- mclapply(1:num.repetitions, function(x) {
+  print(x)
+  num.samples <- nrow(verhaak.train.data)
+  indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
+  indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
+  current.train.data <- verhaak.train.data[indices.to.include,]
+  current.test.data <- verhaak.train.data[indices.out.of.bootstrap,]
+  nb.model <- e1071::naiveBayes(clustering_subtype~., data=current.train.data)
+  current.predictions <- predict(nb.model, newdata=current.test.data[,-which(colnames(current.test.data) == "clustering_subtype")])
+  current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
+  return(current.accuracy)
+  })
+implemented.verhaak.accuracy <- getVerhaakSubtypes(tcga.discovery.eset)
+mean(implemented.verhaak.accuracy$Annotated.eset$Verhaak.subtypes == verhaak.train.data$clustering_subtype)
 @
 
 Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
