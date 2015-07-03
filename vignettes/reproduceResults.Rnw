@@ -49,6 +49,7 @@ library(MetaGxOvarian)
 library(survcomp)
 library(ggplot2)
 library(e1071)
+library(randomForest)
 @
 
 <<load_data>>=
@@ -214,12 +215,16 @@ accuracy.classification.by.max <- mean(apply(verhaak.merged[,3:6],1,which.max) =
 
 <<verhaak_classifiers>>=
 # Get the labels from the original publication clustering algorithm
-verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery",c("ID", "SUBTYPE")]
+verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE")]
 colnames(verhaak.labels.table)[2] <- "clustering_subtype"
 levels(verhaak.labels.table[,2]) <- sub("Immunoreactive", "IMR",levels(verhaak.labels.table[,2]))
 levels(verhaak.labels.table[,2]) <- sub("Proliferative", "PRO",levels(verhaak.labels.table[,2]))
 levels(verhaak.labels.table[,2]) <- sub("Differentiated", "DIF",levels(verhaak.labels.table[,2]))
 levels(verhaak.labels.table[,2]) <- sub("Mesenchymal", "MES",levels(verhaak.labels.table[,2]))
+
+intersecting.verhaak.tcga.ids <- intersect(verhaak.labels.table$ID, esets$TCGA$unique_patient_ID)
+
+verhaak.labels.table <- verhaak.labels.table[verhaak.labels.table$ID %in% intersecting.verhaak.tcga.ids,]
 
 tcga.discovery.eset <- getGeneMapping(esets$TCGA[,match(verhaak.labels.table$ID, esets$TCGA$unique_patient_ID)])
 
@@ -229,27 +234,54 @@ verhaak.supplementary.data.sheet7 <- read.xls("../inst/extdata/JCI65833sd1.xls",
 verhaak.gene.names <- verhaak.supplementary.data.sheet7$Gene.Symbol
 # populate verhaak.train.data with expression data. Rows are samples, columns are genes.
 verhaak.train.data <- t(exprs(tcga.discovery.eset))
-verhaak.train.data <- verhaak.train.data[,fData(tcga.discovery.eset)$gene %in% verhaak.gene.names]
 verhaak.train.data <- as.data.frame(verhaak.train.data)
+intersecting.verhaak.tcga.ids <- intersect(verhaak.labels.table$ID, esets$TCGA$unique_patient_ID)
+verhaak.labels.table <- verhaak.labels.table[verhaak.labels.table$ID %in% intersecting.verhaak.tcga.ids,]
+verhaak.train.data <- verhaak.train.data[,fData(tcga.discovery.eset)$gene %in% verhaak.gene.names]
 verhaak.train.data$clustering_subtype <- verhaak.labels.table$clustering_subtype
 
 set.seed(150)
-num.repetitions <- 1000
 
-bootstrap.accuracy.vals <- mclapply(1:num.repetitions, function(x) {
-  print(x)
-  num.samples <- nrow(verhaak.train.data)
-  indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
-  indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
-  current.train.data <- verhaak.train.data[indices.to.include,]
-  current.test.data <- verhaak.train.data[indices.out.of.bootstrap,]
-  nb.model <- e1071::naiveBayes(clustering_subtype~., data=current.train.data)
-  current.predictions <- predict(nb.model, newdata=current.test.data[,-which(colnames(current.test.data) == "clustering_subtype")])
-  current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
-  return(current.accuracy)
-  })
+.getBootstrapAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.repetitions=1000) {
+  bootstrap.accuracy.vals <- mclapply(1:num.repetitions, function(x) {
+    num.samples <- nrow(verhaak.train.data)
+    indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
+    indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
+    current.train.data <- verhaak.train.data[indices.to.include,]
+    current.test.data <- verhaak.train.data[indices.out.of.bootstrap,]
+    trained.model <- train.function(formula, data=current.train.data)
+    response.var.name <- all.vars(formula)[1]
+    if(is.null(custom.predict.function)) {
+      current.predictions <- predict(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    } else {
+      current.predictions <- custom.predict.function(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    }
+    current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
+    return(current.accuracy)
+    }, mc.cores = parallel::detectCores())
+  return(unlist(bootstrap.accuracy.vals))
+}
+
+bootstrap.accuracy.vals.nb <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::naiveBayes, num.repetitions=30)
+bootstrap.accuracy.vals.rf <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = randomForest::randomForest, num.repetitions=30)
+bootstrap.accuracy.vals.svm <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::svm, num.repetitions=30)
+bootstrap.accuracy.vals.dlda <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.repetitions=30)
+
+verhaak.boxplot.data <- data.frame(
+  NaiveBayes = bootstrap.accuracy.vals.nb,
+  RandomForest = bootstrap.accuracy.vals.rf,
+  SVM = bootstrap.accuracy.vals.svm,
+  DLDA = bootstrap.accuracy.vals.dlda
+)
+verhaak.boxplot.data.m <- melt(verhaak.boxplot.data)
+colnames(verhaak.boxplot.data.m) <- c("Algorithm", "Accuracy")
+
 implemented.verhaak.accuracy <- getVerhaakSubtypes(tcga.discovery.eset)
-mean(implemented.verhaak.accuracy$Annotated.eset$Verhaak.subtypes == verhaak.train.data$clustering_subtype)
+implemented.accuracy <- mean(implemented.verhaak.accuracy$Annotated.eset$Verhaak.subtypes == verhaak.train.data$clustering_subtype)
+
+
+
+ggplot(verhaak.boxplot.data.m, aes(Algorithm, Accuracy)) + stat_boxplot(geom ='errorbar') +  geom_boxplot() + geom_hline(aes(yintercept=implemented.accuracy)) + scale_y_continuous(limits=c(0.7,1))
 @
 
 Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
