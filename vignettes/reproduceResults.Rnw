@@ -290,11 +290,11 @@ set.seed(150)
 
 .getBootstrapAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.repetitions=1000) {
   bootstrap.accuracy.vals <- mclapply(1:num.repetitions, function(x) {
-    num.samples <- nrow(verhaak.train.data)
+    num.samples <- nrow(data)
     indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
     indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
-    current.train.data <- verhaak.train.data[indices.to.include,]
-    current.test.data <- verhaak.train.data[indices.out.of.bootstrap,]
+    current.train.data <- data[indices.to.include,]
+    current.test.data <- data[indices.out.of.bootstrap,]
     trained.model <- train.function(formula, data=current.train.data)
     response.var.name <- all.vars(formula)[1]
     if(is.null(custom.predict.function)) {
@@ -445,6 +445,9 @@ tothill.supptable1 <- read.xls("../inst/extdata/Supplementary Table 1.xls")
 tothill.labels.table <- tothill.supptable1[,c(1,2)]
 colnames(tothill.labels.table) <- c("ID", "clustering_subtype")
 
+tothill.labels.table$clustering_subtype <- as.character(tothill.labels.table$clustering_subtype)
+tothill.labels.table <- tothill.labels.table[tothill.labels.table$clustering_subtype != "NC",]
+
 tothill.train.eset <- getGeneMapping(esets$GSE9891[,match(tothill.labels.table$ID, sub("X", "", as.character(esets$GSE9891$alt_sample_name)))])
 
 implemented.helland.output.subtypes <- getHellandSubtypes(tothill.train.eset)$Annotated.eset$Helland.subtypes
@@ -472,21 +475,23 @@ entrez.id.logFC.list <- lapply(supplementary.tables, function(x) {
   })
   
 helland.entrez.ids <- Reduce(function(x,y) union(x, y), lapply(entrez.id.logFC.list, function (x) x$ENTREZID))
-  
-####### Begin WIP
-verhaak.train.data <- verhaak.train.data[,fData(tcga.discovery.eset)$gene %in% verhaak.gene.names]
-verhaak.train.data$clustering_subtype <- verhaak.labels.table$clustering_subtype
+
+helland.train.data <- t(exprs(tothill.train.eset))
+helland.train.data <- as.data.frame(helland.train.data[,fData(tothill.eset.for.classifer.comp)$EntrezGene.ID %in% helland.entrez.ids])
+
+helland.train.data$clustering_subtype <- tothill.labels.table$clustering_subtype
+helland.train.data$clustering_subtype <- as.factor(helland.train.data$clustering_subtype)
 
 set.seed(150)
 
-num.repetitions <- 1000
+num.repetitions <- 100
 
-bootstrap.accuracy.vals.nb <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::naiveBayes, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.rf <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = randomForest::randomForest, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.svm <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::svm, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.dlda <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.repetitions=num.repetitions)
+bootstrap.accuracy.vals.nb <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = e1071::naiveBayes, num.repetitions=num.repetitions)
+bootstrap.accuracy.vals.rf <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = randomForest::randomForest, num.repetitions=num.repetitions)
+bootstrap.accuracy.vals.svm <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = e1071::svm, num.repetitions=num.repetitions)
+bootstrap.accuracy.vals.dlda <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.repetitions=num.repetitions)
 
-verhaak.boxplot.data <- data.frame(
+helland.boxplot.data <- data.frame(
   NaiveBayes = bootstrap.accuracy.vals.nb,
   RandomForest = bootstrap.accuracy.vals.rf,
   SVM = bootstrap.accuracy.vals.svm,
