@@ -289,7 +289,7 @@ verhaak.train.data$clustering_subtype <- verhaak.labels.table$clustering_subtype
 set.seed(150)
 
 .getBootstrapAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.repetitions=1000) {
-  bootstrap.accuracy.vals <- mclapply(1:num.repetitions, function(x) {
+  bootstrap.accuracy.vals <- lapply(1:num.repetitions, function(x) {
     num.samples <- nrow(data)
     indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
     indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
@@ -304,34 +304,51 @@ set.seed(150)
     }
     current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
     return(current.accuracy)
-    }, mc.cores = parallel::detectCores())
+    })#, mc.cores = parallel::detectCores())
   return(unlist(bootstrap.accuracy.vals))
 }
+.getCrossValidationAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.folds=10) {
+  num.samples <- nrow(data)
+  folds <- as.factor(rep(1:num.folds, size=num.samples))
+  cv.accuracy.vals <- lapply(levels(folds), function(current.fold) {
+    current.train.data <- data[folds != current.fold,]
+    current.test.data <- data[folds == current.fold,]
+    trained.model <- train.function(formula, data=current.train.data)
+    response.var.name <- all.vars(formula)[1]
+    if(is.null(custom.predict.function)) {
+      current.predictions <- predict(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    } else {
+      current.predictions <- custom.predict.function(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    }
+    current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
+    return(current.accuracy)
+    })#, mc.cores = parallel::detectCores())
+  return(unlist(cv.accuracy.vals))
+}
 
-num.repetitions <- 1000
+num.folds <- 10
 
-bootstrap.accuracy.vals.nb <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::naiveBayes, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.rf <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = randomForest::randomForest, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.svm <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::svm, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.dlda <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.repetitions=num.repetitions)
+cv.accuracy.vals.nb <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::naiveBayes, num.folds=num.folds)
+cv.accuracy.vals.rf <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = randomForest::randomForest, num.folds=num.folds)
+cv.accuracy.vals.svm <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::svm, num.folds=num.folds)
+cv.accuracy.vals.dlda <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.folds=num.folds)
 
-verhaak.boxplot.data <- data.frame(
-  NaiveBayes = bootstrap.accuracy.vals.nb,
-  RandomForest = bootstrap.accuracy.vals.rf,
-  SVM = bootstrap.accuracy.vals.svm,
-  DLDA = bootstrap.accuracy.vals.dlda
+verhaak.cvplot.data.m <- data.frame(
+  Algorithm=c("NaiveBayes", "RandomForest", "SVM", "DLDA"),
+  Accuracy = c(mean(cv.accuracy.vals.nb), mean(cv.accuracy.vals.rf), mean(cv.accuracy.vals.svm), mean(cv.accuracy.vals.dlda)),
+  ci.width = c(sd(cv.accuracy.vals.nb), sd(cv.accuracy.vals.rf), sd(cv.accuracy.vals.svm), sd(cv.accuracy.vals.dlda))
 )
-verhaak.boxplot.data.m <- melt(verhaak.boxplot.data)
-colnames(verhaak.boxplot.data.m) <- c("Algorithm", "Accuracy")
+# 95% CI
+verhaak.cvplot.data.m$ci.width <- qnorm(0.975) * verhaak.cvplot.data.m$ci.width
 
-implemented.verhaak.accuracy <- getVerhaakSubtypes(tcga.discovery.eset)
+colnames(verhaak.cvplot.data.m) <- c("Algorithm", "Accuracy")
+verhaak.cvplot.data.m$ci.width <- sapply(as.character(verhaak.cvplot.data.m$Algorithm), function(current.algorithm) qnorm(0.975) * sd(verhaak.cvplot.data.m[,current.algorithm]))
+
 implemented.accuracy <- mean(implemented.verhaak.accuracy$Annotated.eset$Verhaak.subtypes == verhaak.train.data$clustering_subtype)
 @
 
-In addition, we applied bootstrapping on the dataset used to define subtypes, with \Sexpr{num.repetitions} bootstrap replicates.
-
 <<verhaak_boxplot_plotting>>=
-ggplot(verhaak.boxplot.data.m, aes(Algorithm, Accuracy)) + stat_boxplot(geom ='errorbar') +  geom_boxplot() + geom_hline(aes(yintercept=implemented.accuracy)) + scale_y_continuous(limits=c(0,1))
+ggplot(verhaak.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.verhaak.accuracy)) + scale_y_continuous(limits=c(0,1.05))
 @
 
 
@@ -446,7 +463,8 @@ tothill.labels.table <- tothill.supptable1[,c(1,2)]
 colnames(tothill.labels.table) <- c("ID", "clustering_subtype")
 
 tothill.labels.table$clustering_subtype <- as.character(tothill.labels.table$clustering_subtype)
-tothill.labels.table <- tothill.labels.table[tothill.labels.table$clustering_subtype != "NC",]
+tothill.labels.table <- tothill.labels.table[!(tothill.labels.table$clustering_subtype %in% c("NC", "3", "6")),]
+tothill.labels.table$clustering_subtype <- sub("^", "C", tothill.labels.table$clustering_subtype)
 
 tothill.train.eset <- getGeneMapping(esets$GSE9891[,match(tothill.labels.table$ID, sub("X", "", as.character(esets$GSE9891$alt_sample_name)))])
 
@@ -477,31 +495,37 @@ entrez.id.logFC.list <- lapply(supplementary.tables, function(x) {
 helland.entrez.ids <- Reduce(function(x,y) union(x, y), lapply(entrez.id.logFC.list, function (x) x$ENTREZID))
 
 helland.train.data <- t(exprs(tothill.train.eset))
-helland.train.data <- as.data.frame(helland.train.data[,fData(tothill.eset.for.classifer.comp)$EntrezGene.ID %in% helland.entrez.ids])
+helland.train.data <- as.data.frame(helland.train.data[,fData(tothill.eset.for.classifier.comp)$EntrezGene.ID %in% helland.entrez.ids])
 
 helland.train.data$clustering_subtype <- tothill.labels.table$clustering_subtype
 helland.train.data$clustering_subtype <- as.factor(helland.train.data$clustering_subtype)
 
 set.seed(150)
 
-num.repetitions <- 100
+num.folds <- 10
 
-bootstrap.accuracy.vals.nb <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = e1071::naiveBayes, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.rf <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = randomForest::randomForest, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.svm <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = e1071::svm, num.repetitions=num.repetitions)
-bootstrap.accuracy.vals.dlda <- .getBootstrapAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.repetitions=num.repetitions)
+cv.accuracy.vals.nb <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = e1071::naiveBayes, num.folds=num.folds)
+cv.accuracy.vals.rf <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = randomForest::randomForest, num.folds=num.folds)
+cv.accuracy.vals.svm <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = e1071::svm, num.folds=num.folds)
+cv.accuracy.vals.dlda <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = helland.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.folds=num.folds)
+cv.accuracy.vals.random <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = helland.train.data, function(formula, data) return(NULL), custom.predict.function = function(object, newdata) return(sample(levels(helland.train.data$clustering_subtype), nrow(newdata), replace=TRUE)))
 
-helland.boxplot.data <- data.frame(
-  NaiveBayes = bootstrap.accuracy.vals.nb,
-  RandomForest = bootstrap.accuracy.vals.rf,
-  SVM = bootstrap.accuracy.vals.svm,
-  DLDA = bootstrap.accuracy.vals.dlda
+helland.cvplot.data.m <- data.frame(
+  Algorithm=c("NaiveBayes", "RandomForest", "SVM", "DLDA"),
+  Accuracy = c(mean(cv.accuracy.vals.nb), mean(cv.accuracy.vals.rf), mean(cv.accuracy.vals.svm), mean(cv.accuracy.vals.dlda)),
+  ci.width = c(sd(cv.accuracy.vals.nb), sd(cv.accuracy.vals.rf), sd(cv.accuracy.vals.svm), sd(cv.accuracy.vals.dlda))
 )
-verhaak.boxplot.data.m <- melt(verhaak.boxplot.data)
-colnames(verhaak.boxplot.data.m) <- c("Algorithm", "Accuracy")
+# 95% CI
+helland.cvplot.data.m$ci.width <- qnorm(0.975) * helland.cvplot.data.m$ci.width
 
-implemented.verhaak.accuracy <- getVerhaakSubtypes(tcga.discovery.eset)
-implemented.accuracy <- mean(implemented.verhaak.accuracy$Annotated.eset$Verhaak.subtypes == verhaak.train.data$clustering_subtype)
+colnames(helland.cvplot.data.m) <- c("Algorithm", "Accuracy")
+helland.cvplot.data.m$ci.width <- sapply(as.character(helland.cvplot.data.m$Algorithm), function(current.algorithm) qnorm(0.975) * sd(helland.cvplot.data.m[,current.algorithm]))
+
+implemented.helland.accuracy <- mean(implemented.helland.output.subtypes == helland.train.data$clustering_subtype)
+@
+
+<<helland_boxplot_plotting>>=
+ggplot(helland.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.helland.accuracy)) + scale_y_continuous(limits=c(0,1.05))
 @
 
 \pagebreak

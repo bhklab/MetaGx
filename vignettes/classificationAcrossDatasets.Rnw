@@ -1,0 +1,142 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+%\newcommand{\sectionbreak}{\clearpage}
+
+\begin{document}
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+options(replace.assign=TRUE,width=90)
+par.original <- par()
+days.per.month <- 30.4368
+days.per.year <- 365.242
+@
+
+\title{Robustness of Ovarian Subtyping Schemes}
+
+\author{Gregory M. Chen}
+\date{\today}
+\maketitle
+
+%\tableofcontents 
+
+<<load, cache=FALSE>>=
+library(gdata)
+library(HiDimDA)
+library(survival)
+library(reshape2)
+library(genefu)
+library(annotate)
+library(hgu133plus2.db)
+# library(survMisc) 
+library(xtable)
+library(gridExtra)
+library(Biobase)
+library(GSVA)
+library(sparsediscrim)
+library(MetaGxOvarian)
+library(survcomp)
+library(ggplot2)
+library(e1071)
+library(randomForest)
+@
+
+<<load_data>>=
+#
+#source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
+#source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
+source("../inst/extdata/reproduce.results.patientselection.config")
+### use this line if you do not want to get rid of duplicates
+rm(remove.duplicates)
+rm(probe.gene.mapping)
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+
+getGeneMapping <- function(eset) {
+  eset <- eset[fData(eset)$best_probe,]
+  rownames(eset) <- paste0("geneid.", fData(eset)$EntrezGene.ID)
+  return(eset)
+}
+
+esets.with.survival <- esets
+esets.with.survival <- lapply(esets.with.survival, getGeneMapping)
+esets.with.survival <- lapply(esets.with.survival, function(eset) eset[,!is.na(eset$vital_status)])
+esets.with.survival <- lapply(esets.with.survival, function(eset) eset[,!is.na(eset$days_to_death)])
+esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 0)]
+
+# Only use datasets with at least 100 patients
+esets.with.survival$TCGA.RNASeqV2 <- esets.with.survival$TCGA.RNASeqV2[apply(exprs(esets.with.survival$TCGA.RNASeqV2), 1, function(x) all(!is.na(x))),]
+esets.with.survival$GSE51088 <- esets.with.survival$GSE51088[apply(exprs(esets.with.survival$GSE51088), 1, function(x) all(!is.na(x))),]
+esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 100)]
+
+
+source("../R/getKonecnySubtypes.R")
+source("../R/getVerhaakSubtypes.R")
+source("../R/getHellandSubtypes.R")
+source("../R/getBentinkHaibeKainsSubtypes.R")
+source("../R/create.survival.plot.R")
+
+# Subtype classification
+esets.with.survival <- lapply(esets.with.survival, function(x) getKonecnySubtypes(x)[[1]])
+#esets.with.survival <- lapply(esets.with.survival, function(x) getVerhaakSubtypes(x)[[1]])
+esets.with.survival <- lapply(esets.with.survival, function(x) getHellandSubtypes(x)[[1]])
+esets.with.survival <- lapply(esets.with.survival, function(x) getBentinkHaibeKainsSubtypes(x)[[1]])
+@
+
+\tableofcontents
+
+<<plot_konecny>>=
+png("Konecny_survival.png", width=1200, height=800)
+par(mfrow=c(3,4))
+sapply(names(esets.with.survival), function(x) {
+  current.eset <- esets.with.survival[[x]]
+  create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
+                       surv.event=current.eset$vital_status == "deceased",
+                       groups=current.eset$Konecny.subtype,
+                       stats.to.show=c("n","p"),
+                       main=paste0("Survival plot: ", x),
+                       xlab="Time (years)")
+  })
+dev.off()
+@
+
+<<plot_helland>>=
+png("Helland_survival.png", width=1200, height=800)
+par(mfrow=c(3,4))
+sapply(names(esets.with.survival), function(x) {
+  current.eset <- esets.with.survival[[x]]
+  create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
+                       surv.event=current.eset$vital_status == "deceased",
+                       groups=current.eset$Helland.subtype,
+                       stats.to.show=c("n","p"),
+                       main=paste0("Survival plot: ", x),
+                       xlab="Time (years)")
+  })
+dev.off()
+@
+
+<<plot_bentink>>=
+png("Bentink_survival.png", width=1200, height=800)
+par(mfrow=c(3,4))
+sapply(names(esets.with.survival), function(x) {
+  current.eset <- esets.with.survival[[x]]
+  create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
+                       surv.event=current.eset$vital_status == "deceased",
+                       groups=current.eset$Bentink.Haibe.Kains.subtype,
+                       stats.to.show=c("n","p"),
+                       main=paste0("Survival plot: ", x),
+                       xlab="Time (years)")
+  })
+dev.off()
+@
+\end{document}
