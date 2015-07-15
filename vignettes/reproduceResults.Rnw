@@ -16,7 +16,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
@@ -328,27 +328,24 @@ set.seed(150)
 
 num.folds <- 10
 
-cv.accuracy.vals.nb <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::naiveBayes, num.folds=num.folds)
-cv.accuracy.vals.rf <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = randomForest::randomForest, num.folds=num.folds)
-cv.accuracy.vals.svm <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::svm, num.folds=num.folds)
-cv.accuracy.vals.dlda <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.folds=num.folds)
+verhaak.cv.accuracy.vals.nb <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::naiveBayes, num.folds=num.folds)
+verhaak.cv.accuracy.vals.rf <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = randomForest::randomForest, num.folds=num.folds)
+verhaak.cv.accuracy.vals.svm <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = e1071::svm, num.folds=num.folds)
+verhaak.cv.accuracy.vals.dlda <- .getCrossValidationAccuracyVals(clustering_subtype ~ ., data = verhaak.train.data, train.function = sparsediscrim::dlda, custom.predict.function = function(object, newdata) predict(object, newdata)[[1]], num.folds=num.folds)
 
 verhaak.cvplot.data.m <- data.frame(
   Algorithm=c("NaiveBayes", "RandomForest", "SVM", "DLDA"),
-  Accuracy = c(mean(cv.accuracy.vals.nb), mean(cv.accuracy.vals.rf), mean(cv.accuracy.vals.svm), mean(cv.accuracy.vals.dlda)),
-  ci.width = c(sd(cv.accuracy.vals.nb), sd(cv.accuracy.vals.rf), sd(cv.accuracy.vals.svm), sd(cv.accuracy.vals.dlda))
+  Accuracy = c(mean(verhaak.cv.accuracy.vals.nb), mean(verhaak.cv.accuracy.vals.rf), mean(verhaak.cv.accuracy.vals.svm), mean(verhaak.cv.accuracy.vals.dlda)),
+  ci.width = c(sd(verhaak.cv.accuracy.vals.nb), sd(verhaak.cv.accuracy.vals.rf), sd(verhaak.cv.accuracy.vals.svm), sd(verhaak.cv.accuracy.vals.dlda))
 )
 # 95% CI
 verhaak.cvplot.data.m$ci.width <- qnorm(0.975) * verhaak.cvplot.data.m$ci.width
 
-colnames(verhaak.cvplot.data.m) <- c("Algorithm", "Accuracy")
-verhaak.cvplot.data.m$ci.width <- sapply(as.character(verhaak.cvplot.data.m$Algorithm), function(current.algorithm) qnorm(0.975) * sd(verhaak.cvplot.data.m[,current.algorithm]))
-
-implemented.accuracy <- mean(implemented.verhaak.accuracy$Annotated.eset$Verhaak.subtypes == verhaak.train.data$clustering_subtype)
+implemented.verhaak.accuracy <- mean(implemented.verhaak.output.subtypes == verhaak.train.data$clustering_subtype)
 @
 
 <<verhaak_boxplot_plotting>>=
-ggplot(verhaak.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.verhaak.accuracy)) + scale_y_continuous(limits=c(0,1.05))
+ggplot(verhaak.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.verhaak.accuracy)) + scale_y_continuous(limits=c(0,1.05)) + ggtitle("Verhaak Classifiers")
 @
 
 
@@ -495,7 +492,7 @@ entrez.id.logFC.list <- lapply(supplementary.tables, function(x) {
 helland.entrez.ids <- Reduce(function(x,y) union(x, y), lapply(entrez.id.logFC.list, function (x) x$ENTREZID))
 
 helland.train.data <- t(exprs(tothill.train.eset))
-helland.train.data <- as.data.frame(helland.train.data[,fData(tothill.eset.for.classifier.comp)$EntrezGene.ID %in% helland.entrez.ids])
+helland.train.data <- as.data.frame(helland.train.data[,fData(tothill.train.eset)$EntrezGene.ID %in% helland.entrez.ids])
 
 helland.train.data$clustering_subtype <- tothill.labels.table$clustering_subtype
 helland.train.data$clustering_subtype <- as.factor(helland.train.data$clustering_subtype)
@@ -518,14 +515,11 @@ helland.cvplot.data.m <- data.frame(
 # 95% CI
 helland.cvplot.data.m$ci.width <- qnorm(0.975) * helland.cvplot.data.m$ci.width
 
-colnames(helland.cvplot.data.m) <- c("Algorithm", "Accuracy")
-helland.cvplot.data.m$ci.width <- sapply(as.character(helland.cvplot.data.m$Algorithm), function(current.algorithm) qnorm(0.975) * sd(helland.cvplot.data.m[,current.algorithm]))
-
 implemented.helland.accuracy <- mean(implemented.helland.output.subtypes == helland.train.data$clustering_subtype)
 @
 
 <<helland_boxplot_plotting>>=
-ggplot(helland.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.helland.accuracy)) + scale_y_continuous(limits=c(0,1.05))
+ggplot(helland.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.helland.accuracy)) + scale_y_continuous(limits=c(0,1.05)) + ggtitle("Helland Classifiers")
 @
 
 \pagebreak

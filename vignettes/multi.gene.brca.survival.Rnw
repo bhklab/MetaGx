@@ -1,0 +1,57 @@
+
+<<setup_1, include=FALSE, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+#knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path=paste0('figures-', counter, '/'), fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+@
+
+<<prepare_data, include=FALSE, cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+current.survival.df <- get.survival.data.for.plotting(current.eset, entrez.ids=entrez.ids, num.quantiles=3, survival.type="overall.survival", time.unit="years", gene.name.as.output.colname=FALSE)
+
+current.survival.df <- current.survival.df[,!grepl(".quantile", colnames(current.survival.df))]
+
+expression.df <- t(current.survival.df[,grepl(".expression", colnames(current.survival.df))])
+pc1.vals <- prcomp(expression.df)$rotation[,1]
+
+num.quantiles <- 3
+pc1.quantiles <- cut(pc1.vals, breaks=quantile(pc1.vals, probs=seq(0,1,length=num.quantiles+1)), include.lowest=TRUE)
+
+if(num.quantiles==2) {
+  levels(pc1.quantiles) <- c("Low", "High")
+} else if(num.quantiles==3) {
+  levels(pc1.quantiles) <- c("Low", "Mid", "High")
+} else {
+  levels(pc1.quantiles) <- paste0("PC1.quantile.", 1:num.quantiles)
+}
+
+current.survival.df$pc1.val <- pc1.vals
+current.survival.df$pc1.quantile <- pc1.quantiles
+@
+
+\noindent We considered the \Sexpr{length(intersecting.entrez.ids)} genes that were present in all datasets (out of \Sexpr{length(entrez.ids)} in \texttt{\Sexpr{gsub("_", " ", geneset.name)}}). We merged  performed principal components analysis on the genes, and used the value of the first principal component as the risk score. PCA and tertile stratification were performed on the pooled dataset, with gene expression values quantile normalized.
+
+<<Multi_gene_pca_dataset_table, results='asis', cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+print(.get.ordered.data.table(current.survival.df$data.source), include.rownames=FALSE)
+@
+
+
+<<Multi_gene_pca_survival_all, fig.width=5, fig.height=5, out.width="0.6\\textwidth", cache=FALSE, fig.path=paste0('figures-', counter, '/')>>=
+surv.time <- current.survival.df$years_to_event
+surv.event <- current.survival.df$event_status
+groups <- current.survival.df$pc1.quantile
+risk.vals <- -current.survival.df$pc1.val
+group.names <- paste("PC1", levels(current.survival.df[,"pc1.quantile"]))
+datasets <- current.survival.df$data.source
+main.title <- paste("Survival: Immune genes, PC1")
+
+stat.objects.survplot <- create.survival.plot(
+  surv.time = surv.time,
+  surv.event = surv.event,
+  groups <- groups,
+  risk.vals = risk.vals,
+  group.names = group.names,
+  datasets = datasets,
+  xlab = "Time (years)",
+  main = main.title,
+  time.cens=10,
+  stats.to.show = c("n", "p", "d")
+)
+@

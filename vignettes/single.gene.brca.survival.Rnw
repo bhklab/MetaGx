@@ -1,7 +1,7 @@
 \pagebreak
 \section{\Sexpr{gene.names[{{current.index}}]}}
 
-<<Single_gene_load_data_{{current.index}}, include=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
+<<Single_gene_load_data_{{current.index}}, include=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth">>=
 # Remove patients with NA values for that gene
 esets.with.gene <- esets[sapply(esets, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
 esets.with.gene <- lapply(esets.with.gene, function(eset) {
@@ -30,44 +30,53 @@ survival.df.list <- lapply(esets.with.gene, function(x) {
 })
 
 survival.df <- do.call(rbind, survival.df.list)
-survival.df <- survival.df[-grep(".expression$", colnames(survival.df))]
 
 #survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
 if(survival.type == "os") {
   ylab="Overall Survival"
 } else {
   ylab="Recurrence-Free Survival"
-  }
+}
+surv.cens.obj <- survcomp::censor.time(survival.df$years_to_event, survival.df$event_status, time.cens=10)
+survival.df$years_to_event <- surv.cens.obj$surv.time.cens
+survival.df$event_status <- surv.cens.obj$surv.event.cens
+
 @
 
 \noindent Expression values for \Sexpr{gene.names[{{current.index}}]} were present in \Sexpr{nrow(survival.df)} patients from \Sexpr{length(unique(survival.df$data.source))} datasets.
-<<Single_gene_dataset_table_{{current.index}}, results='asis', include=TRUE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
+<<Single_gene_dataset_table_{{current.index}}, results='asis', include=TRUE, fig.width=12, fig.height=6, out.width="1.0\\textwidth">>=
 print(.get.ordered.data.table(survival.df$data.source), include.rownames=FALSE)
 @
 
-<<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
+<<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth">>=
 par(mfrow=c(1,2))
+par(mar=c(5.1, 0, 0, 2.1))
 surv.time <- survival.df$years_to_event
 surv.event <- survival.df$event_status
 groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
+expression <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
 #risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
 group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
 datasets <- survival.df$data.source
 main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}])
 
-create.survival.plot(
-  surv.time = surv.time,
-  surv.event = surv.event,
-  groups = groups,
-#  risk.vals = risk.vals,
-  group.names = group.names,
-  datasets = datasets,
-  xlab = "Time (years)",
-    ylab=ylab,
-  main = main.title,
-   #time.cens=10,
-  stats.to.show = c("n", "p", "hr")
-)
+levels(groups) <- paste0(levels(groups), "     ")
+
+my.df <- data.frame(surv.obj=Surv(time=surv.time, event=surv.event), groups=groups, datasets=datasets)
+
+if(strata.term==TRUE) {
+  pval.cont.all <- summary(coxph(Surv(time=surv.time, event=surv.event) ~ expression + strata(datasets)))$sctest["pvalue"]
+  pval.for.plot <- summary(coxph(surv.obj ~ groups + strata(datasets), my.df))$sctest["pvalue"]
+  hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event, strat=datasets)
+} else {
+  pval.cont.all <- summary(coxph(Surv(time=surv.time, event=surv.event) ~ expression))$sctest["pvalue"]
+  pval.for.plot <- summary(coxph(surv.obj ~ groups, my.df))$sctest["pvalue"]
+  hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event)
+}
+text <- paste(sprintf("HR: %.3f (%.3f-%.3f);", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.5f", pval.for.plot))
+
+km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(my.df$groups), .col=RColorBrewer::brewer.pal(length(levels(my.df$groups)), name="Dark2"),leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
+
 
 # Basal-like
 
@@ -75,132 +84,32 @@ cases.to.include <- survival.df$subtype == "Basal"
 surv.time <- survival.df$years_to_event[cases.to.include]
 surv.event <- survival.df$event_status[cases.to.include]
 groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
+expression <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
 #risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
 group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
 datasets <- survival.df$data.source[cases.to.include]
 main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}], ": Basal-like")
 
-create.survival.plot(
-  surv.time = surv.time,
-  surv.event = surv.event,
-  groups = groups,
-#  risk.vals = risk.vals,
-  group.names = group.names,
-  datasets = datasets,
-  xlab = "Time (years)",
-    ylab=ylab,
-  main = main.title,
-  #time.cens=10,
-  stats.to.show = c("n", "p", "hr")
-)
+levels(groups) <- paste0(levels(groups), "     ")
 
-@
+my.df <- data.frame(surv.obj=Surv(time=surv.time, event=surv.event), groups=groups, datasets=datasets)
 
-
-<<Single_gene_survival_except_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
-par(mfrow=c(1,2))
-if("METABRIC" %in% survival.df$data.source) {
-  cases.to.include <- survival.df$data.source != "METABRIC"
-  surv.time <- survival.df$years_to_event[cases.to.include]
-  surv.event <- survival.df$event_status[cases.to.include]
-  groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
-  #risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
-  group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
-  datasets <- survival.df$data.source[cases.to.include]
-  main.title <- paste0("Meta-dataset (Excluding METABRIC): ", gene.names[{{current.index}}])
-  
-  create.survival.plot(
-    surv.time = surv.time,
-    surv.event = surv.event,
-    groups = groups,
-  #  risk.vals = risk.vals,
-    group.names = group.names,
-    datasets = datasets,
-    xlab = "Time (years)",
-    ylab=ylab,
-    main = main.title,
-     #time.cens=10,
-    stats.to.show = c("n", "p", "hr")
-  )
-  
-  # Basal-like
-  
-  cases.to.include <- survival.df$subtype == "Basal" & survival.df$data.source != "METABRIC"
-  surv.time <- survival.df$years_to_event[cases.to.include]
-  surv.event <- survival.df$event_status[cases.to.include]
-  groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
-  #risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
-  group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
-  datasets <- survival.df$data.source[cases.to.include]
-  main.title <- paste0("Meta-dataset (Excluding METABRIC): ", gene.names[{{current.index}}], ": Basal-like")
-  
-  create.survival.plot(
-    surv.time = surv.time,
-    surv.event = surv.event,
-    groups = groups,
-  #  risk.vals = risk.vals,
-    group.names = group.names,
-    datasets = datasets,
-    xlab = "Time (years)",
-    ylab=ylab,
-    main = main.title,
-     #time.cens=10,
-    stats.to.show = c("n", "p", "hr")
-  )
+if(strata.term==TRUE) {
+  pval.cont.basal <- summary(coxph(Surv(time=surv.time, event=surv.event) ~ expression + strata(datasets)))$sctest["pvalue"]
+  pval.for.plot <- summary(coxph(surv.obj ~ groups + strata(datasets), my.df))$sctest["pvalue"]
+  hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event, strat=datasets)
+} else {
+  pval.cont.basal <- summary(coxph(Surv(time=surv.time, event=surv.event) ~ expression))$sctest["pvalue"]
+  pval.for.plot <- summary(coxph(surv.obj ~ groups, my.df))$sctest["pvalue"]
+  hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event)
 }
+
+hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event)
+text <- paste(sprintf("HR: %.3f (%.3f-%.3f);", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.5f", pval.for.plot))
+
+km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(my.df$groups), .col=RColorBrewer::brewer.pal(length(levels(my.df$groups)), name="Dark2"),leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
 @
 
-<<Single_gene_survival_METABRIC_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="0.8\\textwidth">>=
-if("METABRIC" %in% survival.df$data.source) {
-  metabric.entrez.id.index <- which(fData(esets$METABRIC)$EntrezGene.ID == entrez.ids[{{current.index}}])
-  if(length(metabric.entrez.id.index) != 0) {
-    metabric.cleaned <- esets$METABRIC[,!is.na(exprs(esets$METABRIC)[metabric.entrez.id.index,])]
-    metabric.df <- get.survival.data.for.plotting(metabric.cleaned, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
-    
-    par(mfrow=c(1,2))
-    surv.time <- metabric.df$years_to_event
-    surv.event <- metabric.df$event_status
-    groups <- metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
-    #risk.vals <- -metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
-    group.names <- paste(gene.names[{{current.index}}], levels(metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
-    datasets <- metabric.df$data.source
-    main.title <- paste0("METABRIC: ", gene.names[{{current.index}}])
-    
-    create.survival.plot(
-      surv.time = surv.time,
-      surv.event = surv.event,
-      groups = groups,
-    #  risk.vals = risk.vals,
-      group.names = group.names,
-      xlab = "Time (years)",
-    ylab=ylab,
-      main = main.title,
-       #time.cens=10,
-      stats.to.show = c("n", "p", "hr")
-    )
-    
-    # Basal-like
-    cases.to.include <- metabric.df$subtype == "Basal"
-    surv.time <- metabric.df$years_to_event[cases.to.include]
-    surv.event <- metabric.df$event_status[cases.to.include]
-    groups <- metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]
-    #risk.vals <- -metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")][cases.to.include]
-    group.names <- paste(gene.names[{{current.index}}], levels(metabric.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][cases.to.include]))
-    datasets <- metabric.df$data.source[cases.to.include]
-    main.title <- paste0("METABRIC: ", gene.names[{{current.index}}], ": Basal-like")
-    
-    create.survival.plot(
-      surv.time = surv.time,
-      surv.event = surv.event,
-      groups = groups,
-    #  risk.vals = risk.vals,
-      group.names = group.names,
-      xlab = "Time (years)",
-    ylab=ylab,
-      main = main.title,
-       #time.cens=10,
-      stats.to.show = c("n", "p", "hr")
-    )
-  }
-}
-@
+\begin{tabularx}{\textwidth}{p{\dimexpr.5\textwidth}p{\dimexpr.5\textwidth}}
+  \noindent Continuous model logrank p = \Sexpr{sprintf("%.5f", pval.cont.all)} & Continuous model logrank p = \Sexpr{sprintf("%.5f", pval.cont.basal)}
+\end{tabularx}

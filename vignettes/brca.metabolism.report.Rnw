@@ -8,6 +8,7 @@
 \usepackage[latin1]{inputenc}
 \usepackage{geometry}
 \usepackage{titlesec}
+\usepackage{tabularx}
 \geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
 \usepackage[table]{xcolor}
 %\newcommand{\sectionbreak}{\clearpage}
@@ -43,11 +44,12 @@ source("../R/subtypeClassification.R")
 source("../R/setSubtype.R")
 source("~/repos/MetaGx/R/stripWhiteSpace.R")
 
-survival.type <- "os"
+survival.type <- "rfs"
+strata.term <- FALSE
 @
 
 
-<<load_data, cache=FALSE>>=
+<<load_data, cache=TRUE>>=
 source("../inst/extdata/brca.patientselection.config")
 source(system.file("extdata", "createEsetList.R", package="MetaGxBreast"))
 
@@ -87,13 +89,15 @@ entrez.ids <- metabolic.genes$Entrez.ID
 #esets <- lapply(esets, function(eset) eset[complete.cases(exprs(eset)),])
 
 # only keep patients with survival data
-if(survival.type == "rfs") {
+esets.os <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
+if(survival.type == "os") {
   esets <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
 } else {
   esets <- lapply(esets, function(eset) eset[,!is.na(eset$recurrence_status) | !is.na(eset$dmfs_status)])
 }
 
 ## Remove datasets that are empty
+esets.os <- esets.os[sapply(esets.os, function(x) ncol(exprs(x)) > 0)]
 esets <- esets[sapply(esets, function(x) ncol(exprs(x)) > 0)]
 
 esets <- lapply(esets, function(x) {
@@ -144,8 +148,9 @@ single.gene.knitr.text <- lapply(1:length(entrez.ids), function(current.index) k
 
 <<replicate_original, fig.width=12, fig.height=8, out.width="0.95\\textwidth", eval=FALSE>>=
 par(mfrow=c(2,3))
+par(mar=c(5.1, 0, 0, 2.1))
 # only include expression sets from the original study
-esets.to.include <- esets[c("DUKE", "TRANSBIG")]
+esets.to.include <- esets.os[c("DUKE", "TRANSBIG")]
 for(current.index in match(c("HMGCR", "HMGCS1", "MVD", "FDPS", "ACAT2", "MVK"), gene.names)) {
   esets.with.gene <- esets.to.include[sapply(esets.to.include, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
   esets.with.gene <- lapply(esets.with.gene, function(eset) {
@@ -162,7 +167,7 @@ for(current.index in match(c("HMGCR", "HMGCS1", "MVD", "FDPS", "ACAT2", "MVK"), 
   names(esets.with.gene) <- eset.names
   
   survival.df.list <- lapply(esets.with.gene, function(x) {
-    current.df <- get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+    current.df <- get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years")
     current.df <- current.df[-grep(".expression$", colnames(current.df))]
   })
   
@@ -176,23 +181,24 @@ for(current.index in match(c("HMGCR", "HMGCS1", "MVD", "FDPS", "ACAT2", "MVK"), 
   datasets <- survival.df$data.source
   main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}])
   
-  create.survival.plot(
-    surv.time = surv.time,
-    surv.event = surv.event,
-    groups = groups,
-  #  risk.vals = risk.vals,
-    group.names = group.names,
-    datasets = datasets,
-    xlab = "Time (years)",
-    main = main.title,
-    pooling.method="random",
-  #  time.cens=10,
-    stats.to.show = c("n", "p", "hr")
-  )
+  levels(groups) <- paste0(levels(groups), "     ")
+  
+  my.df <- data.frame(surv.obj=Surv(time=surv.time, event=surv.event), groups=groups, datasets=datasets)
+  
+  if(strata.term==TRUE) {
+    pval.for.plot <- summary(coxph(surv.obj ~ groups + strata(datasets), my.df))$sctest["pvalue"]
+      hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event, strat=datasets)
+  } else {
+    pval.for.plot <- summary(coxph(surv.obj ~ groups, my.df))$sctest["pvalue"]
+      hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event)
+  }
+  text <- paste(sprintf("HR: %.3f (%.3f-%.3f);", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.5f", pval.for.plot))
+
+  km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=5, leg.text = levels(my.df$groups), .col=RColorBrewer::brewer.pal(length(levels(my.df$groups)), name="Dark2"),leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
 }
 @
 %Original figure:
-%
+
 %\includegraphics[width=0.9\textwidth]{metabolism-survival.jpg}
 
 \end{document}
