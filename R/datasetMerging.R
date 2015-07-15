@@ -33,17 +33,17 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   ## gene ids
   ugid <- lapply(esets, function(x) { return(Biobase::fData(x)) })
   ugid <- do.call(rbind, ugid)
-  ugid <- ugid[!is.na(ugid[ , "ENTREZID"]) & !duplicated(ugid[ , "ENTREZID"]), , drop=FALSE]
+  ugid <- ugid[!is.na(ugid[ , "EntrezGene.ID"]) & !duplicated(ugid[ , "EntrezGene.ID"]), , drop=FALSE]
   rownames(ugid) <- gsub(sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(ugid))
   switch (method,
     "union" = {
       feature.merged <- ugid
     },
     "intersect" = {
-      feature.merged <- lapply(esets, function(x) { return(stripWhiteSpace(as.character(Biobase::fData(x)[ , "ENTREZID"]))) })
+      feature.merged <- lapply(esets, function(x) { return(stripWhiteSpace(as.character(Biobase::fData(x)[ , "EntrezGene.ID"]))) })
       feature.merged <- table(unlist(feature.merged))
       feature.merged <- names(feature.merged)[feature.merged == length(esets)]
-      feature.merged <- ugid[match(feature.merged, stripWhiteSpace(as.character(ugid[ , "ENTREZID"]))), , drop=FALSE]
+      feature.merged <- ugid[match(feature.merged, stripWhiteSpace(as.character(ugid[ , "EntrezGene.ID"]))), , drop=FALSE]
     },
     {
       stop("Unknown method")
@@ -52,10 +52,10 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   ## expression data
   exprs.merged <- lapply(esets, function (x, y) {
     ee <- Biobase::exprs(x)[is.element(rownames(exprs(x)),rownames(feature.merged)),]
-    print(dim(ee))
+    #print(dim(ee))
     eem <- matrix(NA, nrow=length(y), ncol=ncol(ee), dimnames=list(y, colnames(ee)))
-    print(dim(eem))
-    print(length(intersect(rownames(ee),rownames(eem))))
+    #print(dim(eem))
+    #print(length(intersect(rownames(ee),rownames(eem))))
     eem[rownames(ee), colnames(ee)] <- ee
     return (eem)
   }, y=rownames(feature.merged))
@@ -67,7 +67,8 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
   clinicinfo.merged <- lapply(esets, function (x , y) {
     ee <- Biobase::pData(x)[ , y, drop=FALSE]
   }, y=ucid)
-  clinicinfo.merged <- do.call(rbind, clinicinfo.merged)
+  clinicinfo.merged <- do.call(gdata::combine, clinicinfo.merged)
+  colnames(clinicinfo.merged)[which(colnames(clinicinfo.merged) == "source")] <- "data.source"
   rownames(clinicinfo.merged) <- colnames(exprs.merged)
 #   rownames(clinicinfo.merged) <- gsub(   sprintf("(%s).", paste(names(esets), collapse="|")), "", rownames(clinicinfo.merged)         )
 #   ## create a merged expressionSet object
@@ -93,7 +94,7 @@ function (esets, method=c("union", "intersect"), standardization=c("quantile", "
     scrisp <- do.call(rbind, lapply(esets, getSubtype, method="crisp"))
     message("going to set the subtype")
     eset.merged <- setSubtype(eset=eset.merged, subtype.class=sclass, subtype.fuzzy=sfuzzy, subtype.crisp=scrisp)
-    rownames(fData(eset.merged)) <- fData(eset.merged)[,"ENTREZID"]
+    rownames(fData(eset.merged)) <- fData(eset.merged)[,"EntrezGene.ID"]
     message("set the subtype complete for merged")
   }
     
