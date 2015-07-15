@@ -3,8 +3,8 @@ getVerhaakSubtypes <- function(eset) {
   # Load Verhaak et al. supplementary from the package inst directory
 	#supplementary.data <- read.xls(system.file(file.path("extdata", "JCI65833sd1.xls"), package="MetaGx"), sheet=7, skip=1)
   # Use this instead when running this method from source
-	supplementary.data.sheet7 <- read.xls("../inst/extdata/JCI65833sd1.xls", sheet=7, skip=1)
-	supplementary.data.sheet1 <- read.xls("../inst/extdata/JCI65833sd1.xls", skip=1)
+	supplementary.data.sheet7 <- read.xls(paste0(package.dir, "/inst/extdata/JCI65833sd1.xls"), sheet=7, skip=1)
+	supplementary.data.sheet1 <- read.xls(paste0(package.dir, "/inst/extdata/JCI65833sd1.xls"), skip=1)
   
 	genesets <- lapply(levels(supplementary.data.sheet7$CLASS), function(y) as.character(supplementary.data.sheet7[supplementary.data.sheet7$CLASS==y,1]))
 	names(genesets) <-  levels(supplementary.data.sheet7$CLASS)

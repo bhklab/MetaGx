@@ -1,7 +1,7 @@
 getKonecnySubtypes <- function(eset) {
 	## Load centroids defined in Konecny et al., 2014
   #supplementary.data <- read.xls(system.file(file.path("extdata", "jnci_JNCI_14_0249_s05.xls"), package="MetaGx"), sheet=4)
-  supplementary.data <- read.xls("../inst/extdata/jnci_JNCI_14_0249_s05.xls", sheet=4)
+  supplementary.data <- read.xls(paste0(package.dir, "/inst/extdata/jnci_JNCI_14_0249_s05.xls"), sheet=4)
   
 	## Classify using nearest centroid with Spearman's rho
   expression.matrix <- exprs(eset)

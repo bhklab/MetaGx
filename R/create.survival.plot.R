@@ -8,7 +8,7 @@ create.survival.plot <- function(
                                  ylab="Survival",
                                  main="Survival Plot",
                                  cex=0.5,
-                                 time.cens=NULL,
+                                 time.cens=NULL, 
                                  col=RColorBrewer::brewer.pal(length(surv.obj$strata), name="Dark2"),
                                  group.names=NULL, # the names to use on the legend. The order of names should correspond with levels(groups)
                                  reverse.colour.order=FALSE,
@@ -23,16 +23,13 @@ create.survival.plot <- function(
                                  ...) {
   pooling.method = match.arg(pooling.method)
   
-  surv.time.to.plot <- surv.time
-  surv.event.to.plot <- surv.event
-  
   if(!is.null(time.cens)) {
     censored.out <- survcomp::censor.time(surv.time=surv.time, surv.event=surv.event, time.cens=time.cens)
-    surv.time.to.plot <- censored.out$surv.time.cens
-    surv.event.to.plot <- censored.out$surv.event.cens
+    surv.time <- censored.out$surv.time.cens
+    surv.event <- censored.out$surv.event.cens
   }
   
-    surv.obj <- survfit(Surv(surv.time.to.plot, surv.event.to.plot) ~ groups)
+    surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups)
   #} else {
   #  surv.obj <- survfit(Surv(surv.time, surv.event) ~ groups + strata(datasets))
   #}
@@ -133,7 +130,7 @@ create.survival.plot <- function(
       if(stats.to.show[i] == "n") {
         text.to.show <- paste0(text.to.show, "n = ", n)
       } else if(stats.to.show[i] == "p") {
-        text.to.show <- paste0(text.to.show, sprintf("Wald test: p = %.4f", p))
+        text.to.show <- paste0(text.to.show, sprintf("Wald test: p = %.5f", p))
       } else if(stats.to.show[i] == "hr") {
         if(length(hr.out$hazard.ratio) == 1) {
           text.to.show <- paste0(text.to.show, sprintf("HR: %.3f, 95%% CI: [%.3f-%.3f]", hr.out$hazard.ratio, hr.out$lower, hr.out$upper))
