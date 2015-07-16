@@ -57,6 +57,8 @@ library(randomForest)
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
+
+# Get the Tothill dataset with non-rescaled genes
 source("../../inst/extdata/reproduce.results.patientselection.config")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
@@ -126,6 +128,14 @@ data.for.survival$vital_status <- data.for.survival$vital_status == "deceased"
 surv.obj <- survfit(Surv(data.for.survival$months_to_death, data.for.survival$vital_status) ~ data.for.survival$Konecny.subtypes)
 survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot + scale_colour_manual(name="Strata", values=c("black", "green", "blue", "red"))
 @
+
+
+<<konecny_survival_nbayes, fig.width=8, fig.height=4, out.width="0.6\\textwidth", eval=FALSE>>=
+## TODO: when konecny expression set is available, complete this section
+konecny.supplementary.data <- read.xls("../../inst/extdata/jnci_JNCI_14_0249_s05.xls", sheet=4)
+konecny.entrez.ids <- konecny.supplementary.data$EntrezGeneID
+@
+
 \includegraphics[width=0.35\textwidth]{konecny_fig3A.png}
 \caption{(Above) Survival curves the Bonome dataset using our implementation of the Konecny subtyping scheme. (Below) Corresponding Figure 3A from Konecny et al.}
 \end{figure}
@@ -223,12 +233,21 @@ To compare our implementation, we compared our normalized ssGSEA scores with the
 Due to different normalization methods, our ssGSEA scores differ in numeric range but are expected to correlate strongly with the values provided in the supplementary materials. of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(verhaak.merged)} were matched. We observed Pearson's correlation coefficients of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
 
 \begin{figure}[H]
-<<verhaak_figures, eval=TRUE, fig.width=6.75, fig.height=8, out.width="0.6\\textwidth">>=
+<<verhaak_figures, eval=TRUE, fig.width=10, fig.height=8, out.width="0.9\\textwidth">>=
 par(mfrow=c(2,2))
-plot(verhaak.merged$DIF, verhaak.merged$Differentiated.ssGSEA.normalized.score, xlab="Implemented DIF ssGSEA", ylab="Published DIF ssGSEA Score")
-plot(verhaak.merged$IMR, verhaak.merged$Immunoreactive.ssGSEA.normalized.score, xlab="Implemented IMR ssGSEA", ylab="Published IMR ssGSEA Score")
-plot(verhaak.merged$MES, verhaak.merged$Mesenchymal.ssGSEA.normalized.score, xlab="Implemented MES ssGSEA", ylab="Published MES ssGSEA Score")
-plot(verhaak.merged$PRO, verhaak.merged$Proliferative.ssGSEA.normalized.score, xlab="Implemented PRO ssGSEA", ylab="Published PRO ssGSEA Score")
+par(oma=c(0,0,0,11))
+verhaak.dataset.cols <- RColorBrewer::brewer.pal(length(levels(verhaak.merged$DATASET)), name="Dark2")[as.integer(verhaak.merged$DATASET)]
+plot(verhaak.merged$DIF, verhaak.merged$Differentiated.ssGSEA.normalized.score, col=verhaak.dataset.cols, xlab="Implemented DIF ssGSEA", ylab="Published DIF ssGSEA Score")
+plot(verhaak.merged$IMR, verhaak.merged$Immunoreactive.ssGSEA.normalized.score, col=verhaak.dataset.cols, xlab="Implemented IMR ssGSEA", ylab="Published IMR ssGSEA Score")
+plot(verhaak.merged$MES, verhaak.merged$Mesenchymal.ssGSEA.normalized.score, col=verhaak.dataset.cols, xlab="Implemented MES ssGSEA", ylab="Published MES ssGSEA Score")
+plot(verhaak.merged$PRO, verhaak.merged$Proliferative.ssGSEA.normalized.score, col=verhaak.dataset.cols, xlab="Implemented PRO ssGSEA", ylab="Published PRO ssGSEA Score")
+par(usr=c(0,1,0,1), # Reset the coordinates
+          xpd=NA)
+legend(1.1,2.61, 
+       inset = 0,
+       legend=levels(verhaak.merged$DATASET),
+       col=RColorBrewer::brewer.pal(length(levels(verhaak.merged$DATASET)), name="Dark2"),
+       pch=1)
 par(par.original)
 @
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
@@ -260,7 +279,7 @@ addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Impl
 print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using the max ssGSEA score for each class. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
-<<verhaak_classifiers>>=
+<<verhaak_classifiers, out.width="0.6\\textwidth">>=
 # Get the labels from the original publication clustering algorithm
 verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE")]
 colnames(verhaak.labels.table)[2] <- "clustering_subtype"
@@ -349,6 +368,31 @@ implemented.verhaak.accuracy <- mean(implemented.verhaak.output.subtypes == verh
 ggplot(verhaak.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.verhaak.accuracy)) + scale_y_continuous(limits=c(0,1.05)) + ggtitle("Verhaak Classifiers")
 @
 
+
+<<verhaak_survival>>=
+verhaak.nb.classes <- lapply(verhaak.validation.esets, function(eset) {
+  intersecting.genes <- intersect(colnames(verhaak.train.data), rownames(fData(eset)))
+  current.train.data <- verhaak.train.data[,colnames(verhaak.train.data) %in% intersecting.genes]
+  verhaak.nb.model <- e1071::naiveBayes(clustering_subtype ~ ., data=verhaak.train.data)
+  current.test.data <- t(exprs(eset))
+  current.test.data <- as.data.frame(current.test.data)
+  current.test.data <- current.test.data[,rownames(fData(eset)) %in% intersecting.genes]
+  predicted.classes <- predict(verhaak.nb.model, current.test.data)
+  out.df <- cbind(pData(eset)[,c("days_to_death", "vital_status")], predicted.classes)
+  colnames(out.df)[ncol(out.df)] <- "NB.subtype"
+  out.df$NB.subtype <- as.character(out.df$NB.subtype)
+  return(out.df)
+})
+
+for(name in names(verhaak.nb.classes)) {
+  verhaak.nb.classes[[name]]$data.source <- name
+}
+
+# Classify on validation datasets
+verhaak.nb.survival.df <- do.call(rbind, verhaak.nb.classes)
+surv.obj <- survfit(Surv(verhaak.nb.survival.df$days_to_death, verhaak.nb.survival.df$vital_status == "deceased") ~ verhaak.nb.survival.df$NB.subtype)
+survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot + scale_colour_manual(name="Strata", values=c("black", "green", "blue", "red"))
+@
 
 %<<tothill>>=
 %source("../../R/getTothillSubtypes.R", chdir=TRUE)
