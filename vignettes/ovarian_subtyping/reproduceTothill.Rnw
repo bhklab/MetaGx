@@ -1,0 +1,56 @@
+
+<<tothill>>=
+source("../../R/getTothillSubtypes.R", chdir=TRUE)
+dressman.eset <- esets$PMID17290060
+implemented.tothill.out <- getTothillSubtypes(dressman.eset, gene.mapping="Probe.ID")
+
+subtype.counts <- as.data.frame(table(pData(implemented.tothill.out[[1]])$Tothill.subtypes))
+colnames(subtype.counts) <- c("Subtype", "Our.Implementation")
+# From the main text of the paper
+published.validation.counts <- c(C1=40, C2=24, C3=5, C4=36, C5=14, C6=0)
+subtype.counts$Published.Validation.Counts = published.validation.counts[match(subtype.counts$Subtype, names(published.validation.counts))]
+
+subtype.counts.m <- melt(subtype.counts)
+colnames(subtype.counts.m) <- c("Subtype", "Implementation", "Count")
+@
+\pagebreak
+\section{Tothill et al., 2008}
+
+Next, we implemented the subtype classifier of Tothill et al., 2008. The authors classified samples in their validation set (Dressman et al.) using a diagonal linear discriminant analysis (DLDA) classifier trained on a selected set of probe sets common to the Affymetrix U113Plus2 and U113A.\footnote{Tothill et al. filtered their probes by variance to 8732 U113Plus2 probe sets which they used for clustering. To the best of my knowledge, they do not report these 8732 probe sets in their text or supplementary. In their Supplementary Table 2, they report the 4372 probe sets and 2857 unique Entrez IDs which overlap with the U133A; they used the probe sets to classify the Dressman data set. My implementation allows the user to specify whether they would like to classify by probe set or Entrez ID; to generate the data for this section, I used the intersection of Entrez IDs in the supplementary and the Dressman/Tothill datasets, which yielded 2095 Entrez IDs.}
+
+Below is a bar plot showing the counts of each predicted subtype by our implementation and published results, classified on the Dressman dataset.\footnote{To my knowledge, Tothill et al. do not provide their classifier's labels for each sample, so I was unable to generate a contingency table.}
+
+\begin{figure}[H]
+\centering
+<<tothill_barplot, fig.width=10, fig.height=2, out.width="0.75\\textwidth">>=
+# reverse the levels of Implementation to swap the positions of the barplot
+subtype.counts.m$Implementation <- factor(subtype.counts.m$Implementation, levels=rev(levels(subtype.counts.m$Implementation)))
+ggplot(subtype.counts.m, aes(x=Implementation, y=Count, fill=Subtype)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(size=6)) + coord_flip()
+@
+\caption{Stacked bar plot indicating class distributions of predicted subtypes on the Dressman dataset using data from our implementation of the Tothill scheme (top) and the main text of the Tothill manuscript (bottom).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+<<tothill_survival, fig.width=8, fig.height=4.5, out.width="0.5\\textwidth">>=
+# Create survival curves
+data.for.survival <- pData(implemented.tothill.out$Annotated.eset)[,c("days_to_death", "vital_status", "Tothill.subtypes")]
+data.for.survival$vital_status <- data.for.survival$vital_status == "deceased"
+# To match the figure in the main text, set a cutoff of 60 months (1826 days). Set patients surviving longer than
+# 1826 to vital status FALSE (still alive), survival = 1826.
+#data.for.survival[ data.for.survival$days_to_death > 1826,]$vital_status <- FALSE
+#data.for.survival[ data.for.survival$days_to_death > 1826,]$days_to_death <- 1826
+data.for.survival$months_to_death <- data.for.survival$days_to_death / days.per.month
+data.for.survival$days_to_death <- NULL
+
+censored.out <- survcomp::censor.time(data.for.survival$months_to_death, data.for.survival$vital_status, time.cens=60)
+
+data.for.survival$months_to_death <- censored.out$surv.time.cens
+data.for.survival$vital_status <- censored.out$surv.event.cens
+
+surv.obj <- survfit(Surv(data.for.survival$months_to_death, data.for.survival$vital_status) ~ data.for.survival$Tothill.subtypes)
+survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot + scale_colour_manual(name="Strata", values=c("black", "red", "green", "blue", "#58C0FF"))
+@
+\includegraphics[width=0.35\textwidth]{tothill_fig5D.png}
+\caption{(Above) Survival curves the Dressman dataset using our implementation of the Tothill subtyping scheme. (Below) Corresponding Figure 5D from Tothill et al. Note the difference in scale on the x axis - both axes are in months, but MetaGxOvarian has extended survival information.}
+\end{figure}
