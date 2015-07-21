@@ -16,7 +16,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
@@ -54,22 +54,59 @@ library(e1071)
 library(randomForest)
 @
 
-<<load_data>>=
+<<load_data, cache=TRUE>>=
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
 
-# Get the Tothill dataset with non-rescaled genes
 source("../../inst/extdata/reproduce.results.patientselection.config")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
-rm(probe.gene.mapping)
+probe.gene.mapping <- TRUE
+rescale <- FALSE
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets.not.rescaled <- esets
+rescale <- TRUE
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+@
 
-getGeneMapping <- function(eset) {
-  eset <- eset[fData(eset)$best_probe,]
-  rownames(eset) <- paste0("geneid.", fData(eset)$EntrezGene.ID)
-  return(eset)
+<<helper_functions>>=
+.getBootstrapAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.repetitions=1000) {
+  bootstrap.accuracy.vals <- lapply(1:num.repetitions, function(x) {
+    num.samples <- nrow(data)
+    indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
+    indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
+    current.train.data <- data[indices.to.include,]
+    current.test.data <- data[indices.out.of.bootstrap,]
+    trained.model <- train.function(formula, data=current.train.data)
+    response.var.name <- all.vars(formula)[1]
+    if(is.null(custom.predict.function)) {
+      current.predictions <- predict(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    } else {
+      current.predictions <- custom.predict.function(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    }
+    current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
+    return(current.accuracy)
+    })#, mc.cores = parallel::detectCores())
+  return(unlist(bootstrap.accuracy.vals))
+}
+.getCrossValidationAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.folds=10) {
+  num.samples <- nrow(data)
+  folds <- as.factor(rep(1:num.folds, size=num.samples))
+  cv.accuracy.vals <- lapply(levels(folds), function(current.fold) {
+    current.train.data <- data[folds != current.fold,]
+    current.test.data <- data[folds == current.fold,]
+    trained.model <- train.function(formula, data=current.train.data)
+    response.var.name <- all.vars(formula)[1]
+    if(is.null(custom.predict.function)) {
+      current.predictions <- predict(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    } else {
+      current.predictions <- custom.predict.function(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
+    }
+    current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
+    return(current.accuracy)
+    })#, mc.cores = parallel::detectCores())
+  return(unlist(cv.accuracy.vals))
 }
 @
 
@@ -78,9 +115,9 @@ This document reports the results of my initial implementations of ovarian cance
 
 %\Sexpr{knit_child('reproduceKonecny.Rnw')}
 
-\Sexpr{knit_child('reproduceVerhaak.Rnw')}
+%\Sexpr{knit_child('reproduceVerhaak.Rnw')}
 
-%\Sexpr{knit_child('reproduceHelland.Rnw')}
+\Sexpr{knit_child('reproduceHelland.Rnw')}
 
 %\Sexpr{knit_child('reproduceBentink.Rnw')}
 

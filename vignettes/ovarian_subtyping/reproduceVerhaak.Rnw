@@ -17,14 +17,10 @@ verhaak.validation.esets <- list(Bonome=esets$GSE26712,
 verhaak.tcga.discovery.ids <- as.character(verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery",]$ID)
 verhaak.validation.esets$TCGA <- verhaak.validation.esets$TCGA[,!(as.character(verhaak.validation.esets$TCGA$unique_patient_ID) %in% as.character(verhaak.tcga.discovery.ids))]
 
-verhaak.validation.esets <- lapply(verhaak.validation.esets, getGeneMapping)
 implemented.verhaak.output <- lapply(verhaak.validation.esets, getVerhaakSubtypes)
-
-
-
 @
 
-<<verhaak_naivebayes, fig.width=10, fig.height=6, out.width="0.7\\textwidth">>=
+<<verhaak_naivebayes, fig.width=10, fig.height=6, out.width="0.7\\textwidth", eval=TRUE>>=
 # Get the labels from the original publication clustering algorithm
 verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE")]
 colnames(verhaak.labels.table)[2] <- "clustering_subtype"
@@ -37,7 +33,7 @@ intersecting.verhaak.tcga.ids <- intersect(verhaak.labels.table$ID, esets$TCGA$u
 
 verhaak.labels.table <- verhaak.labels.table[verhaak.labels.table$ID %in% intersecting.verhaak.tcga.ids,]
 
-tcga.discovery.eset <- getGeneMapping(esets$TCGA[,match(verhaak.labels.table$ID, esets$TCGA$unique_patient_ID)])
+tcga.discovery.eset <- esets$TCGA[,match(verhaak.labels.table$ID, esets$TCGA$unique_patient_ID)]
 
 implemented.verhaak.output.subtypes <- getVerhaakSubtypes(tcga.discovery.eset)$Annotated.eset$Verhaak.subtypes
 
@@ -53,11 +49,11 @@ verhaak.train.data$clustering_subtype <- verhaak.labels.table$clustering_subtype
 
 verhaak.nb.classes <- lapply(verhaak.validation.esets, function(eset) {
   intersecting.genes <- intersect(colnames(verhaak.train.data), rownames(fData(eset)))
-  current.train.data <- verhaak.train.data[,colnames(verhaak.train.data) %in% intersecting.genes]
+  current.train.data <- verhaak.train.data[,c(intersecting.genes, "clustering_subtype")]
   verhaak.nb.model <- e1071::naiveBayes(clustering_subtype ~ ., data=verhaak.train.data)
   current.test.data <- t(exprs(eset))
   current.test.data <- as.data.frame(current.test.data)
-  current.test.data <- current.test.data[,rownames(fData(eset)) %in% intersecting.genes]
+  current.test.data <- current.test.data[,intersecting.genes]
   predicted.classes <- predict(verhaak.nb.model, current.test.data)
   out.df <- cbind(pData(eset)[,c("days_to_death", "vital_status")], predicted.classes)
   colnames(out.df)[ncol(out.df)] <- "NB.subtype"
@@ -69,10 +65,48 @@ for(name in names(verhaak.nb.classes)) {
   verhaak.nb.classes[[name]]$data.source <- name
 }
 
+verhaak.dlda.classes <- lapply(verhaak.validation.esets, function(eset) {
+  intersecting.genes <- intersect(colnames(verhaak.train.data), rownames(fData(eset)))
+  current.train.data <- verhaak.train.data[,c(intersecting.genes, "clustering_subtype")]
+  verhaak.dlda.model <- sparsediscrim::dlda(clustering_subtype ~ ., data=verhaak.train.data)
+  current.test.data <- t(exprs(eset))
+  current.test.data <- as.data.frame(current.test.data)
+  current.test.data <- current.test.data[,intersecting.genes]
+  predicted.classes <- predict(verhaak.dlda.model, current.test.data)[[1]]
+  out.df <- cbind(pData(eset)[,c("days_to_death", "vital_status")], predicted.classes)
+  colnames(out.df)[ncol(out.df)] <- "DLDA.subtype"
+  out.df$DLDA.subtype <- as.character(out.df$DLDA.subtype)
+  return(out.df)
+})
+
+for(name in names(verhaak.dlda.classes)) {
+  verhaak.dlda.classes[[name]]$data.source <- name
+}
+verhaak.nearest.centroid.classes <- lapply(verhaak.validation.esets, function(eset) {
+  intersecting.genes <- intersect(colnames(verhaak.train.data), rownames(fData(eset)))
+  current.train.data <- verhaak.train.data[,c(intersecting.genes, "clustering_subtype")]
+  centroids <- lapply(levels(current.train.data$clustering_subtype), function(subtype) {
+    return(sapply(current.train.data[current.train.data$clustering_subtype == subtype,colnames(current.train.data) != "clustering_subtype"], mean))
+  })
+  names(centroids) <- levels(verhaak.train.data$clustering_subtype)
+  current.test.data <- t(exprs(eset))
+  current.test.data <- current.test.data[,intersecting.genes]
+  scc.vals <- sapply(centroids, function(x) apply(current.test.data, 1, function(y) cor(x,y,method='spearman')))
+  predicted.classes <- colnames(scc.vals)[apply(scc.vals, 1, which.max)]
+  predicted.classes <- factor(predicted.classes, levels=colnames(scc.vals))
+  out.df <- cbind(pData(eset)[,c("days_to_death", "vital_status")], predicted.classes)
+  colnames(out.df)[ncol(out.df)] <- "Nearest.Centroid.subtype"
+  out.df$Nearest.Centroid.subtype <- as.character(out.df$Nearest.Centroid.subtype)
+  return(out.df)
+})
+
+for(name in names(verhaak.nearest.centroid.classes)) {
+  verhaak.nearest.centroid.classes[[name]]$data.source <- name
+}
 @
 
 <<verhaak_get_merged, eval=TRUE, cache=FALSE, include=TRUE>>=
-implemented.ssgsea.scores.and.nb.classes <- data.frame(Dataset.name=character(0), sample.name=character(0), DIF=numeric(0), IMR=numeric(0), MES=numeric(0), PRO=numeric(0), implemented.subtype=factor())
+implemented.ssgsea.scores.and.nb.classes <- data.frame()
 
 for(i in 1:length(implemented.verhaak.output)) {
   current.implemented.df <- as.data.frame(implemented.verhaak.output[[i]][[2]])
@@ -106,6 +140,8 @@ for(i in 1:length(implemented.verhaak.output)) {
                                                                       PRO=current.ssgsea.scores$PRO,
                                                                       implemented.subtype=implemented.verhaak.output[[i]][[1]]$Verhaak.subtypes,
                                                                       nb.subtype=verhaak.nb.classes[[i]]$NB.subtype,
+                                                                      nearest.centroid.subtype=verhaak.nearest.centroid.classes[[i]]$Nearest.Centroid.subtype,
+                                                                      dlda.subtype=verhaak.dlda.classes[[i]]$DLDA.subtype,
                                                                       days_to_death=verhaak.nb.classes[[i]]$days_to_death,
                                                                       vital_status=verhaak.nb.classes[[i]]$vital_status))
 }
@@ -129,7 +165,6 @@ verhaak.spreadsheet.data.subset$CloverLeaf <- as.factor(verhaak.spreadsheet.data
 colnames(implemented.ssgsea.scores.and.nb.classes)[1:2] <- c("DATASET", "ID")
 
 # subtypes predicted by our implementation
-
 verhaak.merged <- merge(implemented.ssgsea.scores.and.nb.classes, verhaak.spreadsheet.data.subset, by=c("DATASET", "ID"))
 
 # Plot correlations between ssGSEA scores
@@ -140,16 +175,14 @@ MES.cor <- cor(verhaak.merged$MES, verhaak.merged$Mesenchymal.ssGSEA.normalized.
 PRO.cor <- cor(verhaak.merged$PRO, verhaak.merged$Proliferative.ssGSEA.normalized.score)
 
 accuracy.classification.with.thresholds <- mean(verhaak.merged$implemented.subtype == verhaak.merged$CloverLeaf)
-accuracy.classification.by.max <- mean(apply(verhaak.merged[,3:6],1,which.max) == apply(verhaak.merged[,12:15],1,which.max))
-
+#accuracy.classification.by.max <- mean(apply(verhaak.merged[,3:6],1,which.max) == apply(verhaak.merged[,12:15],1,which.max))
 @
-
 
 Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
 
 We implemented this subtype classification scheme using the provided gene sets and the ssGSEA implementation in \texttt{R} package \texttt{GSVA}. The parameters to the function \texttt{gsva} were: \texttt{method="ssgsea"}, \texttt{min.sz=10}, \texttt{tau=0.75}, which resemble default GenePattern parameters.\footnote{These parameters differ slightly from the function call used in Waldron et al. (2014)}
 
-To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf) & verhaak.spreadsheet.data$DATASET != "CRIJNS",])} patients reported in their supplementary;\footnote{These numbers exclude the dataset of Crijns et al., as the patient IDs in the supplementary did not match the IDs in MetaGxOvarian.} we matched \Sexpr{nrow(verhaak.merged)} patients from MetaGxOvarian data. 
+To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients reported in their supplementary; we matched \Sexpr{nrow(verhaak.merged)} patients from MetaGxOvarian data. 
 
 Due to different normalization methods, our ssGSEA scores differ in numeric range but are expected to correlate strongly with the values provided in the supplementary materials. of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(verhaak.merged)} were matched. We observed Pearson's correlation coefficients of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
 
@@ -176,7 +209,8 @@ par(par.original)
 \caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
 \end{figure}
 
-From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-compute these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples classified identically between our implementation and supplementary results.
+%From these normalized ssGSEA scores, a subtype classification may be performed according to one of two procedures. The first is described by Verhaak et al. and involves first classifying Immunoreactive and Mesenchymal subtypes by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-compute these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples classified identically between our implementation and supplementary results.
+From these normalized ssGSEA scores a subtype classification may be as described by Verhaak et al. as follows: first, Immunoreactive and Mesenchymal subtypes are ckassufued by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained their thresholds as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively. For our implementation, we used the same TCGA train data with original cluster labels to re-compute these threshold values for each gene list used for classifying new samples.} Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples classified identically between our implementation and supplementary results.
 
 <<verhaak_table_bythreshold, results='asis'>>=
 implemented.classes.from.threshold <-  verhaak.merged$implemented.subtype
@@ -189,9 +223,9 @@ addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Impl
 print(xtable(table(implemented.classes.from.threshold, supplementary.classes.from.threshold), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using threshold values for Immunoreactive and Mesenchymal subtypes. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
-The second method is to directly assign the subtype by the max ssGSEA score. Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.by.max, digits=2)}\% of samples classified identicially between our implementation and supplementary results.
+%The second method is to directly assign the subtype by the max ssGSEA score. Overall, this method produces a concordance of \Sexpr{round(100 * accuracy.classification.by.max, digits=2)}\% of samples classified identicially between our implementation and supplementary results.
 
-<<verhaak_table_bymax, results='asis'>>=
+<<verhaak_table_bymax, results='asis', eval=FALSE>>=
 implemented.classes.from.max <-  as.factor(c("DIF", "IMR", "MES", "PRO")[apply(verhaak.merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)]) 
 supplementary.classes.from.max <- as.factor(c("DIF", "IMR", "MES", "PRO")[apply(verhaak.merged[,paste0(c("Differentiated", "Immunoreactive", "Mesenchymal", "Proliferative"), ".ssGSEA.normalized.score")],1,which.max)])
 addtorow <- list()
@@ -213,6 +247,17 @@ addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Naiv
 print(xtable(table(implemented.classes.nb, supplementary.classes.from.threshold), caption="Contingency table showing concordance using a trained Naive Bayes subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
+<<verhaak_table_nearestcentroid, results='asis'>>=
+implemented.classes.nearest.centroid <-  verhaak.merged$nearest.centroid.subtype
+supplementary.classes.from.threshold <- verhaak.merged$CloverLeaf
+addtorow <- list()
+addtorow$pos <- list()
+addtorow$pos[[1]] <- 0
+addtorow$pos[[2]] <- 0
+addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Nearest Centroid Verhaak Subtypes & DIF & IMR & MES & PRO \\\\\n")
+print(xtable(table(implemented.classes.nearest.centroid, supplementary.classes.from.threshold), caption="Contingency table showing concordance using a Nearest Centroid subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
+@
+
 <<verhaak_survival_curves_implemented, fig.height=5, fig.width=5, out.width="0.5\\textwidth">>=
 verhaak.merged$vital_status <- verhaak.merged$vital_status == "deceased"
 verhaak.merged$months_to_death <- verhaak.merged$days_to_death / days.per.month
@@ -222,58 +267,27 @@ verhaak.merged$months_to_death <- time.cens.out$surv.time.cens
 verhaak.merged$vital_status <- time.cens.out$surv.event.cens
 
 verhaak.merged$surv.obj <- Surv(verhaak.merged$months_to_death, verhaak.merged$vital_status)
-km.coxph.plot(surv.obj ~ implemented.subtype, verhaak.merged, x.label="Time (months)", y.label = "Survival", main.title="Survival: implemented classifier", show.n.risk = FALSE, leg.text = levels(verhaak.merged$implemented.subtype), .col=c("#E38010", "green", "blue", "purple"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4)
+km.coxph.plot(surv.obj ~ implemented.subtype, verhaak.merged, x.label="Time (months)", y.label = "Survival", main.title="Survival: Implemented Classifier", show.n.risk = FALSE, leg.text = levels(verhaak.merged$implemented.subtype), .col=c("#E38010", "green", "blue", "purple"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4)
 @
 
 <<verhaak_survival_curves_nb, fig.height=5, fig.width=5, out.width="0.5\\textwidth">>=
 km.coxph.plot(surv.obj ~ nb.subtype, verhaak.merged, x.label="Time (months)", y.label = "Survival", main.title="Survival: Naive Bayes classifier", show.n.risk = FALSE, leg.text = levels(verhaak.merged$nb.subtype), .col=c("#E38010", "green", "blue", "purple"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4)
 @
 
+<<verhaak_survival_curves_dlda, fig.height=5, fig.width=5, out.width="0.5\\textwidth", cache=FALSE>>=
+
+km.coxph.plot(surv.obj ~ dlda.subtype, verhaak.merged, x.label="Time (months)", y.label = "Survival", main.title="Survival: DLDA classifier", show.n.risk = FALSE, leg.text = levels(verhaak.merged$dlda.subtype), .col=c("#E38010", "green", "blue", "purple"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4)
+@
+
+<<verhaak_survival_curves_nearest_centroid, fig.height=5, fig.width=5, out.width="0.5\\textwidth", cache=FALSE>>=
+km.coxph.plot(surv.obj ~ nearest.centroid.subtype, verhaak.merged, x.label="Time (months)", y.label = "Survival", main.title="Survival: Nearest Centroid classifier", show.n.risk = FALSE, leg.text = levels(verhaak.merged$nearest.centroid.subtype), .col=c("#E38010", "green", "blue", "purple"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4)
+@
 \begin{figure}
 \includegraphics[width=0.35\textwidth]{verhaak_fig2B.png}
 \caption{caption}
 \end{figure}
 
-<<verhaak_classifiers>>=
-set.seed(150)
-
-.getBootstrapAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.repetitions=1000) {
-  bootstrap.accuracy.vals <- lapply(1:num.repetitions, function(x) {
-    num.samples <- nrow(data)
-    indices.to.include <- sample(1:num.samples, size = num.samples, replace=TRUE)
-    indices.out.of.bootstrap <- setdiff(1:num.samples, indices.to.include)
-    current.train.data <- data[indices.to.include,]
-    current.test.data <- data[indices.out.of.bootstrap,]
-    trained.model <- train.function(formula, data=current.train.data)
-    response.var.name <- all.vars(formula)[1]
-    if(is.null(custom.predict.function)) {
-      current.predictions <- predict(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
-    } else {
-      current.predictions <- custom.predict.function(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
-    }
-    current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
-    return(current.accuracy)
-    })#, mc.cores = parallel::detectCores())
-  return(unlist(bootstrap.accuracy.vals))
-}
-.getCrossValidationAccuracyVals <- function(formula, data, train.function, custom.predict.function = NULL, num.folds=10) {
-  num.samples <- nrow(data)
-  folds <- as.factor(rep(1:num.folds, size=num.samples))
-  cv.accuracy.vals <- lapply(levels(folds), function(current.fold) {
-    current.train.data <- data[folds != current.fold,]
-    current.test.data <- data[folds == current.fold,]
-    trained.model <- train.function(formula, data=current.train.data)
-    response.var.name <- all.vars(formula)[1]
-    if(is.null(custom.predict.function)) {
-      current.predictions <- predict(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
-    } else {
-      current.predictions <- custom.predict.function(trained.model, newdata=current.test.data[,-which(colnames(current.test.data) == response.var.name)])
-    }
-    current.accuracy <- mean(current.predictions == current.test.data$clustering_subtype)
-    return(current.accuracy)
-    })#, mc.cores = parallel::detectCores())
-  return(unlist(cv.accuracy.vals))
-}
+<<verhaak_classifiers, eval=FALSE>>=
 
 num.folds <- 10
 
@@ -293,6 +307,7 @@ verhaak.cvplot.data.m$ci.width <- qnorm(0.975) * verhaak.cvplot.data.m$ci.width
 implemented.verhaak.accuracy <- mean(implemented.verhaak.output.subtypes == verhaak.train.data$clustering_subtype)
 @
 
-<<verhaak_boxplot_plotting, out.width="0.6\\textwidth">>=
+<<verhaak_boxplot_plotting, out.width="0.6\\textwidth", eval=FALSE>>=
+
 ggplot(verhaak.cvplot.data.m, aes(Algorithm, Accuracy)) + geom_point() + geom_errorbar(aes(ymin=Accuracy-ci.width, ymax=Accuracy+ci.width), width=0.1) + geom_hline(aes(yintercept=implemented.verhaak.accuracy)) + scale_y_continuous(limits=c(0,1.05)) + ggtitle("Verhaak Classifiers")
 @

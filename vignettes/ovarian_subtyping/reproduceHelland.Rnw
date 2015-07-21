@@ -3,52 +3,17 @@
 
 <<helland>>=
 source("../../R/getHellandSubtypes.R", chdir=TRUE)
-tcga.eset <- getGeneMapping(esets$TCGA)
+tcga.eset <- esets$TCGA
 implemented.helland.out <- getHellandSubtypes(tcga.eset)
 # Labelled validation data, provided by the authors by email
 helland.labelled.validation <- read.csv("../../inst/extdata/TCGA_samples_classified.csv")
 helland.labelled.validation <- helland.labelled.validation[,c("SAMPLEID", "ClassLabel")]
 colnames(helland.labelled.validation) <- c("unique_patient_ID", "ClassLabel")
-helland.merged <- merge(pData(implemented.helland.out[[1]]), helland.labelled.validation, by="unique_patient_ID")
-##TODO: investigate why the following TCGA unique patient IDs are not in MetaGxOvarian: TCGA-01-0628 TCGA-01-0630 TCGA-01-0631 TCGA-01-0633 TCGA-01-0636 TCGA-01-0637 TCGA-01-0639 TCGA-01-0642 TCGA-13-0760 TCGA-24-0981
+helland.merged <- merge(pData(implemented.helland.out[[1]])[,c("unique_patient_ID", "vital_status", "days_to_death", "Helland.subtypes")], helland.labelled.validation, by="unique_patient_ID")
 helland.accuracy <- mean(helland.merged$Helland.subtypes == helland.merged$ClassLabel)
 @
-Next, we implemented the subtype classifier of Helland et al., 2011. The same group as the Tothill et al. study implemented a different classifier for their previously-described subtypes. They identified a gene list for each of their four previously-defined high-grade serous ovarian carcinoma subtypes. Using a method described in another study for breast cancer classification (Lim et al., Nat. Med. 2009), they trained a set of weights for each gene list. Classification was performed by taking a linear combination of weights and expression levels for each gene list, normalizing the scores, and classifying according to the highest-scoring subtype.
 
-Using their published gene list and weights from the supplementary text,\footnote{The supplementary text consists of gene symbols, Affymetrix U133 Plus 2.0 Probe IDs, and weights. In order to associate these values to a unique Entrez ID, I did the following: using Bioconductor package \texttt{annotate} and data package \texttt{hgu133plus2.db}, identify each Entrez ID based on probe ID and platform alone. Out of 1164 probe IDs in the supplementary, 1132 mapped to a unique Entrez ID, 27 mapped to multiple Entrez IDs, and 5 did not map to an Entrez ID. For the 27 genes that mapped to multiple Entrez IDs, 25 were associated to a unique Entrez ID based on the gene symbol listed in the supplementary.}. we implemented their subtype classifier and applied it to the TCGA dataset. The authors kindly provided a spreadsheet listing their classifier's labels on the TCGA dataset.  Overall, \Sexpr{round(100 * helland.accuracy, digits=2)}\% of samples were classified identically between the authors' implementation and ours.
-
-<<helland_table, results='asis'>>=
-addtorow <- list()
-addtorow$pos <- list()
-addtorow$pos[[1]] <- 0
-addtorow$pos[[2]] <- 0
-addtorow$command <- c('& Original Helland Subtypes & & &\\\\\n', "Implemented Helland Subtypes & C1 & C2 & C4 & C5 \\\\\n")
-print(xtable(table(helland.merged$Helland.subtypes, helland.merged$ClassLabel), caption="Contingency table showing concordance of our implementation and and the predictions given by the table provided by Helland et al. Predictions were made on the TCGA dataset. Note that subtypes C3 and C6 were excluded in the original study since they are associated with non-HGS ovarian tumours."), add.to.row=addtorow, include.colnames=FALSE)
-@
-
-
-\begin{figure}[H]
-\centering
-<<helland_survival, fig.width=8, fig.height=3, out.width="0.7\\textwidth">>=
-helland.data.for.survival <- pData(implemented.helland.out$Annotated.eset)[,c("unique_patient_ID", "days_to_death", "vital_status", "Helland.subtypes")]
-helland.data.for.survival <- helland.data.for.survival[helland.data.for.survival$unique_patient_ID %in% helland.labelled.validation$unique_patient_ID,]
-# Remove patients with missing survival information
-helland.data.for.survival <- helland.data.for.survival[complete.cases(helland.data.for.survival),]
-helland.data.for.survival$months_to_death <- helland.data.for.survival$days_to_death / days.per.month
-helland.data.for.survival$days_to_death <- NULL
-helland.data.for.survival$vital_status <- helland.data.for.survival$vital_status == "deceased"
-helland.censored.out <- survcomp::censor.time(helland.data.for.survival$months_to_death, helland.data.for.survival$vital_status, time.cens=130)
-helland.data.for.survival$months_to_death <- helland.censored.out$surv.time.cens
-helland.data.for.survival$vital_status <- helland.censored.out$surv.event.cens
-
-surv.obj <- survfit(Surv(helland.data.for.survival$months_to_death, helland.data.for.survival$vital_status) ~ helland.data.for.survival$Helland.subtypes)
-survMisc::autoplot(surv.obj, title="Survival curves", censSize=0)$plot + scale_colour_manual(name="Strata", values=c("black", "red", "green", "blue")) + scale_x_continuous(breaks=seq(0,120, 20))
-@
-\includegraphics[width=0.5\textwidth]{helland_fig1B_TCGA.png}
-\caption{(Above) Survival curves the TCGA dataset using our implementation of the Helland subtyping scheme. (Below) Corresponding survival plot from Figure 1B from Helland et al.}
-\end{figure}
-
-<<helland_classifiers>>=
+<<classification>>=
 tothill.supptable1 <- read.xls("../../inst/extdata/Supplementary Table 1.xls")
 tothill.labels.table <- tothill.supptable1[,c(1,2)]
 colnames(tothill.labels.table) <- c("ID", "clustering_subtype")
@@ -57,7 +22,7 @@ tothill.labels.table$clustering_subtype <- as.character(tothill.labels.table$clu
 tothill.labels.table <- tothill.labels.table[!(tothill.labels.table$clustering_subtype %in% c("NC", "3", "6")),]
 tothill.labels.table$clustering_subtype <- sub("^", "C", tothill.labels.table$clustering_subtype)
 
-tothill.train.eset <- getGeneMapping(esets$GSE9891[,match(tothill.labels.table$ID, sub("X", "", as.character(esets$GSE9891$alt_sample_name)))])
+tothill.train.eset <- esets$GSE9891[,match(tothill.labels.table$ID, sub("X", "", as.character(esets$GSE9891$alt_sample_name)))]
 
 implemented.helland.output.subtypes <- getHellandSubtypes(tothill.train.eset)$Annotated.eset$Helland.subtypes
 
@@ -90,7 +55,80 @@ helland.train.data <- as.data.frame(helland.train.data[,fData(tothill.train.eset
 
 helland.train.data$clustering_subtype <- tothill.labels.table$clustering_subtype
 helland.train.data$clustering_subtype <- as.factor(helland.train.data$clustering_subtype)
+  
+helland.validation.esets <- list(TCGA=esets$TCGA)
+  
+helland.nb.classes <- lapply(helland.validation.esets, function(eset) {
+  intersecting.genes <- intersect(colnames(helland.train.data), rownames(fData(eset)))
+  current.train.data <- helland.train.data[,c(intersecting.genes, "clustering_subtype")]
+  helland.nb.model <- e1071::naiveBayes(clustering_subtype ~ ., data=helland.train.data)
+  current.test.data <- t(exprs(eset))
+  current.test.data <- as.data.frame(current.test.data)
+  current.test.data <- current.test.data[,intersecting.genes]
+  predicted.classes <- predict(helland.nb.model, current.test.data)
+  out.df <- cbind(pData(eset)[,c("days_to_death", "vital_status")], predicted.classes)
+  colnames(out.df)[ncol(out.df)] <- "NB.subtype"
+  out.df$NB.subtype <- out.df$NB.subtype
+  return(out.df)
+})
 
+for(name in names(helland.nb.classes)) {
+  helland.nb.classes[[name]]$data.source <- name
+}
+
+helland.nb.survival.data <- do.call(rbind, helland.nb.classes)
+
+@
+
+Next, we implemented the subtype classifier of Helland et al., 2011. The same group as the Tothill et al. study implemented a different classifier for their previously-described subtypes. They identified a gene list for each of their four previously-defined high-grade serous ovarian carcinoma subtypes. Using a method described in another study for breast cancer classification (Lim et al., Nat. Med. 2009), they trained a set of weights for each gene list. Classification was performed by taking a linear combination of weights and expression levels for each gene list, normalizing the scores, and classifying according to the highest-scoring subtype.
+
+Using their published gene list and weights from the supplementary text,\footnote{The supplementary text consists of gene symbols, Affymetrix U133 Plus 2.0 Probe IDs, and weights. In order to associate these values to a unique Entrez ID, I did the following: using Bioconductor package \texttt{annotate} and data package \texttt{hgu133plus2.db}, identify each Entrez ID based on probe ID and platform alone. Out of 1164 probe IDs in the supplementary, 1132 mapped to a unique Entrez ID, 27 mapped to multiple Entrez IDs, and 5 did not map to an Entrez ID. For the 27 genes that mapped to multiple Entrez IDs, 25 were associated to a unique Entrez ID based on the gene symbol listed in the supplementary.}. we implemented their subtype classifier and applied it to the TCGA dataset. The authors kindly provided a spreadsheet listing their classifier's labels on the TCGA dataset.  Overall, \Sexpr{round(100 * helland.accuracy, digits=2)}\% of samples were classified identically between the authors' implementation and ours.
+
+<<helland_table, results='asis'>>=
+addtorow <- list()
+addtorow$pos <- list()
+addtorow$pos[[1]] <- 0
+addtorow$pos[[2]] <- 0
+addtorow$command <- c('& Original Helland Subtypes & & &\\\\\n', "Implemented Helland Subtypes & C1 & C2 & C4 & C5 \\\\\n")
+print(xtable(table(helland.merged$Helland.subtypes, helland.merged$ClassLabel), caption="Contingency table showing concordance of our implementation and and the predictions given by the table provided by Helland et al. Predictions were made on the TCGA dataset. Note that subtypes C3 and C6 were excluded in the original study since they are associated with non-HGS ovarian tumours."), add.to.row=addtorow, include.colnames=FALSE)
+@
+
+
+\begin{figure}[H]
+\centering
+We performed survival analysis on the TCGA dataset.
+<<helland_survival, fig.width=5, fig.height=5, out.width="0.7\\textwidth">>=
+helland.data.for.survival <- pData(implemented.helland.out$Annotated.eset)[,c("unique_patient_ID", "days_to_death", "vital_status", "Helland.subtypes")]
+helland.data.for.survival <- helland.data.for.survival[helland.data.for.survival$unique_patient_ID %in% helland.labelled.validation$unique_patient_ID,]
+# Remove patients with missing survival information
+helland.data.for.survival <- helland.data.for.survival[complete.cases(helland.data.for.survival),]
+helland.data.for.survival$months_to_death <- helland.data.for.survival$days_to_death / days.per.month
+helland.data.for.survival$days_to_death <- NULL
+helland.data.for.survival$vital_status <- helland.data.for.survival$vital_status == "deceased"
+helland.censored.out <- survcomp::censor.time(helland.data.for.survival$months_to_death, helland.data.for.survival$vital_status, time.cens=130)
+helland.data.for.survival$months_to_death <- helland.censored.out$surv.time.cens
+helland.data.for.survival$vital_status <- helland.censored.out$surv.event.cens
+
+helland.data.for.survival$surv.obj <- Surv(helland.data.for.survival$months_to_death, helland.data.for.survival$vital_status)
+km.coxph.plot(surv.obj ~ Helland.subtypes, helland.data.for.survival, x.label="Time (months)", y.label = "Survival", main.title="Survival: Implemented Helland classifier", show.n.risk = FALSE, leg.text = levels(helland.data.for.survival$Helland.subtypes), .col=c("black", "red", "green", "blue"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0)
+@
+
+<<helland_survival_naivebayes, fig.width=5, fig.height=5, out.width="0.7\\textwidth">>=
+helland.nb.survival.data$months_to_death <- helland.nb.survival.data$days_to_death / days.per.month
+helland.nb.survival.data$vital_status <- helland.nb.survival.data$vital_status == "deceased"
+helland.censored.out <- survcomp::censor.time(helland.nb.survival.data$months_to_death, helland.nb.survival.data$vital_status, time.cens=130)
+helland.nb.survival.data$months_to_death <- helland.censored.out$surv.time.cens
+helland.nb.survival.data$vital_status <- helland.censored.out$surv.event.cens
+helland.nb.survival.data$surv.obj <- Surv(time = helland.nb.survival.data$months_to_death, event = helland.nb.survival.data$vital_status)
+
+km.coxph.plot(surv.obj ~ NB.subtype, helland.nb.survival.data, x.label="Time (months)", y.label = "Survival", main.title="Survival: Naive Bayes classifier", show.n.risk = FALSE, leg.text = levels(helland.nb.survival.data$NB.subtype), .col=c("black", "red", "green", "blue"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0)
+@
+
+\includegraphics[width=0.5\textwidth]{helland_fig1B_TCGA.png}
+\caption{(Above) Survival curves the TCGA dataset using our implementation of the Helland subtyping scheme. (Below) Corresponding survival plot from Figure 1B from Helland et al.}
+\end{figure}
+
+<<helland_classifiers>>=
 set.seed(150)
 
 num.folds <- 10
