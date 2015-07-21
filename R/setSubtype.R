@@ -5,10 +5,7 @@
 ########################
 
 
-
-## FIXME 
-## the package should properly extend the expressionSet class to add a slot for subtyping information
-## the current workaround is using the experimentData slot
+# This function stores crisp and fuzzy subtyping matrices in experimentData, and creates a pData slot for the discrete subtype class
 `setSubtype` <- 
 function (eset, subtype.class, subtype.crisp, subtype.fuzzy) {
   if (class(eset) != "ExpressionSet") {
@@ -43,6 +40,7 @@ function (eset, subtype.class, subtype.crisp, subtype.fuzzy) {
   experimentData(eset)@other$crisp <- subtype.crisp
   experimentData(eset)@other$fuzzy <- subtype.fuzzy
   
+  eset$subtype <- subtype.class
   return (eset)
 }
 
