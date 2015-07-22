@@ -61,7 +61,7 @@
   }
   text <- paste(sprintf("HR: %.3f (%.3f-%.3f);", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.1E", pval.for.plot))
   
-  km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(my.df$groups), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
+  km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(my.df$groups), leg.pos="topright", leg.inset=0, leg.bty="n", n.risk.cex=0.85, cex=0.4, o.text=text)
   
   
   # Basal-like
@@ -88,7 +88,7 @@
   }
   text <- paste(sprintf("HR: %.3f (%.3f-%.3f);", basal.hr.out$hazard.ratio, basal.hr.out$lower, basal.hr.out$upper), sprintf("Logrank p = %.1E", basal.pval.for.plot))
   
-  km.coxph.plot(surv.obj ~ groups, basal.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(my.df$groups), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
+  km.coxph.plot(surv.obj ~ groups, basal.df, x.label="Time (years)", y.label = ylab, main.title=basal.main.title, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(my.df$groups), leg.pos="topright", leg.inset=0, leg.bty="n", n.risk.cex=0.85, cex=0.4, o.text=text)
   par(mfrow=orig.mfrow)
   return(list(pval.cont.all=pval.cont.all, pval.cont.basal=pval.cont.basal))
 }
@@ -100,7 +100,7 @@
 #print(.get.ordered.data.table(survival.df$data.source), include.rownames=FALSE)
 @
 
-Untreated patients
+\noindent Untreated patients
 <<Single_gene_survival_untreated_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth", cache=FALSE>>=
 untreated.pvals <- .plot.survival.curves.with.basal(esets.rfs.untreated, survival.type="rfs")
 @
@@ -108,7 +108,7 @@ untreated.pvals <- .plot.survival.curves.with.basal(esets.rfs.untreated, surviva
   \noindent Continuous model logrank p = \Sexpr{sprintf("%.5f", untreated.pvals$pval.cont.all)} & Continuous model logrank p = \Sexpr{sprintf("%.5f", untreated.pvals$pval.cont.basal)}
 \end{tabularx}
 
-All patients
+\noindent All patients
 <<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth", cache=FALSE>>=
 all.pvals <- .plot.survival.curves.with.basal(esets.rfs, survival.type="rfs")
 @
@@ -117,7 +117,7 @@ all.pvals <- .plot.survival.curves.with.basal(esets.rfs, survival.type="rfs")
 \end{tabularx}
 
 \pagebreak
-METABRIC - overall survival
+\noindent METABRIC - overall survival
 <<Single_gene_survival_metabric_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth", cache=FALSE>>=
 metabric.pvals <- .plot.survival.curves.with.basal(esets.os["METABRIC"], survival.type="os")
 @

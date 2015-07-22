@@ -42,9 +42,11 @@ source("../../R/datasetMerging.R")
 source("../../R/get.survival.data.for.plotting.R")
 source("../../R/subtypeClassification.R")
 source("../../R/setSubtype.R")
+source("../../R/create.forest.plot.R")
 source("~/repos/MetaGx/R/stripWhiteSpace.R")
 
 strata.term <- TRUE
+meta.analysis <- FALSE
 @
 
 
@@ -123,23 +125,28 @@ rownames(data.counts)[nrow(data.counts)] <- "Sum"
 xtable(data.counts)
 @
 
-Treatment status may be a confounder to patient outcome. We performed survival analysis on only untreated patients:\footnote{Datasets with fewer than 50 untreated patients were excluded.}
+Treatment status may be a confounder to patient outcome. We performed survival analysis our full dataset, as well as only the untreated patients:\footnote{Datasets with fewer than 50 untreated patients were excluded.}
 <<Dataset_table_untreated, results='asis'>>=
-data.counts <- as.data.frame(sapply(esets.rfs.untreated, function(x) ncol(exprs(x))))
-colnames(data.counts) <- "Number of samples"
-data.counts <- rbind(data.counts, sum(data.counts[,1]))
-rownames(data.counts)[nrow(data.counts)] <- "Sum"
-xtable(data.counts)
+if(!meta.analysis) {
+  data.counts <- as.data.frame(sapply(esets.rfs.untreated, function(x) ncol(exprs(x))))
+  colnames(data.counts) <- "Number of samples"
+  data.counts <- rbind(data.counts, sum(data.counts[,1]))
+  rownames(data.counts)[nrow(data.counts)] <- "Sum"
+  xtable(data.counts)
+}
 @
 
 
 \pagebreak
 <<single_gene, cache=FALSE, include=FALSE>>=
-single.gene.knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
-#single.gene.knitr.text <- lapply(1:1, function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
+if(meta.analysis) {
+  knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.meta.analysis.Rnw'))
+} else {
+  knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
+}
 @
 
-\Sexpr{knit(text=unlist(single.gene.knitr.text))}
+\Sexpr{knit(text=unlist(knitr.text))}
 
 \pagebreak
 

@@ -4,7 +4,7 @@ create.forest.plot <- function(
                           surv.time.colname,
                           surv.event.colname,
                           risk.val.colname,
-                          stat=c("concordance.index","d.index"),
+                          stat=c("concordance.index","d.index", "hazard.ratio"),
                           dataset.names = names(survival.data),
                           pooling.method = c("both", "fixed", "random"),
                           random.pooled.name = "Pooled estimate (random)",
@@ -32,6 +32,12 @@ create.forest.plot <- function(
     survcomp::D.index(x=x[[risk.val.colname]], surv.time=x[[surv.time.colname]], surv.event=x[[surv.event.colname]])
     })
   stat.vals <- sapply(stat.objects, function(x) x$d.index)
+  }
+  if(stat == "hazard.ratio") {
+  stat.objects <- lapply(survival.data, function(x) {
+    survcomp::hazard.ratio(x=x[[risk.val.colname]], surv.time=x[[surv.time.colname]], surv.event=x[[surv.event.colname]])
+    })
+  stat.vals <- sapply(stat.objects, function(x) x$hazard.ratio)
   }
   
   myspace <- "    "
@@ -72,9 +78,16 @@ create.forest.plot <- function(
   } else if(stat=="d.index") {
     zero <- 1
     xlab <- "D-index"
+  } else if(stat=="hazard.ratio") {
+    stat.lower = log10(stat.lower)
+    stat.upper = log10(stat.upper)
+    stat.vals = log10(stat.vals)
+    zero <- 0
+    xlab <- "log(Hazard Ratio)"
   }
+  
   if(!just.meta) {
-    survcomp::forestplot.surv(labeltext=labeltext, mean=stat.vals, lower=stat.lower, upper=stat.upper, is.summary = c(rep(FALSE, length(stat.vals)-num.summary.stats), rep(TRUE, num.summary.stats)), zero=zero, xlab=xlab)
+    survcomp::forestplot.surv(labeltext=labeltext, mean=stat.vals, lower=stat.lower, upper=stat.upper, is.summary = c(rep(FALSE, length(stat.vals)-num.summary.stats), rep(TRUE, num.summary.stats)), zero=zero, xlab=xlab, x.ticks = x.ticks)
   } else {
     survcomp::forestplot.surv(labeltext=labeltext[c(nrow(labeltext)-1, nrow(labeltext)),], mean=stat.vals[c(nrow(labeltext)-1, nrow(labeltext))], lower=stat.lower[c(nrow(labeltext)-1, nrow(labeltext))], upper=stat.upper[c(nrow(labeltext)-1, nrow(labeltext))], is.summary = c(FALSE, FALSE), zero=zero, xlab=xlab, x.ticks=x.ticks)
   }

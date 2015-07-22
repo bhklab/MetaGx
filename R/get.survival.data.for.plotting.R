@@ -99,8 +99,8 @@ get.survival.data.for.plotting <- function(
     
     # If dmfs is available: use dmfs only if recurrence_status is NA.
     if("dmfs_status" %in% colnames(pData(eset))) {
-      survival.data$recurrence_status <- survival.data$recurrence_status == "recurrence" | survival.data$recurrence_status == "deceased_or_recurrence"
-      survival.data$dmfs_status <- survival.data$dmfs_status == "deceased_or_recurrence"
+      survival.data$recurrence_status <- survival.data$recurrence_status == "recurrence"
+      survival.data$dmfs_status <- survival.data$dmfs_status == "recurrence"
       
       use.dmfs.logical <- is.na(survival.data$days_to_tumor_recurrence) & is.na(survival.data$recurrence_status) & !is.na(survival.data$dmfs_days) & !is.na(survival.data$dmfs_status)
       

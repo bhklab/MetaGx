@@ -1,0 +1,61 @@
+\pagebreak
+\section{\Sexpr{gene.names[{{current.index}}]}}
+
+<<Single_gene_metaanalysis_load_data_{{current.index}}, include=FALSE>>=
+# Remove patients with NA values for that gene
+esets.with.gene <- esets.rfs[sapply(esets.rfs, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
+esets.with.gene <- lapply(esets.with.gene, function(eset) {
+  current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
+  return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
+  })
+
+survival.df.list <- lapply(esets.with.gene, function(x) {
+  current.df <- get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="tumor.recurrence", time.unit="years", additional.colnames.to.keep = c("subtype"))
+})
+
+survival.df.list <- lapply(survival.df.list, function(survival.df) {
+  ylab="Recurrence-Free Survival"
+  surv.cens.obj <- survcomp::censor.time(survival.df$years_to_event, survival.df$event_status, time.cens=10)
+  survival.df$years_to_event <- surv.cens.obj$surv.time.cens
+  survival.df$event_status <- surv.cens.obj$surv.event.cens
+  return(survival.df)
+})
+@
+
+<<survival_grid_{{current.index}}, fig.width=12, fig.height=12, out.width="1.0\\textwidth">>=
+orig.mfrow <- par("mfrow")
+par(mfrow=c(4,4))
+for(i in 1:length(survival.df.list)) {
+  survival.df <- survival.df.list[[i]]
+  current.dataset.name <- names(survival.df.list)[i]
+  surv.time <- survival.df$years_to_event
+  surv.event <- survival.df$event_status
+  groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
+  expression <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
+  group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
+  main.title <- current.dataset.name
+  ylab <- "RFS"
+  
+  #levels(groups) <- paste0(levels(groups))
+  
+  my.df <- data.frame(surv.obj=Surv(time=surv.time, event=surv.event), groups=groups)
+  
+  km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = FALSE, leg.text = levels(my.df$groups), leg.pos="topright", leg.bty="n", leg.inset=0, n.risk.cex=0.85, cex=0.4)
+}
+par(mfrow=orig.mfrow)
+@
+
+<<singlegene_metaanalysis_forestplot_{{current.index}}, fig.width=5, fig.height=7, out.width="0.5\\textwidth", cache=FALSE>>=
+meta.stats <- create.forest.plot(survival.df.list,surv.time.colname = "years_to_event", surv.event.colname = "event_status", risk.val.colname = paste0("geneid.", entrez.ids[{{current.index}}], ".quantile"), stat = "hazard.ratio", x.ticks = c(-0.5,0,0.5))
+meta.stats$stat.upper <- 10^meta.stats$stat.upper
+meta.stats$stat.lower <- 10^meta.stats$stat.lower
+meta.stats$stat.vals <- 10^meta.stats$stat.vals
+
+meta.fixed.text <- sprintf("%.3f, 95\\%% CI: [%.3f, %.3f]", meta.stats$stat.vals["meta.fixed"], meta.stats$stat.lower["meta.fixed"], meta.stats$stat.upper["meta.fixed"])
+meta.random.text <- sprintf("%.3f, 95\\%% CI: [%.3f, %.3f]", meta.stats$stat.vals["meta.random"], meta.stats$stat.lower["meta.random"], meta.stats$stat.upper["meta.random"])
+@
+
+\noindent Hazard ratio (random effects): \Sexpr{meta.random.text}
+
+\noindent Hazard ratio (fixed effects):  \Sexpr{meta.fixed.text}
+
