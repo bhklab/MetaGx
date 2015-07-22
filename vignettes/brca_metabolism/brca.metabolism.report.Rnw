@@ -23,7 +23,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
 days.per.month <- 30.4368
 days.per.year <- 365.242
@@ -35,26 +35,25 @@ library(ggplot2)
 library(xtable)
 library(genefu)
 library(hgu133plus2.db)
-source("../R/create.survival.plot.R")
-source("../R/stripWhiteSpace.R")
-source("../R/getSubtype.R")
-source("../R/datasetMerging.R")
-source("../R/get.survival.data.for.plotting.R")
-source("../R/subtypeClassification.R")
-source("../R/setSubtype.R")
+source("../../R/create.survival.plot.R")
+source("../../R/stripWhiteSpace.R")
+source("../../R/getSubtype.R")
+source("../../R/datasetMerging.R")
+source("../../R/get.survival.data.for.plotting.R")
+source("../../R/subtypeClassification.R")
+source("../../R/setSubtype.R")
 source("~/repos/MetaGx/R/stripWhiteSpace.R")
 
-survival.type <- "rfs"
-strata.term <- FALSE
+strata.term <- TRUE
 @
 
 
 <<load_data, cache=TRUE>>=
-source("../inst/extdata/brca.patientselection.config")
+source("../../inst/extdata/brca.patientselection.config")
 source(system.file("extdata", "createEsetList.R", package="MetaGxBreast"))
 
 # order by publication date. Note that EXPO was set to the year it was public on GEO (2005).
-publication.dates <- read.table("../inst/extdata/MetaGxBreast_publication_dates.txt", header=TRUE, stringsAsFactors = FALSE)
+publication.dates <- read.table("../../inst/extdata/MetaGxBreast_publication_dates.txt", header=TRUE, stringsAsFactors = FALSE)
 if(!all(names(esets) %in% publication.dates$Dataset)) {
   stop("Not all eset names are present in MetaGxBreast_publication_dates.txt")
 }
@@ -69,6 +68,17 @@ esets <- lapply(esets, function(x) {
   pData(x)[factor.indices] <- lapply(pData(x)[factor.indices], as.character)
   return(x)
   })
+esets <- lapply(esets, function(x) {
+  x <- subtypeClassification(x, model = "scmod2")
+  return(x)
+  })
+eset.names <- names(esets)
+esets <- lapply(names(esets), function(x) {
+  eset.toreturn <- esets[[x]]
+  eset.toreturn$data.source <- x
+  return(eset.toreturn)
+  })
+names(esets) <- eset.names
 
 metabolic.genes <- read.table("metabolic.genes", sep="\t", header=TRUE, stringsAsFactors = FALSE)
 gene.names <- metabolic.genes$Gene.name
@@ -90,51 +100,38 @@ entrez.ids <- metabolic.genes$Entrez.ID
 
 # only keep patients with survival data
 esets.os <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
-if(survival.type == "os") {
-  esets <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
-} else {
-  esets <- lapply(esets, function(eset) eset[,!is.na(eset$recurrence_status) | !is.na(eset$dmfs_status)])
-}
+esets.rfs <- lapply(esets, function(eset) eset[,!is.na(eset$recurrence_status) | !is.na(eset$dmfs_status)])
 
 ## Remove datasets that are empty
 esets.os <- esets.os[sapply(esets.os, function(x) ncol(exprs(x)) > 0)]
-esets <- esets[sapply(esets, function(x) ncol(exprs(x)) > 0)]
-
-esets <- lapply(esets, function(x) {
-  x <- subtypeClassification(x, model = "scmod2")
-  x$subtype <- experimentData(x)@other$class
-  return(x)
-  })
-
-#pooled.eset <- datasetMerging(esets, nthread=2)
-if(survival.type == "os") {
-  surv.type.text <- "overall survival."
-} else {
-   surv.type.text <- "recurence-free survival. When recurrence-free survival was unavailable, we used distant metastatis-free survival. "
-}
+esets.rfs <- esets.rfs[sapply(esets.rfs, function(x) ncol(exprs(x)) > 0)]
+esets.rfs.untreated <- lapply(esets.rfs, function(eset) eset[,!is.na(eset$treatment) & eset$treatment == "untreated"])
+esets.rfs.untreated <- esets.rfs.untreated[sapply(esets.rfs.untreated, function(x) ncol(exprs(x))) >= 50]
+rm(esets)
 @
 
 \tableofcontents
 \pagebreak
 \section{Datasets}
 
-From MetaGxBreast, we selected patients from studies which tracked \Sexpr{surv.type.text} We identified \Sexpr{sum(sapply(esets, function(x) ncol(exprs(x))))} patients from \Sexpr{length(esets)} datasets.
+From MetaGxBreast, we selected patients from studies which tracked recurence-free survival. When recurrence-free survival was unavailable, we used distant metastatis-free survival.  We identified \Sexpr{sum(sapply(esets.rfs, function(x) ncol(exprs(x))))} patients from \Sexpr{length(esets.rfs)} datasets.
 <<Dataset_table, results='asis'>>=
-
-.get.ordered.data.table <- function(data.source) {
-  data.source <- as.character(data.source)
-  data.counts <- as.data.frame(addmargins(table(data.source)))
-  data.counts$Freq <- as.integer(data.counts$Freq)
-  colnames(data.counts) <- c("Dataset name", "Number of samples")
-  return(xtable(data.counts))
-}
-
-data.counts <- as.data.frame(sapply(esets, function(x) ncol(exprs(x))))
+data.counts <- as.data.frame(sapply(esets.rfs, function(x) ncol(exprs(x))))
 colnames(data.counts) <- "Number of samples"
 data.counts <- rbind(data.counts, sum(data.counts[,1]))
 rownames(data.counts)[nrow(data.counts)] <- "Sum"
 xtable(data.counts)
 @
+
+Treatment status may be a confounder to patient outcome. We performed survival analysis on only untreated patients:\footnote{Datasets with fewer than 50 untreated patients were excluded.}
+<<Dataset_table_untreated, results='asis'>>=
+data.counts <- as.data.frame(sapply(esets.rfs.untreated, function(x) ncol(exprs(x))))
+colnames(data.counts) <- "Number of samples"
+data.counts <- rbind(data.counts, sum(data.counts[,1]))
+rownames(data.counts)[nrow(data.counts)] <- "Sum"
+xtable(data.counts)
+@
+
 
 \pagebreak
 <<single_gene, cache=FALSE, include=FALSE>>=
@@ -197,6 +194,7 @@ for(current.index in match(c("HMGCR", "HMGCS1", "MVD", "FDPS", "ACAT2", "MVK"), 
   km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=5, leg.text = levels(my.df$groups), .col=RColorBrewer::brewer.pal(length(levels(my.df$groups)), name="Dark2"),leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
 }
 @
+
 %Original figure:
 
 %\includegraphics[width=0.9\textwidth]{metabolism-survival.jpg}
