@@ -16,7 +16,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
@@ -113,12 +113,12 @@ source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 This document reports the results of my initial implementations of ovarian cancer subtyping classification schemes described below. Using the gene lists provided in supplementary data for each publication, I have implemented the subtyping classifiers as described in the methods or supplementary texts, replicating their methods as closely as possible.
 \tableofcontents
 
-%\Sexpr{knit_child('reproduceKonecny.Rnw')}
+\Sexpr{knit_child('reproduceKonecny.Rnw')}
 
-%\Sexpr{knit_child('reproduceVerhaak.Rnw')}
+\Sexpr{knit_child('reproduceVerhaak.Rnw')}
 
 \Sexpr{knit_child('reproduceHelland.Rnw')}
 
-%\Sexpr{knit_child('reproduceBentink.Rnw')}
+\Sexpr{knit_child('reproduceBentink.Rnw')}
 
 \end{document}

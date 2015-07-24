@@ -3,12 +3,12 @@
 
 <<bentink_crijns, fig.width=9, fig.height=4, cache=FALSE>>=
 source("../../R/getBentinkSubtypes.R", chdir=TRUE)
-crijns.eset <- getGeneMapping(esets$GSE13876)
-tothill.eset <- getGeneMapping(esets$GSE9891)
-dressman.eset <- getGeneMapping(esets$PMID17290060)
-bentink.eset <- getGeneMapping(esets$E.MTAB.386)
-denkert.eset <- getGeneMapping(esets$GSE14764)
-mok.eset <- getGeneMapping(esets$GSE18520)
+crijns.eset <- esets$GSE13876
+tothill.eset <- esets$GSE9891
+dressman.eset <- esets$PMID17290060
+bentink.eset <- esets$E.MTAB.386
+denkert.eset <- esets$GSE14764
+mok.eset <- esets$GSE18520
 
 implemented.bentink.esets <- list(
   crijns=crijns.eset,

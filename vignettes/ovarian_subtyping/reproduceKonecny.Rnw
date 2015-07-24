@@ -5,7 +5,7 @@
 <<konecny, cache=FALSE>>=
 source("../../R/getKonecnySubtypes.R", chdir=TRUE)
 # validate on Bonome dataset
-bonome.eset <- getGeneMapping(esets$GSE26712)
+bonome.eset <- esets$GSE26712
 
 implemented.konecny.out <- getKonecnySubtypes(bonome.eset)
 konecny.spreadsheet.data <- read.xls("../../inst/extdata/jnci_JNCI_14_0249_s06.xls")
