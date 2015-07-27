@@ -21,6 +21,7 @@ options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
 days.per.year <- 365.242
+package.dir <- "~/repos/MetaGx/"
 @
 
 \title{Robustness of Ovarian Subtyping Schemes}
@@ -56,20 +57,12 @@ library(randomForest)
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
-source("../inst/extdata/reproduce.results.patientselection.config")
+source("../../inst/extdata/reproduce.results.patientselection.config")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
-rm(probe.gene.mapping)
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 
-getGeneMapping <- function(eset) {
-  eset <- eset[fData(eset)$best_probe,]
-  rownames(eset) <- paste0("geneid.", fData(eset)$EntrezGene.ID)
-  return(eset)
-}
-
 esets.with.survival <- esets
-esets.with.survival <- lapply(esets.with.survival, getGeneMapping)
 esets.with.survival <- lapply(esets.with.survival, function(eset) eset[,!is.na(eset$vital_status)])
 esets.with.survival <- lapply(esets.with.survival, function(eset) eset[,!is.na(eset$days_to_death)])
 esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 0)]
@@ -79,24 +72,31 @@ esets.with.survival$TCGA.RNASeqV2 <- esets.with.survival$TCGA.RNASeqV2[apply(exp
 esets.with.survival$GSE51088 <- esets.with.survival$GSE51088[apply(exprs(esets.with.survival$GSE51088), 1, function(x) all(!is.na(x))),]
 esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 100)]
 
+eset.names <- names(esets.with.survival)
+esets.with.survival <- lapply(names(esets.with.survival), function(x) {
+  eset.toreturn <- esets.with.survival[[x]]
+  eset.toreturn$data.source <- x
+  return(eset.toreturn)
+  })
+names(esets.with.survival) <- eset.names
 
-source("../R/getKonecnySubtypes.R")
-source("../R/getVerhaakSubtypes.R")
-source("../R/getHellandSubtypes.R")
-source("../R/getBentinkHaibeKainsSubtypes.R")
-source("../R/create.survival.plot.R")
+source("../../R/getKonecnySubtypes.R")
+source("../../R/getVerhaakSubtypes.R")
+source("../../R/getHellandSubtypes.R")
+source("../../R/getBentinkSubtypes.R")
+source("../../R/create.survival.plot.R")
 
 # Subtype classification
 esets.with.survival <- lapply(esets.with.survival, function(x) getKonecnySubtypes(x)[[1]])
-#esets.with.survival <- lapply(esets.with.survival, function(x) getVerhaakSubtypes(x)[[1]])
+esets.with.survival <- lapply(esets.with.survival, function(x) getVerhaakSubtypes(x)[[1]])
 esets.with.survival <- lapply(esets.with.survival, function(x) getHellandSubtypes(x)[[1]])
-esets.with.survival <- lapply(esets.with.survival, function(x) getBentinkHaibeKainsSubtypes(x)[[1]])
+esets.with.survival <- lapply(esets.with.survival, function(x) getBentinkSubtypes(x)[[1]])
+save(esets.with.survival, file = "esets.with.survival.RData")
 @
 
 \tableofcontents
 
 <<plot_konecny>>=
-png("Konecny_survival.png", width=1200, height=800)
 par(mfrow=c(3,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
@@ -105,13 +105,25 @@ sapply(names(esets.with.survival), function(x) {
                        groups=current.eset$Konecny.subtype,
                        stats.to.show=c("n","p"),
                        main=paste0("Survival plot: ", x),
+                       xlab="Time (years)",
+                       )
+  })
+@
+
+<<plot_verhaak>>=
+par(mfrow=c(3,4))
+sapply(names(esets.with.survival), function(x) {
+  current.eset <- esets.with.survival[[x]]
+  create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
+                       surv.event=current.eset$vital_status == "deceased",
+                       groups=current.eset$Verhaak.subtype,
+                       stats.to.show=c("n","p"),
+                       main=paste0("Survival plot: ", x),
                        xlab="Time (years)")
   })
-dev.off()
 @
 
 <<plot_helland>>=
-png("Helland_survival.png", width=1200, height=800)
 par(mfrow=c(3,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
@@ -122,21 +134,96 @@ sapply(names(esets.with.survival), function(x) {
                        main=paste0("Survival plot: ", x),
                        xlab="Time (years)")
   })
-dev.off()
 @
 
 <<plot_bentink>>=
-png("Bentink_survival.png", width=1200, height=800)
 par(mfrow=c(3,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
   create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
                        surv.event=current.eset$vital_status == "deceased",
-                       groups=current.eset$Bentink.Haibe.Kains.subtype,
+                       groups=current.eset$Bentink.subtype,
                        stats.to.show=c("n","p"),
                        main=paste0("Survival plot: ", x),
                        xlab="Time (years)")
   })
-dev.off()
+@
+
+<<Contingency_tables>>=
+subtype.names <- c("Konecny", "Verhaak", "Helland", "Bentink")
+subtype.names <- paste0(subtype.names, ".subtypes")
+
+subtype.classes <- sapply(subtype.names, function(subtype.name) {
+  current.subclasses <- do.call(c,sapply(esets.with.survival, function(eset) as.character(pData(eset)[,subtype.name])))
+  current.subclasses <- as.factor(current.subclasses)
+  return(current.subclasses)
+})
+subtype.classes <- as.data.frame(subtype.classes)
+
+colnames(subtype.classes) <- sub(".subtypes", "", colnames(subtype.classes))
+
+subtype.classes$Konecny <- factor(subtype.classes$Konecny, levels(subtype.classes$Konecny)[c(4,1,2,3)])
+subtype.classes$Verhaak <- factor(subtype.classes$Verhaak, levels(subtype.classes$Verhaak)[c(3,2,1,4)])
+
+pair.matrix <- combn(colnames(subtype.classes),2)
+
+contingency.plots <- apply(pair.matrix, 2, function(subtype.name.pair) {
+  contingency.matrix <- as.matrix(table(subtype.classes[,subtype.name.pair[1]],subtype.classes[,subtype.name.pair[2]]))
+#  ord <- hclust(dist(contingency.matrix, method="euclidean"))$order
+  contingency.m <- melt(contingency.matrix)
+  colnames(contingency.m) <- c(subtype.name.pair[1], subtype.name.pair[2], "value")
+#  contingency.m[,subtype.name.pair[1]] <- factor(contingency.m[,subtype.name.pair[1]], levels = levels(contingency.m[,subtype.name.pair[1]])[ord])
+   
+  p <- ggplot(contingency.m, aes_string(subtype.name.pair[1], subtype.name.pair[2])) + 
+    geom_tile(aes(fill = value), colour = "white") + 
+    scale_fill_gradient(name="Frequency", low="black", high="#58A4DE") + 
+    ggtitle(paste0("Contingency table: ", subtype.name.pair[1], " vs ", subtype.name.pair[2])) +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank()) +
+    geom_text(label=as.character(contingency.matrix), colour="white")
+  return(p)
+})
+
+
+do.call(grid.arrange, c(contingency.plots, ncol = 2))
+@
+
+<<Pooled.survival>>=
+par(mfrow=c(2,2))
+par(mar=c(5,1,0,1))
+for(subtype.name in subtype.names) {
+  survival.df <- do.call(rbind, lapply(esets.with.survival, function(eset) {
+    current.df <- pData(eset)[,c("vital_status", "days_to_death", "data.source", subtype.name)]
+    current.df$vital_status <- current.df$vital_status == "deceased"
+    colnames(current.df)[4] <- "groups"
+    current.df$groups <- as.character(current.df$groups)
+    return(current.df)
+  }))
+  survival.df$groups <- as.factor(survival.df$groups)
+  survival.df$data.source <- as.factor(survival.df$data.source)
+  
+  survival.df$years_to_death = survival.df$days_to_death / days.per.year
+  survival.df$days_to_death <- NULL
+  
+  # Censor to ten years
+  censor.time.out <- survcomp::censor.time(surv.time = survival.df$years_to_death, surv.event = survival.df$vital_status, time.cens = 10)
+  survival.df$years_to_death <- censor.time.out$surv.time.cens
+  survival.df$vital_status <- censor.time.out$surv.event.cens
+  
+  survival.df$surv.obj <- Surv(time = survival.df$years_to_death, event = survival.df$vital_status)
+  pval <- summary(coxph(surv.obj ~ groups + strata(data.source), survival.df))$sctest["pvalue"]
+  
+  hr.out <- survcomp::hazard.ratio(x=survival.df$groups, surv.time=survival.df$years_to_death, surv.event=survival.df$vital_status, strat=survival.df$data.source)
+  text <- ""
+  if(length(hr.out$hazard.ratio) == 1) {
+    text <- paste0(sprintf("HR: %.3f (%.3f-%.3f)\n", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.1E", pval))
+  } else {
+    for(i in 1:length(hr.out$hazard.ratio)) {
+      text <- paste0(text, sprintf("HR%i: %.3f (%.3f-%.3f)\n", i, hr.out$hazard.ratio[i], hr.out$lower[i], hr.out$upper[i]))
+    }
+     text <- paste0(text, sprintf("Logrank p = %.1E", pval))
+    }
+  km.coxph.plot(surv.obj ~ groups, survival.df, x.label="Time (years)", y.label = "Overall Survival", main.title=subtype.name, show.n.risk = TRUE, n.risk.step=2, leg.text = levels(survival.df$groups), leg.pos="topright", leg.inset=0, leg.bty="n", n.risk.cex=0.85, cex=0.4, o.text="")
+  text(0,0.03, text, cex=0.85, pos=4)
+}
 @
 \end{document}
