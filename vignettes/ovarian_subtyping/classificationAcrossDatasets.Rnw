@@ -22,6 +22,7 @@ par.original <- par()
 days.per.month <- 30.4368
 days.per.year <- 365.242
 package.dir <- "~/repos/MetaGx/"
+source("../../R/create.survival.plot.R")
 @
 
 \title{Robustness of Ovarian Subtyping Schemes}
@@ -51,9 +52,16 @@ library(survcomp)
 library(ggplot2)
 library(e1071)
 library(randomForest)
+library(gridExtra)
+library(survcomp)
+library(genefu)
+
+source("../../R/subtypeClassification.R")
+source("../../R/setSubtype.R")
+source("../../R/stripWhiteSpace.R")
 @
 
-<<load_data>>=
+<<load_data, eval=FALSE>>=
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
@@ -65,12 +73,19 @@ source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 esets.with.survival <- esets
 esets.with.survival <- lapply(esets.with.survival, function(eset) eset[,!is.na(eset$vital_status)])
 esets.with.survival <- lapply(esets.with.survival, function(eset) eset[,!is.na(eset$days_to_death)])
+esets.with.survival <- lapply(esets.with.survival, function(x)
+  x[,x$histological_type=="ser" & x$summarygrade=="high" & x$summarystage=="late" & !is.na(x$histological_type) & !is.na(x$summarygrade) & !is.na(x$summarystage)]
+)
 esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 0)]
 
 # Only use datasets with at least 100 patients
 esets.with.survival$TCGA.RNASeqV2 <- esets.with.survival$TCGA.RNASeqV2[apply(exprs(esets.with.survival$TCGA.RNASeqV2), 1, function(x) all(!is.na(x))),]
 esets.with.survival$GSE51088 <- esets.with.survival$GSE51088[apply(exprs(esets.with.survival$GSE51088), 1, function(x) all(!is.na(x))),]
-esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 100)]
+esets.with.survival$GSE19829 <- esets.with.survival$GSE19829[apply(exprs(esets.with.survival$GSE19829), 1, function(x) all(!is.na(x))),]
+
+esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) nrow(x) > 10000)]
+
+#esets.with.survival <- esets.with.survival[sapply(esets.with.survival, function(x) ncol(exprs(x)) > 100)]
 
 eset.names <- names(esets.with.survival)
 esets.with.survival <- lapply(names(esets.with.survival), function(x) {
@@ -92,12 +107,59 @@ esets.with.survival <- lapply(esets.with.survival, function(x) getVerhaakSubtype
 esets.with.survival <- lapply(esets.with.survival, function(x) getHellandSubtypes(x)[[1]])
 esets.with.survival <- lapply(esets.with.survival, function(x) getBentinkSubtypes(x)[[1]])
 save(esets.with.survival, file = "esets.with.survival.RData")
+rm(esets)
+@
+
+<<load_brca_data, eval=FALSE>>=
+rm(list=ls())
+source("../../inst/extdata/brca.patientselection.config")
+source(system.file("extdata", "createEsetList.R", package="MetaGxBreast"))
+
+esets <- lapply(esets, function(x) {
+  x <- subtypeClassification(x, model = "scmod2")
+  return(x)
+  })
+eset.names <- names(esets)
+esets <- lapply(names(esets), function(x) {
+  eset.toreturn <- esets[[x]]
+  eset.toreturn$data.source <- x
+  return(eset.toreturn)
+  })
+names(esets) <- eset.names
+
+# only keep patients with survival data
+brca.esets.os <- lapply(esets, function(eset) eset[,!is.na(eset$days_to_death) & !is.na(eset$vital_status)])
+
+## Remove datasets that are empty
+brca.esets.os <- brca.esets.os[sapply(brca.esets.os, function(x) ncol(exprs(x)) > 0)]
+brca.esets.os.untreated <- lapply(brca.esets.os, function(eset) eset[,!is.na(eset$treatment) & eset$treatment == "untreated"])
+brca.esets.os.untreated <- brca.esets.os.untreated[sapply(brca.esets.os.untreated, function(x) ncol(exprs(x))) >= 50]
+
+brca.esets.os <- lapply(brca.esets.os, function(x) {
+  x <- subtypeClassification(x, model = "scmod2")
+  return(x)
+  })
+
+brca.esets.os.untreated <- lapply(brca.esets.os.untreated, function(x) {
+  x <- subtypeClassification(x, model = "scmod2")
+  return(x)
+  })
+
+save(brca.esets.os, file="brca.esets.os.RData")
+save(brca.esets.os.untreated, file="brca.esets.os.untreated.RData")
+rm(list=ls())
+@
+
+<<load_data_from_files>>=
+load("esets.with.survival.RData")
+load("brca.esets.os.untreated.RData")
+load("brca.esets.os.RData")
 @
 
 \tableofcontents
 
 <<plot_konecny>>=
-par(mfrow=c(3,4))
+par(mfrow=c(4,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
   create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
@@ -105,13 +167,12 @@ sapply(names(esets.with.survival), function(x) {
                        groups=current.eset$Konecny.subtype,
                        stats.to.show=c("n","p"),
                        main=paste0("Survival plot: ", x),
-                       xlab="Time (years)",
-                       )
+                       xlab="Time (years)")
   })
 @
 
 <<plot_verhaak>>=
-par(mfrow=c(3,4))
+par(mfrow=c(4,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
   create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
@@ -124,7 +185,7 @@ sapply(names(esets.with.survival), function(x) {
 @
 
 <<plot_helland>>=
-par(mfrow=c(3,4))
+par(mfrow=c(4,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
   create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
@@ -137,7 +198,7 @@ sapply(names(esets.with.survival), function(x) {
 @
 
 <<plot_bentink>>=
-par(mfrow=c(3,4))
+par(mfrow=c(4,4))
 sapply(names(esets.with.survival), function(x) {
   current.eset <- esets.with.survival[[x]]
   create.survival.plot(surv.time=current.eset$days_to_death / days.per.year,
@@ -151,65 +212,63 @@ sapply(names(esets.with.survival), function(x) {
 
 <<Contingency_tables>>=
 subtype.names <- c("Konecny", "Verhaak", "Helland", "Bentink")
-subtype.names <- paste0(subtype.names, ".subtypes")
 
-subtype.classes <- sapply(subtype.names, function(subtype.name) {
-  current.subclasses <- do.call(c,sapply(esets.with.survival, function(eset) as.character(pData(eset)[,subtype.name])))
-  current.subclasses <- as.factor(current.subclasses)
-  return(current.subclasses)
-})
-subtype.classes <- as.data.frame(subtype.classes)
+pooled.subtypes.survival <- do.call(rbind, 
+    lapply(esets.with.survival, function(eset) pData(eset)[,c("days_to_death", "vital_status", "data.source",  paste0(subtype.names, ".subtypes"))]))
 
-colnames(subtype.classes) <- sub(".subtypes", "", colnames(subtype.classes))
+colnames(pooled.subtypes.survival)[4:7] <- sub(".subtypes", "", colnames(pooled.subtypes.survival)[4:7])
 
-subtype.classes$Konecny <- factor(subtype.classes$Konecny, levels(subtype.classes$Konecny)[c(4,1,2,3)])
-subtype.classes$Verhaak <- factor(subtype.classes$Verhaak, levels(subtype.classes$Verhaak)[c(3,2,1,4)])
+pooled.subtypes.survival$Konecny <- factor(pooled.subtypes.survival$Konecny, levels(pooled.subtypes.survival$Konecny)[c(1,2,3,4)])
+pooled.subtypes.survival$Verhaak <- factor(pooled.subtypes.survival$Verhaak, levels(pooled.subtypes.survival$Verhaak)[c(2,1,4,3)])
+pooled.subtypes.survival$Helland <- factor(pooled.subtypes.survival$Helland, levels(pooled.subtypes.survival$Helland)[c(2,3,4,1)])
+pooled.subtypes.survival$Bentink <- factor(pooled.subtypes.survival$Bentink, levels(pooled.subtypes.survival$Bentink)[c(2,1)])
 
-pair.matrix <- combn(colnames(subtype.classes),2)
+pooled.subtypes.survival$years_to_death = pooled.subtypes.survival$days_to_death / days.per.year
+pooled.subtypes.survival$days_to_death <- NULL
+pooled.subtypes.survival$vital_status <- pooled.subtypes.survival$vital_status == "deceased"
+
+pooled.subtypes.survival$surv.obj <- Surv(time = pooled.subtypes.survival$years_to_death, event = pooled.subtypes.survival$vital_status)
+
+pooled.subtypes.survival$data.source <- as.factor(pooled.subtypes.survival$data.source)
+
+# Censor to ten years
+censor.time.out <- survcomp::censor.time(surv.time = pooled.subtypes.survival$years_to_death, surv.event = pooled.subtypes.survival$vital_status, time.cens = 10)
+pooled.subtypes.survival$years_to_death <- censor.time.out$surv.time.cens
+pooled.subtypes.survival$vital_status <- censor.time.out$surv.event.cens
+
+pair.matrix <- combn(subtype.names,2)
+pair.matrix <- pair.matrix[,c(1,2,4,3,5,6)]
 
 contingency.plots <- apply(pair.matrix, 2, function(subtype.name.pair) {
-  contingency.matrix <- as.matrix(table(subtype.classes[,subtype.name.pair[1]],subtype.classes[,subtype.name.pair[2]]))
-#  ord <- hclust(dist(contingency.matrix, method="euclidean"))$order
+  contingency.matrix <- as.matrix(table(pooled.subtypes.survival[,subtype.name.pair[1]],pooled.subtypes.survival[,subtype.name.pair[2]]))
   contingency.m <- melt(contingency.matrix)
   colnames(contingency.m) <- c(subtype.name.pair[1], subtype.name.pair[2], "value")
-#  contingency.m[,subtype.name.pair[1]] <- factor(contingency.m[,subtype.name.pair[1]], levels = levels(contingency.m[,subtype.name.pair[1]])[ord])
+  contingency.m[,subtype.name.pair[1]] <- factor(contingency.m[,subtype.name.pair[1]], levels = levels(pooled.subtypes.survival[,subtype.name.pair[1]]))
+  contingency.m[,subtype.name.pair[2]] <- factor(contingency.m[,subtype.name.pair[2]], levels = levels(pooled.subtypes.survival[,subtype.name.pair[2]]))
    
   p <- ggplot(contingency.m, aes_string(subtype.name.pair[1], subtype.name.pair[2])) + 
-    geom_tile(aes(fill = value), colour = "white") + 
-    scale_fill_gradient(name="Frequency", low="black", high="#58A4DE") + 
+    geom_tile(aes(fill = value), colour = "black") + 
+    scale_fill_gradient(name="Frequency", low="white", high="#CC0000", limits=c(0,800)) + 
     ggtitle(paste0("Contingency table: ", subtype.name.pair[1], " vs ", subtype.name.pair[2])) +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank()) +
-    geom_text(label=as.character(contingency.matrix), colour="white")
+    geom_text(label=as.character(contingency.matrix), colour="black")
   return(p)
 })
 
-
 do.call(grid.arrange, c(contingency.plots, ncol = 2))
+png("subtype_classifier_conting.png", width=1200, height=800)
+do.call(grid.arrange, c(contingency.plots, ncol = 3))
+dev.off()
 @
 
 <<Pooled.survival>>=
 par(mfrow=c(2,2))
 par(mar=c(5,1,0,1))
 for(subtype.name in subtype.names) {
-  survival.df <- do.call(rbind, lapply(esets.with.survival, function(eset) {
-    current.df <- pData(eset)[,c("vital_status", "days_to_death", "data.source", subtype.name)]
-    current.df$vital_status <- current.df$vital_status == "deceased"
-    colnames(current.df)[4] <- "groups"
-    current.df$groups <- as.character(current.df$groups)
-    return(current.df)
-  }))
-  survival.df$groups <- as.factor(survival.df$groups)
-  survival.df$data.source <- as.factor(survival.df$data.source)
   
-  survival.df$years_to_death = survival.df$days_to_death / days.per.year
-  survival.df$days_to_death <- NULL
-  
-  # Censor to ten years
-  censor.time.out <- survcomp::censor.time(surv.time = survival.df$years_to_death, surv.event = survival.df$vital_status, time.cens = 10)
-  survival.df$years_to_death <- censor.time.out$surv.time.cens
-  survival.df$vital_status <- censor.time.out$surv.event.cens
-  
-  survival.df$surv.obj <- Surv(time = survival.df$years_to_death, event = survival.df$vital_status)
+  survival.df <- pooled.subtypes.survival
+  survival.df$groups <- survival.df[,subtype.name]
+
   pval <- summary(coxph(surv.obj ~ groups + strata(data.source), survival.df))$sctest["pvalue"]
   
   hr.out <- survcomp::hazard.ratio(x=survival.df$groups, surv.time=survival.df$years_to_death, surv.event=survival.df$vital_status, strat=survival.df$data.source)
@@ -218,7 +277,7 @@ for(subtype.name in subtype.names) {
     text <- paste0(sprintf("HR: %.3f (%.3f-%.3f)\n", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.1E", pval))
   } else {
     for(i in 1:length(hr.out$hazard.ratio)) {
-      text <- paste0(text, sprintf("HR%i: %.3f (%.3f-%.3f)\n", i, hr.out$hazard.ratio[i], hr.out$lower[i], hr.out$upper[i]))
+      text <- paste0(text, sprintf("HR %s: %.3f (%.3f-%.3f)\n", levels(survival.df$groups)[i+1], hr.out$hazard.ratio[i], hr.out$lower[i], hr.out$upper[i]))
     }
      text <- paste0(text, sprintf("Logrank p = %.1E", pval))
     }
@@ -226,4 +285,50 @@ for(subtype.name in subtype.names) {
   text(0,0.03, text, cex=0.85, pos=4)
 }
 @
+
+<<brca_classification>>=
+par(mfrow=c(2,1))
+esets.classified.by.brca <- lapply(esets.with.survival, function(x) {
+  x <- subtypeClassification(x, model = "scmod2")
+  return(x)
+  })
+pooled.brca.subtypes.survival <- do.call(rbind, 
+    lapply(esets.classified.by.brca, function(eset) pData(eset)[,c("days_to_death", "vital_status", "data.source", "subtype")]))
+
+pooled.brca.subtypes.survival$years_to_death = pooled.brca.subtypes.survival$days_to_death / days.per.year
+pooled.brca.subtypes.survival$days_to_death <- NULL
+pooled.brca.subtypes.survival$vital_status <- pooled.brca.subtypes.survival$vital_status == "deceased"
+
+pooled.brca.subtypes.survival$surv.obj <- Surv(time = pooled.brca.subtypes.survival$years_to_death, event = pooled.brca.subtypes.survival$vital_status)
+
+pooled.brca.subtypes.survival$data.source <- as.factor(pooled.brca.subtypes.survival$data.source)
+
+# Censor to ten years
+censor.time.out <- survcomp::censor.time(surv.time = pooled.brca.subtypes.survival$years_to_death, surv.event = pooled.brca.subtypes.survival$vital_status, time.cens = 10)
+pooled.brca.subtypes.survival$years_to_death <- censor.time.out$surv.time.cens
+pooled.brca.subtypes.survival$vital_status <- censor.time.out$surv.event.cens
+
+pooled.brca.subtypes.survival$surv.obj <- Surv(time = pooled.brca.subtypes.survival$years_to_death, event = pooled.brca.subtypes.survival$vital_status)
+
+km.coxph.plot(surv.obj ~ subtype, pooled.brca.subtypes.survival, x.label="Time (years)", y.label = "Overall Survival", main.title="HGS Ovarian Carcinoma", show.n.risk = TRUE, n.risk.step=2, leg.text = levels(pooled.brca.subtypes.survival$subtype), leg.pos="topright", leg.inset=0, leg.bty="n", n.risk.cex=0.85, cex=0.4)
+
+## Classification on breast cancer data
+
+brca.data.pooled.brca.subtypes.survival <- do.call(rbind, 
+    lapply(brca.esets.os, function(eset) pData(eset)[,c("days_to_death", "vital_status", "data.source", "subtype")]))
+
+brca.data.pooled.brca.subtypes.survival$years_to_death = brca.data.pooled.brca.subtypes.survival$days_to_death / days.per.year
+brca.data.pooled.brca.subtypes.survival$days_to_death <- NULL
+brca.data.pooled.brca.subtypes.survival$vital_status <- brca.data.pooled.brca.subtypes.survival$vital_status == "deceased"
+
+brca.data.pooled.brca.subtypes.survival$data.source <- as.factor(brca.data.pooled.brca.subtypes.survival$data.source)
+
+# Censor to ten years
+censor.time.out <- survcomp::censor.time(surv.time = brca.data.pooled.brca.subtypes.survival$years_to_death, surv.event = brca.data.pooled.brca.subtypes.survival$vital_status, time.cens = 10)
+brca.data.pooled.brca.subtypes.survival$years_to_death <- censor.time.out$surv.time.cens
+brca.data.pooled.brca.subtypes.survival$vital_status <- censor.time.out$surv.event.cens
+brca.data.pooled.brca.subtypes.survival$surv.obj <- Surv(time = brca.data.pooled.brca.subtypes.survival$years_to_death, event = brca.data.pooled.brca.subtypes.survival$vital_status)
+km.coxph.plot(surv.obj ~ subtype, brca.data.pooled.brca.subtypes.survival, x.label="Time (years)", y.label = "Overall Survival", main.title="Breast Cancer", show.n.risk = TRUE, n.risk.step=2, leg.text = levels(brca.data.pooled.brca.subtypes.survival$subtype), leg.pos="topright", leg.inset=0, leg.bty="n", n.risk.cex=0.85, cex=0.4)
+@
+
 \end{document}
