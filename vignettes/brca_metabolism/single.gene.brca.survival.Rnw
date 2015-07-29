@@ -5,26 +5,20 @@
 <<Single_gene_load_data_{{current.index}}, include=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth">>=
 # Remove patients with NA values for that gene
 # Returns a vector with the continuous p-values for all subtypes and basal-like respectively.
-.plot.survival.curves.with.basal <- function(eset.list, survival.type=c("rfs", "os")) {
+.plot.survival.curves.with.basal <- function(pooled.eset, survival.type=c("rfs", "os")) {
   survival.type <- match.arg(survival.type)
-  esets.with.gene <- eset.list[sapply(eset.list, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
-  esets.with.gene <- lapply(esets.with.gene, function(eset) {
-    current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
-    return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
-    })
+  
+  current.entrez.id.index <- which(fData(pooled.eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
+  pooled.eset.with.gene <- pooled.eset[,!is.na(exprs(pooled.eset))[current.entrez.id.index,]]
+
   # annotate with dataset
   
-  survival.df.list <- lapply(esets.with.gene, function(x) {
-    if(survival.type=="rfs") {
-    get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="tumor.recurrence", time.unit="years", additional.colnames.to.keep = c("subtype"))
-    } else {
-      get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
-    }
-  })
+  if(survival.type=="rfs") {
+    survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="tumor.recurrence", time.unit="years", additional.colnames.to.keep = c("subtype"))
+  } else {
+    survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
+  }
   
-  survival.df <- do.call(rbind, survival.df.list)
-  
-  #survival.df <- get.survival.data.for.plotting(pooled.eset.with.gene, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years", additional.colnames.to.keep = c("subtype"))
   if(survival.type == "os") {
     ylab="Overall Survival"
   } else {
@@ -50,7 +44,7 @@
   
   my.df <- data.frame(surv.obj=Surv(time=surv.time, event=surv.event), groups=groups, datasets=datasets)
   
-  if(strata.term==TRUE) {
+  if(strata.term==TRUE && length(unique(my.df$datasets)) > 1) {
     pval.cont.all <- summary(coxph(Surv(time=surv.time, event=surv.event) ~ expression + strata(datasets)))$sctest["pvalue"]
     pval.for.plot <- summary(coxph(surv.obj ~ groups + strata(datasets), my.df))$sctest["pvalue"]
     hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event, strat=datasets)
@@ -102,7 +96,7 @@
 
 \noindent Untreated patients
 <<Single_gene_survival_untreated_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth", cache=FALSE>>=
-untreated.pvals <- .plot.survival.curves.with.basal(esets.rfs.untreated, survival.type="rfs")
+untreated.pvals <- .plot.survival.curves.with.basal(pooled.eset.rfs.untreated, survival.type="rfs")
 @
 \begin{tabularx}{\textwidth}{p{\dimexpr.5\textwidth}p{\dimexpr.5\textwidth}}
   \noindent Continuous model logrank p = \Sexpr{sprintf("%.5f", untreated.pvals$pval.cont.all)} & Continuous model logrank p = \Sexpr{sprintf("%.5f", untreated.pvals$pval.cont.basal)}
@@ -110,7 +104,7 @@ untreated.pvals <- .plot.survival.curves.with.basal(esets.rfs.untreated, surviva
 
 \noindent All patients
 <<Single_gene_survival_all_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth", cache=FALSE>>=
-all.pvals <- .plot.survival.curves.with.basal(esets.rfs, survival.type="rfs")
+all.pvals <- .plot.survival.curves.with.basal(pooled.eset.rfs, survival.type="rfs")
 @
 \begin{tabularx}{\textwidth}{p{\dimexpr.5\textwidth}p{\dimexpr.5\textwidth}}
   \noindent Continuous model logrank p = \Sexpr{sprintf("%.5f", all.pvals$pval.cont.all)} & Continuous model logrank p = \Sexpr{sprintf("%.5f", all.pvals$pval.cont.basal)}
@@ -119,7 +113,7 @@ all.pvals <- .plot.survival.curves.with.basal(esets.rfs, survival.type="rfs")
 \pagebreak
 \noindent METABRIC - overall survival
 <<Single_gene_survival_metabric_{{current.index}}, fig.width=12, fig.height=7, out.width="\\textwidth", include=TRUE, results="hide", echo=FALSE, fig.width=12, fig.height=6, out.width="1.0\\textwidth", cache=FALSE>>=
-metabric.pvals <- .plot.survival.curves.with.basal(esets.os["METABRIC"], survival.type="os")
+metabric.pvals <- .plot.survival.curves.with.basal(esets.os[["METABRIC"]], survival.type="os")
 @
 \begin{tabularx}{\textwidth}{p{\dimexpr.5\textwidth}p{\dimexpr.5\textwidth}}
   \noindent Continuous model logrank p = \Sexpr{sprintf("%.5f", metabric.pvals$pval.cont.all)} & Continuous model logrank p = \Sexpr{sprintf("%.5f", metabric.pvals$pval.cont.basal)}

@@ -1,4 +1,40 @@
 %\VignetteEngine{knitr::knitr}
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+options(replace.assign=TRUE,width=90)
+days.per.month <- 30.4368
+days.per.year <- 365.242
+par.original <- par()
+library(knitr)
+library(gdata)
+library(annotate)
+library(ggplot2)
+library(xtable)
+library(genefu)
+library(hgu133plus2.db)
+library(metafor)
+source("../../R/create.survival.plot.R")
+source("../../R/stripWhiteSpace.R")
+source("../../R/getSubtype.R")
+source("../../R/datasetMerging.R")
+source("../../R/get.survival.data.for.plotting.R")
+source("../../R/subtypeClassification.R")
+source("../../R/setSubtype.R")
+source("../../R/create.forest.plot.R")
+source("~/repos/MetaGx/R/stripWhiteSpace.R")
+
+strata.term <- TRUE
+meta.analysis <- TRUE
+basal.only <- TRUE
+basal.like.title <- ""
+if(basal.only) {
+  basal.like.title <- ": Basal-like"
+}
+@
+
+
 \documentclass{article}
 
 \usepackage{graphicx}
@@ -11,43 +47,25 @@
 \usepackage{tabularx}
 \geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
 \usepackage[table]{xcolor}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
 %\newcommand{\sectionbreak}{\clearpage}
 
 \begin{document}
 
-\title{Metabolic Genes and Breast Cancer}
+\title{Metabolic Genes and Breast Cancer\Sexpr{basal.like.title}}
 
-\author{Gregory M. Chen}
+%\author{Gregory M. Chen}
 \date{\today}
 \maketitle
 
-<<setup, include=FALSE, cache=FALSE>>=
-# Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
-options(replace.assign=TRUE,width=90)
-days.per.month <- 30.4368
-days.per.year <- 365.242
-par.original <- par()
-library(knitr)
-library(gdata)
-library(annotate)
-library(ggplot2)
-library(xtable)
-library(genefu)
-library(hgu133plus2.db)
-source("../../R/create.survival.plot.R")
-source("../../R/stripWhiteSpace.R")
-source("../../R/getSubtype.R")
-source("../../R/datasetMerging.R")
-source("../../R/get.survival.data.for.plotting.R")
-source("../../R/subtypeClassification.R")
-source("../../R/setSubtype.R")
-source("../../R/create.forest.plot.R")
-source("~/repos/MetaGx/R/stripWhiteSpace.R")
 
-strata.term <- TRUE
-meta.analysis <- FALSE
-@
 
 
 <<load_data, cache=TRUE>>=
@@ -107,8 +125,10 @@ esets.rfs <- lapply(esets, function(eset) eset[,!is.na(eset$recurrence_status) |
 ## Remove datasets that are empty
 esets.os <- esets.os[sapply(esets.os, function(x) ncol(exprs(x)) > 0)]
 esets.rfs <- esets.rfs[sapply(esets.rfs, function(x) ncol(exprs(x)) > 0)]
+pooled.eset.rfs <- datasetMerging(esets = esets.rfs)
 esets.rfs.untreated <- lapply(esets.rfs, function(eset) eset[,!is.na(eset$treatment) & eset$treatment == "untreated"])
 esets.rfs.untreated <- esets.rfs.untreated[sapply(esets.rfs.untreated, function(x) ncol(exprs(x))) >= 50]
+pooled.eset.rfs.untreated <- datasetMerging(esets = esets.rfs.untreated)
 rm(esets)
 @
 
@@ -116,16 +136,36 @@ rm(esets)
 \pagebreak
 \section{Datasets}
 
-From MetaGxBreast, we selected patients from studies which tracked recurence-free survival. When recurrence-free survival was unavailable, we used distant metastatis-free survival.  We identified \Sexpr{sum(sapply(esets.rfs, function(x) ncol(exprs(x))))} patients from \Sexpr{length(esets.rfs)} datasets.
-<<Dataset_table, results='asis'>>=
-data.counts <- as.data.frame(sapply(esets.rfs, function(x) ncol(exprs(x))))
-colnames(data.counts) <- "Number of samples"
-data.counts <- rbind(data.counts, sum(data.counts[,1]))
-rownames(data.counts)[nrow(data.counts)] <- "Sum"
-xtable(data.counts)
+<<get_num_genes_datasets>>=
+
+if(basal.only) {
+  num.patients <- sum(sapply(esets.rfs, function(x) sum(x$subtype == "Basal")))
+  num.datasets <- length(esets.rfs)
+} else {
+  num.patients <- sum(sapply(esets.rfs, function(x) ncol(exprs(x))))
+  num.datasets <- length(esets.rfs)
+}
 @
 
-Treatment status may be a confounder to patient outcome. We performed survival analysis our full dataset, as well as only the untreated patients:\footnote{Datasets with fewer than 50 untreated patients were excluded.}
+
+From MetaGxBreast, we selected patients from studies which tracked recurence-free survival. When recurrence-free survival was unavailable, we used distant metastatis-free survival.  We identified \Sexpr{num.patients} patients from \Sexpr{num.datasets} datasets.
+<<Dataset_table, results='asis'>>=
+if(basal.only) {
+  data.counts <- as.data.frame(sapply(esets.rfs, function(x) sum(x$subtype == "Basal")))
+  colnames(data.counts) <- "Number of Basal-Like samples"
+  data.counts <- rbind(data.counts, sum(data.counts[,1]))
+  rownames(data.counts)[nrow(data.counts)] <- "Sum"
+  xtable(data.counts)
+} else {
+  data.counts <- as.data.frame(sapply(esets.rfs, function(x) ncol(exprs(x))))
+  colnames(data.counts) <- "Number of samples"
+  data.counts <- rbind(data.counts, sum(data.counts[,1]))
+  rownames(data.counts)[nrow(data.counts)] <- "Sum"
+  xtable(data.counts)
+}
+@
+
+%Treatment status may be a confounder to patient outcome. We performed survival analysis our full dataset, as well as only the untreated patients:\footnote{Datasets with fewer than 50 untreated patients were excluded.}
 <<Dataset_table_untreated, results='asis'>>=
 if(!meta.analysis) {
   data.counts <- as.data.frame(sapply(esets.rfs.untreated, function(x) ncol(exprs(x))))
@@ -136,74 +176,30 @@ if(!meta.analysis) {
 }
 @
 
-
-\pagebreak
 <<single_gene, cache=FALSE, include=FALSE>>=
 if(meta.analysis) {
   knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.meta.analysis.Rnw'))
 } else {
   knitr.text <- lapply(1:length(entrez.ids), function(current.index) knit_expand(file='single.gene.brca.survival.Rnw'))
 }
+fixed.effects.pval <- c()
+fixed.effects.estimate <- c()
+fixed.effects.lower <- c()
+fixed.effects.upper <- c()
+
+knitr.out <- knit(text=unlist(knitr.text))
+
 @
 
-\Sexpr{knit(text=unlist(knitr.text))}
+\section{Summary of Results}
+<<summary_table, results='asis'>>=
+summary.table <- data.frame(gene=gene.names, pval=sprintf("%.5f", fixed.effects.pval), hr.text=sprintf("%.2f [%.2f, %.2f]", fixed.effects.estimate, fixed.effects.lower, fixed.effects.upper))
+colnames(summary.table) <- c("Gene Name", "P-value", "Hazard Ratio")
+print(xtable(summary.table),include.rownames=FALSE)
+@
 
 \pagebreak
 
-<<replicate_original, fig.width=12, fig.height=8, out.width="0.95\\textwidth", eval=FALSE>>=
-par(mfrow=c(2,3))
-par(mar=c(5.1, 0, 0, 2.1))
-# only include expression sets from the original study
-esets.to.include <- esets.os[c("DUKE", "TRANSBIG")]
-for(current.index in match(c("HMGCR", "HMGCS1", "MVD", "FDPS", "ACAT2", "MVK"), gene.names)) {
-  esets.with.gene <- esets.to.include[sapply(esets.to.include, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
-  esets.with.gene <- lapply(esets.with.gene, function(eset) {
-    current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
-    return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
-    })
-  # annotate with dataset
-  eset.names <- names(esets.with.gene)
-  esets.with.gene <- lapply(names(esets.with.gene), function(x) {
-    eset.toreturn <- esets.with.gene[[x]]
-    eset.toreturn$data.source <- x
-    return(eset.toreturn)
-    })
-  names(esets.with.gene) <- eset.names
-  
-  survival.df.list <- lapply(esets.with.gene, function(x) {
-    current.df <- get.survival.data.for.plotting(x, entrez.ids=entrez.ids[{{current.index}}], num.quantiles=2, survival.type="overall.survival", time.unit="years")
-    current.df <- current.df[-grep(".expression$", colnames(current.df))]
-  })
-  
-  survival.df <- do.call(rbind, survival.df.list)
-  
-  surv.time <- survival.df$years_to_event
-  surv.event <- survival.df$event_status
-  groups <- survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]
-  #risk.vals <- -survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".expression")]
-  group.names <- paste(gene.names[{{current.index}}], levels(survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")]))
-  datasets <- survival.df$data.source
-  main.title <- paste0("Meta-dataset: ", gene.names[{{current.index}}])
-  
-  levels(groups) <- paste0(levels(groups), "     ")
-  
-  my.df <- data.frame(surv.obj=Surv(time=surv.time, event=surv.event), groups=groups, datasets=datasets)
-  
-  if(strata.term==TRUE) {
-    pval.for.plot <- summary(coxph(surv.obj ~ groups + strata(datasets), my.df))$sctest["pvalue"]
-      hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event, strat=datasets)
-  } else {
-    pval.for.plot <- summary(coxph(surv.obj ~ groups, my.df))$sctest["pvalue"]
-      hr.out <- survcomp::hazard.ratio(x=groups, surv.time=surv.time, surv.event=surv.event)
-  }
-  text <- paste(sprintf("HR: %.3f (%.3f-%.3f);", hr.out$hazard.ratio, hr.out$lower, hr.out$upper), sprintf("Logrank p = %.5f", pval.for.plot))
-
-  km.coxph.plot(surv.obj ~ groups, my.df, x.label="Time (years)", y.label = ylab, main.title=main.title, show.n.risk = TRUE, n.risk.step=5, leg.text = levels(my.df$groups), .col=RColorBrewer::brewer.pal(length(levels(my.df$groups)), name="Dark2"),leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4, o.text=text)
-}
-@
-
-%Original figure:
-
-%\includegraphics[width=0.9\textwidth]{metabolism-survival.jpg}
+\Sexpr{knitr.out}
 
 \end{document}
