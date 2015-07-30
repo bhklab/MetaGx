@@ -4,13 +4,14 @@ create.forest.plot <- function(
                           surv.time.colname,
                           surv.event.colname,
                           risk.val.colname,
-                          stat=c("concordance.index","d.index", "hazard.ratio"),
+                          stat=c("concordance.index","d.index", "hazard.ratio"), #returns log HR and D.index
                           dataset.names = names(survival.data),
                           pooling.method = c("both", "fixed", "random"),
                           random.pooled.name = "Pooled estimate (random)",
                           fixed.pooled.name = "Pooled estimate (fixed)",
-                          just.meta=FALSE,
-                          x.ticks=NULL
+                          x.ticks=NULL,
+                          main="Forest Plot",
+                          ...
                           ) {
   
   stat <- match.arg(stat)
@@ -31,39 +32,32 @@ create.forest.plot <- function(
   stat.objects <- lapply(survival.data, function(x) {
     survcomp::D.index(x=x[[risk.val.colname]], surv.time=x[[surv.time.colname]], surv.event=x[[surv.event.colname]])
     })
-  stat.vals <- sapply(stat.objects, function(x) x$d.index)
+  stat.vals <- sapply(stat.objects, function(x) x$dicoef)
   }
   if(stat == "hazard.ratio") {
   stat.objects <- lapply(survival.data, function(x) {
     survcomp::hazard.ratio(x=x[[risk.val.colname]], surv.time=x[[surv.time.colname]], surv.event=x[[surv.event.colname]])
     })
-  stat.vals <- sapply(stat.objects, function(x) x$hazard.ratio)
+  stat.vals <- sapply(stat.objects, function(x) x$coef)
   }
-  
-  myspace <- "    "
   
   stat.se <- sapply(stat.objects, function(x) x$se)
   stat.lower <- sapply(stat.objects, function(x) x$lower)
   stat.upper <- sapply(stat.objects, function(x) x$upper)
-  
+  # If D-index or hazard ratio, log-transform upper and lower bounds. Note that
+  # survcomp outputs stanard error and coef for log(D-index) and log(HR)
+  if(stat == "d.index" || stat == "hazard.ratio") {
+    stat.lower <- sapply(stat.lower, log)
+    stat.upper <- sapply(stat.upper, log)
+  }
+  rma.random <- NULL
+  rma.fixed <- NULL
   if(pooling.method=="random" || pooling.method=="both") {
-    pooled.stat.random <- combine.est(stat.vals, stat.se, hetero=TRUE)
-    dataset.names <- c(dataset.names, random.pooled.name)
-    stat.vals <- c(stat.vals, meta.random=pooled.stat.random$estimate)
-    stat.se <- c(stat.se, meta.random=pooled.stat.random$se)
-    stat.lower <- c(stat.lower, meta.random=pooled.stat.random$estimate - pooled.stat.random$se*qnorm(0.975))
-    stat.upper <- c(stat.upper, meta.random=pooled.stat.random$estimate + pooled.stat.random$se*qnorm(0.975))
+    rma.random <- rma(stat.vals, sei=stat.se, method="DL", slab=names(survival.df.list))
   }
   if(pooling.method=="fixed" || pooling.method=="both") {
-    pooled.stat.fixed <- combine.est(stat.vals, stat.se, hetero=FALSE)
-    dataset.names <- c(dataset.names, fixed.pooled.name)
-    stat.vals <- c(stat.vals, meta.fixed=pooled.stat.fixed$estimate)
-    stat.se <- c(stat.se, meta.fixed=pooled.stat.fixed$se)
-    stat.lower <- c(stat.lower, meta.fixed=pooled.stat.fixed$estimate - pooled.stat.fixed$se*qnorm(0.975))
-    stat.upper <- c(stat.upper, meta.fixed=pooled.stat.fixed$estimate + pooled.stat.fixed$se*qnorm(0.975))
+    rma.fixed <- rma(stat.vals, sei=stat.se, method="FE", slab=names(survival.df.list))
   }
-  
-  labeltext <- cbind(dataset.names, c(rep(myspace,length(dataset.names))))
   
   num.summary.stats <- 0
   if(pooling.method=="random" || pooling.method=="fixed") {
@@ -76,20 +70,23 @@ create.forest.plot <- function(
     zero <- 0.5
     xlab <- "Concordance Index"
   } else if(stat=="d.index") {
-    zero <- 1
+    zero <- 0
     xlab <- "D-index"
   } else if(stat=="hazard.ratio") {
-    stat.lower = log10(stat.lower)
-    stat.upper = log10(stat.upper)
-    stat.vals = log10(stat.vals)
+    # Convert from natural log to log10
     zero <- 0
-    xlab <- "log(Hazard Ratio)"
+    xlab <- "Hazard Ratio"
   }
   
-  if(!just.meta) {
-    survcomp::forestplot.surv(labeltext=labeltext, mean=stat.vals, lower=stat.lower, upper=stat.upper, is.summary = c(rep(FALSE, length(stat.vals)-num.summary.stats), rep(TRUE, num.summary.stats)), zero=zero, xlab=xlab, x.ticks = x.ticks)
-  } else {
-    survcomp::forestplot.surv(labeltext=labeltext[c(nrow(labeltext)-1, nrow(labeltext)),], mean=stat.vals[c(nrow(labeltext)-1, nrow(labeltext))], lower=stat.lower[c(nrow(labeltext)-1, nrow(labeltext))], upper=stat.upper[c(nrow(labeltext)-1, nrow(labeltext))], is.summary = c(FALSE, FALSE), zero=zero, xlab=xlab, x.ticks=x.ticks)
-  }
-  return(list(stat.vals=stat.vals, stat.se=stat.se, stat.lower=stat.lower, stat.upper=stat.upper))
+  if(pooling.method=="both") {
+    forest(rma.fixed, mlab="Fixed Effects", xlab="Hazard Ratio", atransf=exp, refline = zero, ylim=c(-2.5,length(survival.df.list) + 3), main=main, annotate=FALSE, addfit=FALSE, digits=c(2,2), ...)
+    abline(h=0, lwd=1)
+    addpoly(rma.fixed, mlab="Fixed Effects", row=-1, atransf=exp, annotate=FALSE)
+    addpoly(rma.random, mlab="Random Effects", row=-2, atransf=exp, annotate=FALSE)
+  } else if(pooling.method=="fixed") {
+    forest(rma.fixed, mlab="Fixed Effects", xlab="Hazard Ratio", atransf=exp, refline = zero, annotate=FALSE)
+  } else if(pooling.method=="random") {
+    forest(rma.random, mlab="Fixed Effects", xlab="Hazard Ratio", atransf=exp, refline = zero, annotate=FALSE)
+  } 
+  return(list(stat.vals=stat.vals, stat.se=stat.se, stat.lower=stat.lower, stat.upper=stat.upper, rma.random=rma.random, rma.fixed=rma.fixed))
 }

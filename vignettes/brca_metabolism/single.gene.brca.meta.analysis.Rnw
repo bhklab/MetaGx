@@ -1,12 +1,16 @@
 \pagebreak
 \section{\Sexpr{gene.names[{{current.index}}]}}
 
-<<Single_gene_metaanalysis_load_data_{{current.index}}, include=FALSE>>=
+<<Single_gene_metaanalysis_load_data_{{current.index}}, include=FALSE, cache=FALSE>>=
 # Remove patients with NA values for that gene
 esets.with.gene <- esets.rfs[sapply(esets.rfs, function(x) entrez.ids[{{current.index}}] %in% fData(x)$EntrezGene.ID)]
 esets.with.gene <- lapply(esets.with.gene, function(eset) {
   current.entrez.id.index <- which(fData(eset)$EntrezGene.ID == entrez.ids[{{current.index}}])
-  return(eset[,!is.na(exprs(eset))[current.entrez.id.index,]])
+  eset.toreturn <- eset[,!is.na(exprs(eset))[current.entrez.id.index,]]
+  if(basal.only) {
+    eset.toreturn <- eset.toreturn[,eset.toreturn$subtype == "Basal"]
+  }
+  return(eset.toreturn)
   })
 
 survival.df.list <- lapply(esets.with.gene, function(x) {
@@ -22,7 +26,7 @@ survival.df.list <- lapply(survival.df.list, function(survival.df) {
 })
 @
 
-<<survival_grid_{{current.index}}, fig.width=12, fig.height=12, out.width="1.0\\textwidth">>=
+<<survival_grid_{{current.index}}, fig.width=12, fig.height=12, out.width="1.0\\textwidth", cache=FALSE>>=
 orig.mfrow <- par("mfrow")
 par(mfrow=c(4,4))
 for(i in 1:length(survival.df.list)) {
@@ -46,16 +50,27 @@ par(mfrow=orig.mfrow)
 @
 
 <<singlegene_metaanalysis_forestplot_{{current.index}}, fig.width=5, fig.height=7, out.width="0.5\\textwidth", cache=FALSE>>=
-meta.stats <- create.forest.plot(survival.df.list,surv.time.colname = "years_to_event", surv.event.colname = "event_status", risk.val.colname = paste0("geneid.", entrez.ids[{{current.index}}], ".quantile"), stat = "hazard.ratio", x.ticks = c(-0.5,0,0.5))
-meta.stats$stat.upper <- 10^meta.stats$stat.upper
-meta.stats$stat.lower <- 10^meta.stats$stat.lower
-meta.stats$stat.vals <- 10^meta.stats$stat.vals
+if(basal.only) {
+  xlim=c(-6,6)
+  alim=c(-6,6)  
+  at=log(c(1/16,1/4, 1, 4, 16))
+} else {
+  xlim=c(-3,3)
+  alim=c(-3,3)
+  at=log(c(.25, 0.5, 1, 2, 4))
+}
 
-meta.fixed.text <- sprintf("%.3f, 95\\%% CI: [%.3f, %.3f]", meta.stats$stat.vals["meta.fixed"], meta.stats$stat.lower["meta.fixed"], meta.stats$stat.upper["meta.fixed"])
-meta.random.text <- sprintf("%.3f, 95\\%% CI: [%.3f, %.3f]", meta.stats$stat.vals["meta.random"], meta.stats$stat.lower["meta.random"], meta.stats$stat.upper["meta.random"])
+meta.stats <- create.forest.plot(survival.df.list, surv.time.colname = "years_to_event", surv.event.colname = "event_status", risk.val.colname = paste0("geneid.", entrez.ids[{{current.index}}], ".quantile"), stat = "hazard.ratio", main=paste0("Meta-analysis: ", gene.names[{{current.index}}]), xlim=xlim, alim=alim, at=at)
+
+fixed.effects.pval[{{current.index}}] <- meta.stats$rma.fixed$pval
+# create.forest.plot returns log2(HR)
+fixed.effects.estimate[{{current.index}}] <- exp(as.vector(meta.stats$rma.fixed$b))
+fixed.effects.lower[{{current.index}}] <- exp(meta.stats$rma.fixed$ci.lb)
+fixed.effects.upper[{{current.index}}] <- exp(meta.stats$rma.fixed$ci.ub)
 @
 
-\noindent Hazard ratio (random effects): \Sexpr{meta.random.text}
+\noindent Fixed effects model:
+\Sexpr{sprintf("%.02f [%.02f, %.02f], p = %.1E", exp(as.vector(meta.stats$rma.fixed$b)), exp(meta.stats$rma.fixed$ci.lb), exp(meta.stats$rma.fixed$ci.ub), meta.stats$rma.fixed$pval)}
 
-\noindent Hazard ratio (fixed effects):  \Sexpr{meta.fixed.text}
-
+\noindent Random effects model:
+\Sexpr{sprintf("%.02f [%.02f, %.02f], p = %.1E", exp(as.vector(meta.stats$rma.random$b)), exp(meta.stats$rma.random$ci.lb), exp(meta.stats$rma.random$ci.ub), meta.stats$rma.random$pval)}
