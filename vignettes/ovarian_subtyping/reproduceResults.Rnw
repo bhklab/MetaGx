@@ -68,6 +68,24 @@ source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 esets.not.rescaled <- esets
 rescale <- TRUE
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+if(normalization == "none") {
+  
+} else if(normalization == "z.pergene") {
+  esets <- lapply(esets, function(eset) {
+    exprs(eset) <- t(scale(t(exprs(eset))))
+    return(eset)
+  })
+} else if(normalization == "z.perpatient") {
+  esets <- lapply(esets, function(eset) {
+    exprs(eset) <- scale(eset)
+    return(eset)
+  }
+} else if(normalization == "z.") {
+  esets <- lapply(esets, function(eset) {
+    exprs(eset) <- ( exprs(eset) - mean(unlist(exprs(eset))) ) / sd(unlist(exprs(eset)))
+    return(eset)
+  }
+}
 @
 
 <<helper_functions>>=
