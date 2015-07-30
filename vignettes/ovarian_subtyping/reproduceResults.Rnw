@@ -34,11 +34,11 @@ package.dir <- "~/repos/MetaGx/"
 
 <<load, cache=FALSE>>=
 library(gdata)
-library(HiDimDA)
 library(survival)
 library(reshape2)
 library(genefu)
 library(annotate)
+library(HiDimDA)
 library(hgu133plus2.db)
 library(stringr)
 # library(survMisc) 
@@ -77,14 +77,14 @@ if(normalization == "none") {
   })
 } else if(normalization == "z.perpatient") {
   esets <- lapply(esets, function(eset) {
-    exprs(eset) <- scale(eset)
+    exprs(eset) <- scale(exprs(eset))
     return(eset)
-  }
-} else if(normalization == "z.") {
+  })
+} else if(normalization == "z.global") {
   esets <- lapply(esets, function(eset) {
     exprs(eset) <- ( exprs(eset) - mean(unlist(exprs(eset))) ) / sd(unlist(exprs(eset)))
     return(eset)
-  }
+  })
 }
 @
 

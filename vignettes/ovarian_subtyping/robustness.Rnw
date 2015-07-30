@@ -59,32 +59,86 @@ library(NMF)
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
 
 source("../../inst/extdata/reproduce.results.patientselection.config")
-### use this line if you do not want to get rid of duplicates
-rm(remove.duplicates)
-rescale <- FALSE
-source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-esets.not.rescaled <- esets
 
 rm(probe.gene.mapping)
+rescale <- FALSE
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 esets.not.rescaled.probes <- esets
 
 probe.gene.mapping <- TRUE
+rule.2 <- c("histological_type","^ser$")
+rule.3 <- c("summarystage","^late$")
+rule.4 <- c("summarygrade","^high$")
+### use this line if you do not want to get rid of duplicates
+rm(remove.duplicates)
+
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets.not.rescaled <- esets
+
+esets.quantile.norm <- esets.not.rescaled
+esets.quantile.norm <- lapply(esets.quantile.norm, function(eset) {
+  ee <- exprs(eset)
+      # ee <- apply(ee, 2, genefu::rescale)
+      splitix <- parallel::splitIndices(nx=ncol(ee), ncl=4)
+      mcres <- parallel::mclapply(splitix, function(x, data) {
+        res <- apply(data[ , x, drop=FALSE], 2, function (dx) {
+          return ((genefu::rescale(dx, q=0.05, na.rm=TRUE) - 0.5) * 2)
+        })
+        return (res)
+      }, data=ee, mc.cores=4)
+      ee <- do.call(cbind, mcres)
+      ## quantile normalization
+      ee <- limma::normalizeBetweenArrays(object=ee, method="quantile")
+      exprs(eset) <- ee
+  return(eset)
+})
+
+
 rescale <- TRUE
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets.rescale.by.gene <- esets
+rm(esets)
 @
 %\tableofcontents 
+
+
+<<cluster_functions>>=
+.getNMFClasses(eset, num.genes=2000, rank=4, nrun=100) {
+  mad.vals <- apply(exprs(eset), 1, mad)
+  # expression.matrix has genes as rows, patients as columns
+  expression.matrix <- exprs(eset)[mad.vals >= tail(sort(mad.vals),num.genes)[1],]
+  nmf.out <- nmf(expression.matrix, rank=rank, nrun=nrun)
+  h.mat <- coef(nmf.out)
+  classes <- apply(h.mat, 2, which.max)
+  classes <- as.factor(paste0("NMF_", tcga.classes))
+  return(classes)
+}
+
+.getConsensusKMeansClasses(eset, num.genes=2000, k=4, num.iterations=100) {
+  # rescale eset by z-score per gene
+  mad.vals <- apply(exprs(eset), 1, mad)
+  kmeans.out <- lapply(1:100, function(x) kmeans(tothill.expression.matrix.to.cluster, centers = 4))
+  cl.ensemble <- cl_ensemble(list=kmeans.out)
+  consensus.out <- cl_consensus(cl.ensemble)
+  membership.matrix <- matrix(as.vector(consensus.out$.Data), nrow=nrow(tothill.expression.matrix.to.cluster))
+  
+  classes <- apply(membership.matrix, 1, which.max)
+  classes <- as.factor(paste0("kmeans_", tcga.classes))
+  return(classes)
+}
+@
 
 %Konecny
 
 %TCGA
 <<TCGA_clustering>>=
 # Filter to 1500 genes by top median absolute deviation
+set.seed(109)
 tcga.clustering.authordata <- read.delim("../../inst/extdata/TCGA_489_UE.top1500.txt", sep="\t")
 
-gene.indices <- match(rownames(tcga.clustering.authordata), fData(esets.not.rescaled$TCGA)$gene)
-gene.indices <- gene.indices[!is.na(gene.indices)]
-tcga.expression.matrix.to.cluster <- exprs(esets.not.rescaled$TCGA)[gene.indices,]
+tcga.gene.indices <- match(rownames(tcga.clustering.authordata), fData(esets.not.rescaled$TCGA)$gene)
+tcga.gene.indices <- tcga.gene.indices[!is.na(tcga.gene.indices)]
+tcga.expression.matrix.to.cluster <- exprs(esets.not.rescaled$TCGA)[tcga.gene.indices,]
 
 verhaak.spreadsheet.data <- read.xls("../../inst/extdata/JCI65833sd1.xls", skip=1)
 verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE")]
@@ -94,12 +148,37 @@ h.mat <- coef(nmf.out)
 tcga.classes <- apply(h.mat, 2, which.max)
 tcga.classes <- as.factor(paste0("NMF_", tcga.classes))
 
-implemented.clustering <- data.frame(ID=tcga.eset$unique_patient_ID, nmf.classes=tcga.classes)
+implemented.clustering <- data.frame(ID=esets.not.rescaled$TCGA$unique_patient_ID, nmf.classes=tcga.classes)
 
 tcga.merged <- merge(implemented.clustering, verhaak.labels.table)
 @
 
 %Tothill
+
+<<Tothill_clustering>>=
+set.seed(132)
+tothill.original.labels <- read.table("../../inst/extdata/tothill.supptable.1.classes.txt", header=TRUE, stringsAsFactors = FALSE)
+tothill.original.labels <- tothill.original.labels[tothill.original.labels$group %in% c(1, 2, 4, 5),]
+tothill.original.labels$group <- sub("^", "C", tothill.original.labels$group)
+
+tothill.cluster.entrez.ids <- unique(fData(esets.not.rescaled.probes$GSE9891)$EntrezGene.ID[apply(exprs(esets.not.rescaled.probes$GSE9891), 1, function(x) any(x > 7) & var(x)  > 0.5)])
+tothill.gene.indices <- match(tothill.cluster.entrez.ids, fData(esets.rescale.by.gene$GSE9891)$EntrezGene.ID)
+tothill.expression.matrix.to.cluster <- exprs(esets.rescale.by.gene$GSE9891[tothill.gene.indices,])
+tothill.expression.matrix.to.cluster <- tothill.expression.matrix.to.cluster[apply(tothill.expression.matrix.to.cluster, 1, function(x) all(!is.na(x))),]
+tothill.expression.matrix.to.cluster <- t(tothill.expression.matrix.to.cluster)
+
+kmeans.out <- lapply(1:100, function(x) kmeans(tothill.expression.matrix.to.cluster, centers = 4))
+cl.ensemble <- cl_ensemble(list=kmeans.out)
+consensus.out <- cl_consensus(cl.ensemble)
+membership.matrix <- matrix(as.vector(consensus.out$.Data), nrow=nrow(tothill.expression.matrix.to.cluster))
+
+tothill.implemented.clustering <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, consensus.kmeans.classes=as.factor(apply(membership.matrix, 1, which.max)))
+tothill.implemented.clustering <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, nmf.classes=apply(h.mat, 2, which.max))
+tothill.implemented.clustering$ID <- sub("X", "", tothill.implemented.clustering$ID)
+
+tothill.merged <- merge(tothill.implemented.clustering, tothill.original.labels)
+table(tothill.merged$consensus.kmeans.classes, tothill.merged$group)
+@
 
 %Bentink
 
