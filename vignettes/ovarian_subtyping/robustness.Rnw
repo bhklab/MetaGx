@@ -1,0 +1,106 @@
+%\VignetteEngine{knitr::knitr}
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{float}
+\usepackage[latin1]{inputenc}
+\usepackage{geometry}
+\usepackage{titlesec}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+%\newcommand{\sectionbreak}{\clearpage}
+
+\begin{document}
+
+<<setup, include=FALSE, cache=FALSE>>=
+# Set options
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+options(replace.assign=TRUE,width=90)
+par.original <- par()
+days.per.month <- 30.4368
+days.per.year <- 365.242
+package.dir <- "~/repos/MetaGx/"
+@
+
+\title{Robustness of Ovarian Subtyping Schemes}
+
+\author{Gregory M. Chen}
+\date{\today}
+\maketitle
+
+<<load, cache=FALSE>>=
+library(gdata)
+library(HiDimDA)
+library(survival)
+library(reshape2)
+library(genefu)
+library(annotate)
+library(hgu133plus2.db)
+library(stringr)
+# library(survMisc) 
+library(xtable)
+library(gridExtra)
+library(Biobase)
+library(GSVA)
+library(sparsediscrim)
+library(MetaGxOvarian)
+library(survcomp)
+library(ggplot2)
+library(e1071)
+library(randomForest)
+library(NMF)
+@
+
+<<load_data>>=
+#
+#source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
+#source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
+
+source("../../inst/extdata/reproduce.results.patientselection.config")
+### use this line if you do not want to get rid of duplicates
+rm(remove.duplicates)
+rescale <- FALSE
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets.not.rescaled <- esets
+
+rm(probe.gene.mapping)
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+esets.not.rescaled.probes <- esets
+
+probe.gene.mapping <- TRUE
+rescale <- TRUE
+source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
+@
+%\tableofcontents 
+
+%Konecny
+
+%TCGA
+<<TCGA_clustering>>=
+# Filter to 1500 genes by top median absolute deviation
+tcga.clustering.authordata <- read.delim("../../inst/extdata/TCGA_489_UE.top1500.txt", sep="\t")
+
+gene.indices <- match(rownames(tcga.clustering.authordata), fData(esets.not.rescaled$TCGA)$gene)
+gene.indices <- gene.indices[!is.na(gene.indices)]
+tcga.expression.matrix.to.cluster <- exprs(esets.not.rescaled$TCGA)[gene.indices,]
+
+verhaak.spreadsheet.data <- read.xls("../../inst/extdata/JCI65833sd1.xls", skip=1)
+verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE")]
+
+nmf.out <- nmf(tcga.expression.matrix.to.cluster, rank=4, nrun=100)
+h.mat <- coef(nmf.out)
+tcga.classes <- apply(h.mat, 2, which.max)
+tcga.classes <- as.factor(paste0("NMF_", tcga.classes))
+
+implemented.clustering <- data.frame(ID=tcga.eset$unique_patient_ID, nmf.classes=tcga.classes)
+
+tcga.merged <- merge(implemented.clustering, verhaak.labels.table)
+@
+
+%Tothill
+
+%Bentink
+
+\end{document}
