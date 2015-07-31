@@ -1,4 +1,4 @@
-"gene.symbol" "entrez.id"
+"probe" "entrez.id"
 "1" "121_at" "7849"
 "2" "1405_i_at" "6352"
 "3" "1438_at" "2049"
