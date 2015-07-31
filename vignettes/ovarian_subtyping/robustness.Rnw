@@ -196,11 +196,12 @@ if(file.exists(""../../inst/extdata/tothill.clustering.probesets.txt"")) {
   tothill.clustering.probesets <- scan("../../inst/extdata/tothill.clustering.probesets.txt")
 }
 
-tothill.clustering.probesets <- scan("../../inst/extdata/tothill.clustering.probesets.txt", what=character(0))
+tothill.clustering.genes <- read.table("../../inst/extdata/tothill.clustering.genes.txt")
 ## This file was generated on July 31, 2015 with the following code:
 #original.tothill.eset <- getGEO("GSE9891", GSEMatrix=TRUE)[[1]]
-#tothill.clustering.probesets <- as.character(fData(original.tothill.eset)$ID[apply(exprs(original.tothill.eset), 1, function(x) any(x > 7) & var(x) >= 0.5)])
-#write(tothill.clustering.probesets, file="../../inst/extdata/tothill.clustering.probesets.txt", ncolumns = 1)
+#original.tothill.eset <- original.tothill.eset[apply(exprs(original.tothill.eset), 1, function(x) any(x > 7) & var(x) >= 0.5),]
+#tothill.clustering.genes <- data.frame(gene.symbol=fData(original.tothill.eset)$ID, entrez.id=fData(original.tothill.eset)$ENTREZ_GENE_ID)
+#write.table(tothill.clustering.genes, file="../../inst/extdata/tothill.clustering.genes.txt")
 
 tothill.cluster.entrez.ids <- 
 tothill.gene.indices <- match(tothill.cluster.entrez.ids, fData(esets.rescale.by.gene$GSE9891)$EntrezGene.ID)
