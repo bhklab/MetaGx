@@ -10,13 +10,14 @@
 \usepackage{titlesec}
 \geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
 \usepackage[table]{xcolor}
+\usepackage{amsmath}
 %\newcommand{\sectionbreak}{\clearpage}
 
 \begin{document}
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
@@ -32,6 +33,7 @@ package.dir <- "~/repos/MetaGx/"
 
 <<load, cache=FALSE>>=
 library(gdata)
+library(knitr)
 library(HiDimDA)
 library(survival)
 library(reshape2)
@@ -51,6 +53,8 @@ library(ggplot2)
 library(e1071)
 library(randomForest)
 library(NMF)
+library(clue)
+library(GEOquery)
 @
 
 <<load_data>>=
@@ -103,32 +107,52 @@ rm(esets)
 
 
 <<cluster_functions>>=
-.getNMFClasses(eset, num.genes=2000, rank=4, nrun=100) {
-  mad.vals <- apply(exprs(eset), 1, mad)
-  # expression.matrix has genes as rows, patients as columns
-  expression.matrix <- exprs(eset)[mad.vals >= tail(sort(mad.vals),num.genes)[1],]
+.getNMFClasses <- function(eset, filter.genes=TRUE, num.genes=2000, rank=4, nrun=100) {
+  expression.matrix <- exprs(eset)
+  if(filter.genes) {
+    mad.vals <- apply(expression.matrix, 1, mad)
+    # expression.matrix has genes as rows, patients as columns
+    expression.matrix <- expression.matrix[mad.vals >= tail(sort(mad.vals),num.genes)[1],]
+  }
   nmf.out <- nmf(expression.matrix, rank=rank, nrun=nrun)
   h.mat <- coef(nmf.out)
   classes <- apply(h.mat, 2, which.max)
-  classes <- as.factor(paste0("NMF_", tcga.classes))
+  classes <- as.factor(paste0("NMF_", classes))
   return(classes)
 }
 
-.getConsensusKMeansClasses(eset, num.genes=2000, k=4, num.iterations=100) {
+.getConsensusKMeansClasses <- function(eset, filter.genes=TRUE, num.genes=2000, k=4, num.iterations=100) {
   # rescale eset by z-score per gene
-  mad.vals <- apply(exprs(eset), 1, mad)
-  kmeans.out <- lapply(1:100, function(x) kmeans(tothill.expression.matrix.to.cluster, centers = 4))
+  expression.matrix <- exprs(eset)
+  if(filter.genes) {
+    mad.vals <- apply(exprs(eset), 1, mad)
+    expression.matrix <- exprs(eset)[mad.vals >= tail(sort(mad.vals),num.genes)[1],]
+  }
+  expression.matrix <- t(expression.matrix)
+  kmeans.out <- lapply(1:100, function(x) kmeans(expression.matrix, centers = k))
   cl.ensemble <- cl_ensemble(list=kmeans.out)
   consensus.out <- cl_consensus(cl.ensemble)
-  membership.matrix <- matrix(as.vector(consensus.out$.Data), nrow=nrow(tothill.expression.matrix.to.cluster))
+  membership.matrix <- matrix(as.vector(consensus.out$.Data), nrow=ncol(eset))
   
   classes <- apply(membership.matrix, 1, which.max)
-  classes <- as.factor(paste0("kmeans_", tcga.classes))
+  classes <- as.factor(paste0("kmeans_", classes))
   return(classes)
 }
 @
 
 %Konecny
+
+<<Konecny_clustering>>=
+
+## This file was generated on July 31, 2015 with the following code:
+#konecny.original.eset <- getGEO("GSE53963", GSEMatrix=TRUE)[[1]]
+#konecny.mad.vals <- apply(exprs(konecny.original.eset), 1, function(x) mad(x, na.rm=TRUE))
+#konecny.subset <- konecny.original.eset[konecny.mad.vals >= tail(sort(konecny.mad.vals),2500)[[1]],]
+#konecny.subset <- konecny.subset[apply(exprs(konecny.subset), 1, function(x) sum(is.na(x)) < 20),]
+#konecny.unique.gene.symbols <- unique(as.character(fData(konecny.subset)$GENE_SYMBOL))
+#konecny.unique.gene.symbols <- konecny.unique.gene.symbols[konecny.unique.gene.symbols != ""]
+
+@
 
 %TCGA
 <<TCGA_clustering>>=
@@ -143,14 +167,20 @@ tcga.expression.matrix.to.cluster <- exprs(esets.not.rescaled$TCGA)[tcga.gene.in
 verhaak.spreadsheet.data <- read.xls("../../inst/extdata/JCI65833sd1.xls", skip=1)
 verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE")]
 
-nmf.out <- nmf(tcga.expression.matrix.to.cluster, rank=4, nrun=100)
-h.mat <- coef(nmf.out)
-tcga.classes <- apply(h.mat, 2, which.max)
-tcga.classes <- as.factor(paste0("NMF_", tcga.classes))
+tcga.eset <- esets.not.rescaled$TCGA
+tcga.eset <- tcga.eset[tcga.eset$unique_patient_ID %in% verhaak.labels.table$ID,]
 
-implemented.clustering <- data.frame(ID=esets.not.rescaled$TCGA$unique_patient_ID, nmf.classes=tcga.classes)
+tcga.implemented.clustering <- data.frame(ID=tcga.eset$unique_patient_ID, nmf.classes=.getNMFClasses(tcga.eset[tcga.gene.indices,], num.genes = 1500, nrun=50))
 
-tcga.merged <- merge(implemented.clustering, verhaak.labels.table)
+tcga.merged <- merge(tcga.implemented.clustering, verhaak.labels.table)
+@
+
+In the TCGA study (2011), the authors performed clustering as follows. First, the gene list was filtered to genes that correlate above 0.7 between each of three microarray platforms and the unified estimate; then, the top 1500 genes by median absolute deviation (MAD) were selected. Clustering was performed by non-negative matrix factorization.
+
+In order to perform clustering across datasets, we selected the top 1500 genes by MAD, then performed non-negative matrix factorization with 100 iterations. 
+
+<<TCGA_contingency, results="asis">>=
+kable(table(tcga.merged$SUBTYPE, tcga.merged$nmf.classes)[c(1,2,4,3),], format="latex")
 @
 
 %Tothill
@@ -158,26 +188,55 @@ tcga.merged <- merge(implemented.clustering, verhaak.labels.table)
 <<Tothill_clustering>>=
 set.seed(132)
 tothill.original.labels <- read.table("../../inst/extdata/tothill.supptable.1.classes.txt", header=TRUE, stringsAsFactors = FALSE)
-tothill.original.labels <- tothill.original.labels[tothill.original.labels$group %in% c(1, 2, 4, 5),]
+tothill.original.labels <- tothill.original.labels[tothill.original.labels$group %in% c(1, 2, 3, 4, 5, 6),]
 tothill.original.labels$group <- sub("^", "C", tothill.original.labels$group)
+tothill.original.labels.hgs <- tothill.original.labels[tothill.original.labels$group %in% c("C1", "C2", "C4", "C5"),]
 
-tothill.cluster.entrez.ids <- unique(fData(esets.not.rescaled.probes$GSE9891)$EntrezGene.ID[apply(exprs(esets.not.rescaled.probes$GSE9891), 1, function(x) any(x > 7) & var(x)  > 0.5)])
+if(file.exists(""../../inst/extdata/tothill.clustering.probesets.txt"")) {
+  tothill.clustering.probesets <- scan("../../inst/extdata/tothill.clustering.probesets.txt")
+}
+
+tothill.clustering.probesets <- scan("../../inst/extdata/tothill.clustering.probesets.txt", what=character(0))
+## This file was generated on July 31, 2015 with the following code:
+#original.tothill.eset <- getGEO("GSE9891", GSEMatrix=TRUE)[[1]]
+#tothill.clustering.probesets <- as.character(fData(original.tothill.eset)$ID[apply(exprs(original.tothill.eset), 1, function(x) any(x > 7) & var(x) >= 0.5)])
+#write(tothill.clustering.probesets, file="../../inst/extdata/tothill.clustering.probesets.txt", ncolumns = 1)
+
+tothill.cluster.entrez.ids <- 
 tothill.gene.indices <- match(tothill.cluster.entrez.ids, fData(esets.rescale.by.gene$GSE9891)$EntrezGene.ID)
 tothill.expression.matrix.to.cluster <- exprs(esets.rescale.by.gene$GSE9891[tothill.gene.indices,])
 tothill.expression.matrix.to.cluster <- tothill.expression.matrix.to.cluster[apply(tothill.expression.matrix.to.cluster, 1, function(x) all(!is.na(x))),]
 tothill.expression.matrix.to.cluster <- t(tothill.expression.matrix.to.cluster)
 
-kmeans.out <- lapply(1:100, function(x) kmeans(tothill.expression.matrix.to.cluster, centers = 4))
-cl.ensemble <- cl_ensemble(list=kmeans.out)
-consensus.out <- cl_consensus(cl.ensemble)
-membership.matrix <- matrix(as.vector(consensus.out$.Data), nrow=nrow(tothill.expression.matrix.to.cluster))
+tothill.implemented.clustering.kmeans <- data.frame(ID=esets.not.rescaled.probes$GSE9891$alt_sample_name, consensus.kmeans.classes=.getConsensusKMeansClasses(esets.not.rescaled.probes$GSE9891, k=6))
 
-tothill.implemented.clustering <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, consensus.kmeans.classes=as.factor(apply(membership.matrix, 1, which.max)))
-tothill.implemented.clustering <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, nmf.classes=apply(h.mat, 2, which.max))
-tothill.implemented.clustering$ID <- sub("X", "", tothill.implemented.clustering$ID)
+tothill.implemented.clustering.kmeans$ID <- sub("X", "", tothill.implemented.clustering.kmeans$ID)
 
-tothill.merged <- merge(tothill.implemented.clustering, tothill.original.labels)
-table(tothill.merged$consensus.kmeans.classes, tothill.merged$group)
+tothill.merged.kmeans <- merge(tothill.implemented.clustering.kmeans, tothill.original.labels)
+@
+
+The dataset of Tothill et al. (2008) consisted of \Sexpr{ncol(esets.not.rescaled.probes$GSE9891)} patients, of which \Sexpr{ncol(esets.not.rescaled$GSE9891)} had late-stage, high-grade serious ovarian cancer. On their full dataset (n = \Sexpr{ncol(esets.not.rescaled.probes$GSE9891)}), they performed the following clustering procedure: probes were selected if at least one sample had an expression above 7.0, and global variance was above 0.5. They performed a form of consensus k-means clustering by performing k-means clustering 1000 times, identifyied a ``robust'' set of samples that co-clustered consistently, then used diagonal LDA and k-nearest neighbours to classify remaining samples. 
+
+Using their full dataset, we filtered to probes with at least one sample with expression above 7.0, and variance above 0.5. We performed k-means clustering $B = 1000$ times, and used \texttt{R} package \texttt{clue} to perform consensus clustering using the criterion of Dimitriadou et al. (2002):
+\begin{align*}
+C_{\textnormal{consensus}} = \min_{C\in\mathcal{C}} \left\{ \sum_{b=1}^B d(C,C_b)^2 \right\}
+\end{align*}
+where $\mathcal{C}$ is the set of all possible clusterings, $d$ is the Euclidean distance, and $\{C_1, C_2, \ldots, C_B\}$ are the k-means clusterings.
+
+<<tothill_kmeans_contingency, results="asis">>=
+kable(table(tothill.merged.kmeans$consensus.kmeans.classes, tothill.merged.kmeans$group)[c(2,4,3,1,5),], format="latex")
+#table(tothill.merged$nmf.classes, tothill.merged$group)
+@
+
+<<tothill_nmf_clustering>>=
+tothill.implemented.clustering.nmf <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, nmf.classes=.getNMFClasses(esets.not.rescaled$GSE9891, num.genes = 3000, nrun=5))
+tothill.implemented.clustering.nmf$ID <- sub("X", "", tothill.implemented.clustering.nmf$ID)
+tothill.merged.nmf <- merge(tothill.implemented.clustering.nmf, tothill.original.labels.hgs)
+@
+
+<<tothill_nmf_contingency, results="asis">>=
+kable(table(tothill.merged.nmf$nmf.classes, tothill.merged.nmf$group)[c(3,1,4,2),], format="latex")
+#table(tothill.merged$nmf.classes, tothill.merged$group)
 @
 
 %Bentink
