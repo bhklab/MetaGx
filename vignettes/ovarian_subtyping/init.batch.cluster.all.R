@@ -17,4 +17,4 @@ esets.not.rescaled <- lapply(esets.not.rescaled, function(eset) eset[apply(exprs
 # only keep esets with at least 10000 genes
 esets.not.rescaled <- esets.not.rescaled[sapply(esets.not.rescaled, function(x) nrow(x) > 10000)]
 
-save(esets.not.rescaled, "esets.not.rescaled.RData")
+save(esets.not.rescaled, file="esets.not.rescaled.RData")
