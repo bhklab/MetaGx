@@ -5,6 +5,9 @@ library(clue)
 task.id <- as.integer(Sys.getenv("SGE_TASK_ID"))
 set.seed(660 + task.id * 100)
 
+out.dir <- paste0("july31clusters/", gene.set, "_", algorithm, "_", dataset.index, "_", k)
+dir.create(out.dir)
+
 .getFilteredEsetByMAD <- function(eset, num.genes) {
   expression.matrix <- exprs(eset)
   mad.vals <- apply(expression.matrix, 1, mad)
@@ -66,12 +69,6 @@ algorithm <- config.grid$algorithm[task.id]
 dataset.index <- config.grid$dataset.index[task.id]
 k <- config.grid$k[task.id]
 
-out.dir <- paste0("july31clusters/", gene.set, "_", algorithm, "_", dataset.index, "_", k)
-
-dir.create(out.dir)
-
-setwd(out.dir)
-
 current.eset <- esets.not.rescaled[dataset.index]
 current.eset.name <- names(esets.not.rescaled)[dataset.index]
 
@@ -93,4 +90,4 @@ if(algorithm == "kmeans") {
   out.classes <- .getNMFClasses(current.eset, filter.genes=FALSE, rank=k, nrun=200)
 }
 
-write(out.classes, file=current.eset.name, "_classes.txt")
+write(out.classes, file=paste0(out.dir, current.eset.name, "_classes.txt"))
