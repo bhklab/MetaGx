@@ -66,15 +66,20 @@ config.grid <- expand.grid(
   dataset.index=1:16,
   k=2:10)
 
+config.grid$gene.set <- as.character(config.grid$gene.set)
+config.grid$algorithm <- as.character(config.grid$algorithm)
+config.grid$dataset.index <- as.integer(as.character(config.grid$dataset.index))
+config.grid$k <- as.integer(as.character(config.grid$k))
+
 gene.set <- config.grid$gene.set[task.id]
 algorithm <- config.grid$algorithm[task.id]
 dataset.index <- config.grid$dataset.index[task.id]
 k <- config.grid$k[task.id]
 
-out.dir <- paste0("july31clusters/", gene.set, "_", algorithm, "_", dataset.index, "_", k)
+out.dir <- paste0("aug1clusters/", gene.set, "_", algorithm, "_", k)
 dir.create(out.dir)
 
-current.eset <- esets.not.rescaled[dataset.index]
+current.eset <- esets.not.rescaled[[dataset.index]]
 current.eset.name <- names(esets.not.rescaled)[dataset.index]
 
 if(gene.set == "tcga") {
@@ -95,4 +100,4 @@ if(algorithm == "kmeans") {
   out.classes <- .getNMFClasses(current.eset, filter.genes=FALSE, rank=k, nrun=200)
 }
 
-write(out.classes, file=paste0(out.dir, current.eset.name, "_classes.txt"))
+write(as.character(out.classes), file=paste0(out.dir, "/", current.eset.name, "_classes.txt"), ncolumns = 1)
