@@ -11,6 +11,7 @@
 \geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
 \usepackage[table]{xcolor}
 \usepackage{amsmath}
+\setlength{\textfloatsep}{10pt plus 1.0pt minus 2.0pt}
 %\newcommand{\sectionbreak}{\clearpage}
 
 \begin{document}
@@ -208,8 +209,10 @@ konecny.merged.authorlist <- merge(konecny.implemented.clustering.authorlist, ko
 
 @
 
-<<konecny_contingency_authorlist, results="asis">>=
+Konecny et al. performed clustering by first taking a subset of the top 2500 probesets by median absolute deviation (MAD), then used non-negative matrix factorization. We matched these probeset names to Entrez IDs from data from GEO, and performed clustering on the series matrix from GEO. In order to ensure all expression values were positive, all expression quantities were increased by the absolute value of the smallest (most negative) value. We ran NMF with 100 iterations.
 
+\vspace*{10pt}
+<<konecny_contingency_authorlist, results="asis">>=
 kable(table(konecny.merged.authorlist$MAYO.C4, konecny.merged.authorlist$nmf.classes)[c(4,3,2,1),c(3,1,4,2)], format="latex")
 @
 
@@ -239,7 +242,7 @@ tcga.merged.mad <- merge(tcga.implemented.clustering.mad, verhaak.labels.table)
 In the TCGA study (2011), the authors performed clustering as follows. First, the gene list was filtered to genes that correlate above 0.7 between each of three microarray platforms and the unified estimate; then, the top 1500 genes by median absolute deviation (MAD) were selected. Clustering was performed by non-negative matrix factorization.
 
 In order to perform clustering across datasets, we selected the top 1500 genes by MAD, then performed non-negative matrix factorization with 100 iterations. 
-
+\vspace*{10pt}
 <<TCGA_contingency_mad, results="asis">>=
 kable(table(tcga.merged.mad$SUBTYPE, tcga.merged.mad$nmf.classes)[c(3,4,1,2),c(2,4,3,1)], format="latex")
 @
@@ -271,8 +274,8 @@ tcga.implemented.clustering.authorlist <- data.frame(ID=tcga.eset$unique_patient
 tcga.merged.authorlist <- merge(tcga.implemented.clustering.authorlist, verhaak.labels.table)
 @
 
-Since these results were not so good, we contacted the authors to acquire the original gene list used for clustering. Out of 1500 genes, there was an overlap of \Sexpr{length(intersect(rownames(tcga.clustering.authordata), mad.1500.gene.list))}. 
-
+We contacted the authors to acquire the original gene list used for clustering.\footnote{Out of 1500 genes, there was an overlap of \Sexpr{length(intersect(rownames(tcga.clustering.authordata), mad.1500.gene.list))}. The difference is likely due to the correlation step across platforms, which the original gene list did not account for.}
+\vspace*{10pt}
 <<TCGA_contingency_authorlist, results="asis">>=
 kable(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[c(3,4,1,2),c(3,4,1,2)], format="latex")
 @
@@ -328,11 +331,14 @@ C_{\textnormal{consensus}} = \min_{C\in\mathcal{C}} \left\{ \sum_{b=1}^B d(C,C_b
 \end{align*}
 where $\mathcal{C}$ is the set of all possible clusterings, $d$ is the Euclidean distance, and $\{C_1, C_2, \ldots, C_B\}$ are the k-means clusterings.
 
+Despite the difference between the consensus strategies, the cluster results appear to be similar:
+
+\vspace*{10pt}
 <<tothill_kmeans_contingency, results="asis">>=
 kable(table(tothill.merged.kmeans$group, tothill.merged.kmeans$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(3,1,6,2,5,4)], format="latex")
 #table(tothill.merged$nmf.classes, tothill.merged$group)
 @
-
+\vspace*{10pt}
 <<tothill_kmeans_5_clustering>>=
 tothill.implemented.clustering.kmeans.5 <- data.frame(ID=esets.not.rescaled.probes$GSE9891$alt_sample_name, consensus.kmeans.classes=.getConsensusKMeansClasses(esets.not.rescaled.probes$GSE9891, k=5, num.iterations=1000))
 tothill.implemented.clustering.kmeans.5$ID <- sub("X", "", tothill.implemented.clustering.kmeans.5$ID)
@@ -340,12 +346,16 @@ tothill.merged.kmeans.5 <- merge(tothill.implemented.clustering.kmeans.5, tothil
 @
 
 Since it appears that this implementation of k-means clustering is not capturing C6, we performed consensus k-means clustering with k = 5:
-
+\vspace*{10pt}
 <<tothill_kmeans_5_contingency, results="asis">>=
 kable(table(tothill.merged.kmeans.5$group, tothill.merged.kmeans.5$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(4,5,2,1,3)], format="latex")
 @
+\vspace*{10pt}
+Since both Konecny / TCGA used NMF of rank 4, it seemed interesting to investigate how this algorithm would perform on the Tothill dataset. The top 3000 genes were selected by top MAD, and NMF was performed. 
 
-NMF with k = 4:
+
+
+NMF with rank = 4:
 
 <<tothill_nmf_clustering>>=
 
@@ -353,12 +363,16 @@ tothill.implemented.clustering.nmf <- data.frame(ID=esets.not.rescaled$GSE9891$a
 tothill.implemented.clustering.nmf$ID <- sub("X", "", tothill.implemented.clustering.nmf$ID)
 tothill.merged.nmf <- merge(tothill.implemented.clustering.nmf, tothill.original.labels.hgs)
 @
-
+\vspace*{10pt}
 <<tothill_nmf_contingency, results="asis">>=
 kable(table(tothill.merged.nmf$group, tothill.merged.nmf$nmf.classes)[c(1,4,3,2),c(2,3,4,1)], format="latex")
 #table(tothill.merged$nmf.classes, tothill.merged$group)
 @
 
 %Bentink
+\pagebreak
+\section{Preliminary work: Prediction Strength}
+
+\Sexpr{knit_child('robustness_validation.Rnw')}
 
 \end{document}
