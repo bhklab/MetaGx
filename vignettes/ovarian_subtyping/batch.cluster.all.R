@@ -71,10 +71,10 @@ options(echo=TRUE)
 args <- commandArgs(trailingOnly = TRUE)
 
 config.grid <- expand.grid(
-  gene.set=c("tcga", "tothill", "1000", "1500", "2000", "2500", "3000"),
+  gene.set=c("tcga", "tothill", "konecny", "1000", "1500", "2000", "2500", "3000"),
   algorithm=c("nmf", "kmeans"),
   dataset.index=1:16,
-  k=2:10)
+  k=4)
 
 config.grid$gene.set <- as.character(config.grid$gene.set)
 config.grid$algorithm <- as.character(config.grid$algorithm)
@@ -99,7 +99,10 @@ if(gene.set == "tcga") {
 } else if(gene.set == "tothill") {
   tothill.gene.table <- read.table("../../inst/extdata/tothill.clustering.genes.txt")
   current.eset <- .getFilteredEsetByGeneList(current.eset, as.character(tothill.gene.table$entrez.id), list.type="entrez.id")
-} else {
+} else if (gene.set == "konecny"){
+  konecny.unique.entrez.ids <- scan("../../inst/extdata/konecny.unique.entrez.ids.txt", what=character(0))
+  current.eset <- .getFilteredEsetByGeneList(current.eset, konecny.unique.entrez.ids, list.type="entrez.id")
+}else {
   num.genes <- as.integer(gene.set)
   current.eset <- .getFilteredEsetByMAD(current.eset, num.genes)
 }
