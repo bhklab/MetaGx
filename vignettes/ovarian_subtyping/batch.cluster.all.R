@@ -23,17 +23,27 @@ set.seed(660 + task.id * 100)
   return(eset)
 }
 
+
 .getNMFClasses <- function(eset, filter.genes=TRUE, num.genes=2000, rank=4, nrun=100) {
+  # rescale eset by z-score per gene
   expression.matrix <- exprs(eset)
   if(filter.genes) {
     mad.vals <- apply(exprs(eset), 1, mad)
     expression.matrix <- exprs(eset)[mad.vals >= tail(sort(mad.vals),num.genes)[1],]
   }
+  if(any(expression.matrix < 0)) {
+    expression.matrix <- expression.matrix + abs(min(expression.matrix))
+  }
   
   nmf.out <- nmf(expression.matrix, rank=rank, nrun=nrun)
-  h.mat <- coef(nmf.out)
-  classes <- apply(h.mat, 2, which.max)
-  classes <- as.factor(paste0("NMF_", classes))
+  # Clustering using consensus
+  classes <- cutree(consensushc(nmf.out, dendrogram=FALSE), k=rank)
+  
+  classes <- as.factor(paste0("ConsensusNMF_", classes))
+  # Clustering using matrix factorization
+  #h.mat <- coef(nmf.out)
+  #classes <- apply(h.mat, 2, which.max)
+  #classes <- as.factor(paste0("NMF_", classes))
   return(classes)
 }
 
@@ -76,7 +86,7 @@ algorithm <- config.grid$algorithm[task.id]
 dataset.index <- config.grid$dataset.index[task.id]
 k <- config.grid$k[task.id]
 
-out.dir <- paste0("aug1clusters/", gene.set, "_", algorithm, "_", k)
+out.dir <- paste0("aug6clusters/", gene.set, "_", algorithm, "_", k)
 dir.create(out.dir)
 
 current.eset <- esets.not.rescaled[[dataset.index]]

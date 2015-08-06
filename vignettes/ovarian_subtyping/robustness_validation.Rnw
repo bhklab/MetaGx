@@ -112,6 +112,8 @@ I performed clustering on 11 datasets from MetaGxOvarian:
 
 Clustering was performed using a grid of 126 algorithm configurations:
 
+\vspace{10pt}
+
 \begin{tabular}{ | p{3cm} | p{3cm} |p{0.4cm} |} 
 \hline Algorithm & Gene Set & k \\ \hline 
 Consensus k-means NMF & TCGA gene set Tothill gene set Top 1000 by MAD Top 1500 by MAD Top 2000 by MAD Top 2500 by MAD Top 3000 by MAD & 2 3 4 5 6 7 8 9 10
@@ -125,53 +127,58 @@ config.grid.beginning <- rbind(config.grid.beginning, rep("...",3))
 print(xtable(config.grid.beginning), include.rownames=FALSE)
 @
 
-
+\pagebreak
 \subsection{Verhaak/TCGA}
 Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
 
-<<TCGA_pred_str>>=
+<<TCGA_pred_str, out.width="0.7\\textwidth">>=
 tcga.ps.vals <- sapply(1:length(classifier.subtypes$Verhaak), function(x) ps.cluster(classifier.subtypes$Verhaak[[x]], cluster.class.list[[which(config.grid$algorithm == "nmf" & config.grid$gene.set == "tcga" & config.grid$k == 4)]][[x]])$ps)
 names(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
 barplot(tcga.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
 @
-
+\pagebreak
 Prediction strength vs the number of patients in each dataset:
-<<TCGA_pred_str_scatter>>=
+<<TCGA_pred_str_scatter, out.width="0.7\\textwidth">>=
 sample.sizes <- sapply(esets.rescaled.with.subtype[dataset.names], ncol)
 plot(sample.sizes, tcga.ps.vals)
 @
 (Spearman's correlation = \Sexpr{cor(sample.sizes, tcga.ps.vals, method='spearman')})
-
+\pagebreak
 \subsection{Tothill/Helland}
 
 Using the subtype labels from the implemented Tothill/Helland classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:\footnote{this gene list was obtained by closely replicating their filtering methods, and is probably pretty accurate since the clustering we did previously was very concordant}
 
-<<Tothill_pred_str>>=
+<<Tothill_pred_str, out.width="0.7\\textwidth">>=
 tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) ps.cluster(classifier.subtypes$Helland[[x]], cluster.class.list[[which(config.grid$algorithm == "kmeans" & config.grid$gene.set == "tothill" & config.grid$k == 4)]][[x]])$ps)
 names(tothill.ps.vals) <- names(classifier.subtypes$Helland)
 barplot(tothill.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
 @
-
+\pagebreak
 Prediction strength vs the number of patients in each dataset:
-<<Tothill_pred_str_scatter>>=
+<<Tothill_pred_str_scatter, out.width="0.7\\textwidth">>=
 plot(sample.sizes, tothill.ps.vals)
 @
 (Spearman's correlation = \Sexpr{cor(sample.sizes, tothill.ps.vals, method='spearman')})
 
-
+\pagebreak
 \subsection{Konecny}
-Using the subtype labels from the implemented Konecny classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:
-<<Konecny_pred_str>>=
+Using the subtype labels from the implemented Konecny classifier, compared against de novo clustering with consensus k-means, k = 4, and the top 2000 genes by MAD:
+<<Konecny_pred_str, out.width="0.7\\textwidth">>=
 konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) ps.cluster(classifier.subtypes$Konecny[[x]], cluster.class.list[[which(config.grid$algorithm == "nmf" & config.grid$gene.set == "2000" & config.grid$k == 4)]][[x]])$ps)
 names(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
 barplot(konecny.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
 @
 
+\pagebreak
 Prediction strength vs the number of patients in each dataset:
-<<Konecny_pred_str_scatter>>=
+<<Konecny_pred_str_scatter, out.width="0.7\\textwidth">>=
 plot(sample.sizes, konecny.ps.vals)
 @
 (Spearman's correlation = \Sexpr{cor(sample.sizes, tothill.ps.vals, method='spearman')})
 
 
-
+<<dataset_barplot>>=
+par(mar=c(5.1,10,4.1,2.1))
+barplot(sapply(esets.rescaled.with.subtype[dataset.names], function(x) ncol(exprs(x))), horiz=TRUE, las=2, col="blue", main="HGS sample sizes")
+par(mar=c(5.1, 4.1, 4.1, 2.1))
+@
