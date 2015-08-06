@@ -1,0 +1,177 @@
+
+<<load_data_original, eval=FALSE>>=
+load("esets.not.rescaled.RData")
+
+esets.not.rescaled <- esets.not.rescaled[names(esets.not.rescaled) != "TCGA.RNASeqV2"]
+# Replace each gene by its z-score
+esets <- lapply(esets.not.rescaled, function(eset) {
+  exprs(eset) <- t(scale(t(exprs(eset))))
+  return(eset)
+})
+
+source("../../R/getKonecnySubtypes.R")
+source("../../R/getVerhaakSubtypes.R")
+source("../../R/getHellandSubtypes.R")
+
+# Subtype classification
+esets <- lapply(esets, function(x) getKonecnySubtypes(x)[[1]])
+esets <- lapply(esets, function(x) getVerhaakSubtypes(x)[[1]])
+esets <- lapply(esets, function(x) getHellandSubtypes(x)[[1]])
+esets.rescaled.with.subtype <- esets
+save(esets.rescaled.with.subtype, file="esets.rescaled.with.subtype.RData")
+rm(esets)
+@
+
+
+<<load_data_from_files>>=
+load("esets.rescaled.with.subtype.RData")
+
+# These are the dataset names with all positive values, with TCGA RNASeq removed
+dataset.names <- c("E.MTAB.386", "GSE18520", "GSE26193", "PMID17290060", "GSE13876", "GSE20565", "GSE26712", "GSE14764", "GSE2109", "GSE9891", "TCGA")
+
+config.grid <- expand.grid(
+  algorithm=c("nmf", "kmeans"),
+  gene.set=c("tcga", "tothill", "1000", "1500", "2000", "2500", "3000"),
+  k=2:10)
+
+cluster.class.list <- vector("list", nrow(config.grid))
+
+for(i in 1:nrow(config.grid)) {
+  cluster.classes <- list()
+  for(current.eset.name in dataset.names) {
+    cluster.classes[[current.eset.name]] <- scan(paste0("aug1clusters/", config.grid$gene.set[i], "_", config.grid$algorithm[i], "_", config.grid$k[i], "/", current.eset.name, "_classes.txt"), what=character(0))
+  }
+  cluster.class.list[[i]] <- cluster.classes
+}
+
+classifier.subtypes <- lapply(c("Konecny.subtypes", "Verhaak.subtypes", "Helland.subtypes"), function(subtype.colname) {
+  subtype.classes <- list()
+  for(current.eset.name in dataset.names) {
+    subtype.classes[[current.eset.name]] <- as.character(pData(esets.rescaled.with.subtype[[current.eset.name]])[,subtype.colname])
+  }
+  return(subtype.classes)
+})
+
+names(classifier.subtypes) <- c("Konecny", "Verhaak", "Helland")
+
+getAdjacencyMatrix <- function(classes) {
+  adj.matrix <- matrix(NA, nrow=length(classes), ncol=length(classes))
+	for(i in 1:(length(classes)-1)) {
+		for(j in (i+1):length(classes)) {
+			if(classes[i] == classes[j]) { adj.matrix[i,j] <- adj.matrix[j,i] <- 1 } else { adj.matrix[i,j] <- adj.matrix[j,i] <- 0 }
+		}
+	}
+  return(adj.matrix)
+}
+
+getMeanAdjMatrices <- function(configs.to.keep) {
+  cluster.class.list.tokeep <- cluster.class.list[configs.to.keep]
+  lapply(names(cluster.class.list.tokeep[[1]]), function(dataset.name) {
+  mean.adj.matrix <- matrix(0, nrow=length(cluster.class.list.tokeep[[1]][[dataset.name]]), ncol=length(cluster.class.list.tokeep[[1]][[dataset.name]]))
+  total <- 0
+  for(cluster.config.index in 1:length(cluster.class.list.tokeep)) {
+    total <- total + 1
+    cluster.classes <- cluster.class.list.tokeep[[cluster.config.index]]
+    for(i in 1:(length(cluster.classes[[dataset.name]])-1)) {
+      for(j in (i+1):length(cluster.classes[[dataset.name]])) {
+        mean.adj.matrix[i,j] <- mean.adj.matrix[i,j] + (cluster.classes[[dataset.name]][i] == cluster.classes[[dataset.name]][j])
+        mean.adj.matrix[j,i] <- mean.adj.matrix[j,i] + (cluster.classes[[dataset.name]][i] == cluster.classes[[dataset.name]][j])
+      }
+    }
+  }
+  mean.adj.matrix <- mean.adj.matrix / total
+  diag(mean.adj.matrix) <- NA
+  names(mean.adj.matrix) <- names(cluster.class.list[[1]])
+  return(mean.adj.matrix)
+})
+}
+
+#cluster.adjacency.list <- lapply(cluster.class.list, function(cluster.classes) {
+#  lapply(cluster.classes, getAdjacencyMatrix)
+#})
+
+#cluster.adjacency.means <- do.call(function(x,y) {
+#  for(i in 1:length(x)) sum(x[[i]], y[[i]], na.rm=TRUE)
+#}, cluster.adjacency.list)
+
+getMeanPairwiseSimilarityMeasure <- function(class.list, metricFunction) {
+  out.vals <- c()
+  for(i in 1:(length(class.list) - 1)) {
+    for(j in (i+1):length(class.list)) {
+      vals <- sapply(1:length(class.list[[i]]), function(x) metricFunction(class.list[[i]][[x]], class.list[[j]][[x]]))
+      out.vals <- c(out.vals, vals)
+    }
+  }
+  return(out.vals)
+}
+@
+
+
+I performed clustering on 11 datasets from MetaGxOvarian:
+\Sexpr{dataset.names}
+
+Clustering was performed using a grid of 126 algorithm configurations:
+
+\begin{tabular}{ | p{3cm} | p{3cm} |p{0.4cm} |} 
+\hline Algorithm & Gene Set & k \\ \hline 
+Consensus k-means NMF & TCGA gene set Tothill gene set Top 1000 by MAD Top 1500 by MAD Top 2000 by MAD Top 2500 by MAD Top 3000 by MAD & 2 3 4 5 6 7 8 9 10
+\\ \hline \end{tabular}
+
+<<show_config_grid, results='asis'>>=
+config.grid.beginning <- head(config.grid, n=20)
+config.grid.beginning$algorithm <- as.character(config.grid.beginning$algorithm)
+config.grid.beginning$gene.set <- as.character(config.grid.beginning$gene.set)
+config.grid.beginning <- rbind(config.grid.beginning, rep("...",3))
+print(xtable(config.grid.beginning), include.rownames=FALSE)
+@
+
+
+\subsection{Verhaak/TCGA}
+Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
+
+<<TCGA_pred_str>>=
+tcga.ps.vals <- sapply(1:length(classifier.subtypes$Verhaak), function(x) ps.cluster(classifier.subtypes$Verhaak[[x]], cluster.class.list[[which(config.grid$algorithm == "nmf" & config.grid$gene.set == "tcga" & config.grid$k == 4)]][[x]])$ps)
+names(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
+barplot(tcga.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
+@
+
+Prediction strength vs the number of patients in each dataset:
+<<TCGA_pred_str_scatter>>=
+sample.sizes <- sapply(esets.rescaled.with.subtype[dataset.names], ncol)
+plot(sample.sizes, tcga.ps.vals)
+@
+(Spearman's correlation = \Sexpr{cor(sample.sizes, tcga.ps.vals, method='spearman')})
+
+\subsection{Tothill/Helland}
+
+Using the subtype labels from the implemented Tothill/Helland classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:\footnote{this gene list was obtained by closely replicating their filtering methods, and is probably pretty accurate since the clustering we did previously was very concordant}
+
+<<Tothill_pred_str>>=
+tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) ps.cluster(classifier.subtypes$Helland[[x]], cluster.class.list[[which(config.grid$algorithm == "kmeans" & config.grid$gene.set == "tothill" & config.grid$k == 4)]][[x]])$ps)
+names(tothill.ps.vals) <- names(classifier.subtypes$Helland)
+barplot(tothill.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
+@
+
+Prediction strength vs the number of patients in each dataset:
+<<Tothill_pred_str_scatter>>=
+plot(sample.sizes, tothill.ps.vals)
+@
+(Spearman's correlation = \Sexpr{cor(sample.sizes, tothill.ps.vals, method='spearman')})
+
+
+\subsection{Konecny}
+Using the subtype labels from the implemented Konecny classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:
+<<Konecny_pred_str>>=
+konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) ps.cluster(classifier.subtypes$Konecny[[x]], cluster.class.list[[which(config.grid$algorithm == "nmf" & config.grid$gene.set == "2000" & config.grid$k == 4)]][[x]])$ps)
+names(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
+barplot(konecny.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
+@
+
+Prediction strength vs the number of patients in each dataset:
+<<Konecny_pred_str_scatter>>=
+plot(sample.sizes, konecny.ps.vals)
+@
+(Spearman's correlation = \Sexpr{cor(sample.sizes, tothill.ps.vals, method='spearman')})
+
+
+
