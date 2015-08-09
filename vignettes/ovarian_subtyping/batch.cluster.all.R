@@ -91,7 +91,7 @@ config.grid <- data.frame(
 
 config.id <- task.id %% nrow(config.grid)
 if(config.id == 0) {
-  config.id <- nrow(task.id)
+  config.id <- nrow(config.grid)
 }
 
 config.grid$gene.set <- as.character(config.grid$gene.set)
