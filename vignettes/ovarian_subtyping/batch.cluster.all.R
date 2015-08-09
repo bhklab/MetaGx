@@ -70,23 +70,41 @@ load("esets.not.rescaled.RData")
 options(echo=TRUE)
 args <- commandArgs(trailingOnly = TRUE)
 
+#config.grid <- expand.grid(
+#  gene.set=c("tcga", "tothill", "konecny", "1000", "1500", "2000", "2500", "3000"),
+#  algorithm=c("nmf", "kmeans"),
+#  dataset.index=1:16,
+#  k=4)
+
 config.grid <- expand.grid(
-  gene.set=c("tcga", "tothill", "konecny", "1000", "1500", "2000", "2500", "3000"),
+  gene.set=c("tcga", "tothill", "konecny"),
   algorithm=c("nmf", "kmeans"),
   dataset.index=1:16,
   k=4)
+
+config.grid <- data.frame(
+  gene.set=rep(c("tcga", "tothill", "konecny"), each=16),
+  algorithm=rep(c("nmf", "kmeans", "nmf"), each=16),
+  dataset.index=rep(1:16,3),
+  k=4
+  )
+
+config.id <- task.id %% nrow(config.grid)
+if(config.id == 0) {
+  config.id <- nrow(task.id)
+}
 
 config.grid$gene.set <- as.character(config.grid$gene.set)
 config.grid$algorithm <- as.character(config.grid$algorithm)
 config.grid$dataset.index <- as.integer(as.character(config.grid$dataset.index))
 config.grid$k <- as.integer(as.character(config.grid$k))
 
-gene.set <- config.grid$gene.set[task.id]
-algorithm <- config.grid$algorithm[task.id]
-dataset.index <- config.grid$dataset.index[task.id]
-k <- config.grid$k[task.id]
+gene.set <- config.grid$gene.set[config.id]
+algorithm <- config.grid$algorithm[config.id]
+dataset.index <- config.grid$dataset.index[config.id]
+k <- config.grid$k[config.id]
 
-out.dir <- paste0("aug6clusters/", gene.set, "_", algorithm, "_", k)
+out.dir <- paste0("aug8clusters/", gene.set, "_", algorithm, "_", k)
 dir.create(out.dir)
 
 current.eset <- esets.not.rescaled[[dataset.index]]
@@ -110,7 +128,7 @@ if(gene.set == "tcga") {
 if(algorithm == "kmeans") {
   out.classes <- .getConsensusKMeansClasses(current.eset, filter.genes=FALSE, k=k, num.iterations=1000)
 } else if(algorithm == "nmf") {
-  out.classes <- .getNMFClasses(current.eset, filter.genes=FALSE, rank=k, nrun=200)
+  out.classes <- .getNMFClasses(current.eset, filter.genes=FALSE, rank=k, nrun=100)
 }
 
-write(as.character(out.classes), file=paste0(out.dir, "/", current.eset.name, "_classes.txt"), ncolumns = 1)
+write(as.character(out.classes), file=paste0(out.dir, "/", current.eset.name, "_", task.id, "_classes.txt"), ncolumns = 1)
