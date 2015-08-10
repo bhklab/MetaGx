@@ -27,21 +27,20 @@ rm(esets)
 load("esets.rescaled.with.subtype.RData")
 
 # These are the dataset names with all positive values, with TCGA RNASeq removed
-dataset.names <- c("E.MTAB.386", "GSE18520", "GSE26193", "PMID17290060", "GSE13876", "GSE20565", "GSE26712", "GSE14764", "GSE2109", "GSE9891", "TCGA")
+dataset.names <- c("E.MTAB.386", "GSE13876", "GSE14764", "GSE17260", "GSE18520", "GSE20565", "GSE2109", "GSE26193", "GSE26712", "GSE32062", "GSE49997", "GSE51088", "GSE9891", "PMID17290060", "TCGA")
 
-config.grid <- expand.grid(
-  algorithm=c("nmf", "kmeans"),
-  gene.set=c("tcga", "tothill", "1000", "1500", "2000", "2500", "3000"),
-  k=2:10)
+clustering.subtypes <- list()
 
-cluster.class.list <- vector("list", nrow(config.grid))
-
-for(i in 1:nrow(config.grid)) {
+for(dirname in c("konecny_nmf_4", "tcga_nmf_4", "tothill_kmeans_4")) {
   cluster.classes <- list()
   for(current.eset.name in dataset.names) {
-    cluster.classes[[current.eset.name]] <- scan(paste0("aug1clusters/", config.grid$gene.set[i], "_", config.grid$algorithm[i], "_", config.grid$k[i], "/", current.eset.name, "_classes.txt"), what=character(0))
+    cluster.classes[[current.eset.name]] <- list()
+    filenames <- Sys.glob(paste0("aug8clusters/", dirname, "/", current.eset.name, "_*_classes.txt"))
+    for(filename in filenames) {
+      cluster.classes[[current.eset.name]][[length(cluster.classes[[current.eset.name]])+1]] <- scan(filename, what=character(0))
+    }
   }
-  cluster.class.list[[i]] <- cluster.classes
+  clustering.subtypes[[dirname]] <- cluster.classes
 }
 
 classifier.subtypes <- lapply(c("Konecny.subtypes", "Verhaak.subtypes", "Helland.subtypes"), function(subtype.colname) {
@@ -132,51 +131,31 @@ print(xtable(config.grid.beginning), include.rownames=FALSE)
 Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
 
 <<TCGA_pred_str, out.width="0.7\\textwidth">>=
-tcga.ps.vals <- sapply(1:length(classifier.subtypes$Verhaak), function(x) ps.cluster(classifier.subtypes$Verhaak[[x]], cluster.class.list[[which(config.grid$algorithm == "nmf" & config.grid$gene.set == "tcga" & config.grid$k == 4)]][[x]])$ps)
-names(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
-barplot(tcga.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
+tcga.ps.vals <- sapply(1:length(classifier.subtypes$Verhaak), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Verhaak[[x]], clustering.subtypes$tcga_nmf_4[[x]][[y]])$ps))
+colnames(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
+stripchart(as.data.frame(tcga.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 @
-\pagebreak
-Prediction strength vs the number of patients in each dataset:
-<<TCGA_pred_str_scatter, out.width="0.7\\textwidth">>=
-sample.sizes <- sapply(esets.rescaled.with.subtype[dataset.names], ncol)
-plot(sample.sizes, tcga.ps.vals)
-@
-(Spearman's correlation = \Sexpr{cor(sample.sizes, tcga.ps.vals, method='spearman')})
 \pagebreak
 \subsection{Tothill/Helland}
 
 Using the subtype labels from the implemented Tothill/Helland classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:\footnote{this gene list was obtained by closely replicating their filtering methods, and is probably pretty accurate since the clustering we did previously was very concordant}
 
 <<Tothill_pred_str, out.width="0.7\\textwidth">>=
-tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) ps.cluster(classifier.subtypes$Helland[[x]], cluster.class.list[[which(config.grid$algorithm == "kmeans" & config.grid$gene.set == "tothill" & config.grid$k == 4)]][[x]])$ps)
-names(tothill.ps.vals) <- names(classifier.subtypes$Helland)
-barplot(tothill.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
+tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Helland[[x]], clustering.subtypes$tothill_kmeans_4[[x]][[y]])$ps))
+colnames(tothill.ps.vals) <- names(classifier.subtypes$Helland)
+stripchart(as.data.frame(tothill.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 @
-\pagebreak
-Prediction strength vs the number of patients in each dataset:
-<<Tothill_pred_str_scatter, out.width="0.7\\textwidth">>=
-plot(sample.sizes, tothill.ps.vals)
-@
-(Spearman's correlation = \Sexpr{cor(sample.sizes, tothill.ps.vals, method='spearman')})
 
 \pagebreak
 \subsection{Konecny}
 Using the subtype labels from the implemented Konecny classifier, compared against de novo clustering with consensus k-means, k = 4, and the top 2000 genes by MAD:
 <<Konecny_pred_str, out.width="0.7\\textwidth">>=
-konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) ps.cluster(classifier.subtypes$Konecny[[x]], cluster.class.list[[which(config.grid$algorithm == "nmf" & config.grid$gene.set == "2000" & config.grid$k == 4)]][[x]])$ps)
-names(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
-barplot(konecny.ps.vals, ylim=c(0,1), las=2, ylab="Prediction strength")
+konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Konecny[[x]], clustering.subtypes$konecny_nmf_4[[x]][[y]])$ps))
+colnames(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
+stripchart(as.data.frame(konecny.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 @
 
 \pagebreak
-Prediction strength vs the number of patients in each dataset:
-<<Konecny_pred_str_scatter, out.width="0.7\\textwidth">>=
-plot(sample.sizes, konecny.ps.vals)
-@
-(Spearman's correlation = \Sexpr{cor(sample.sizes, tothill.ps.vals, method='spearman')})
-
-
 <<dataset_barplot>>=
 par(mar=c(5.1,10,4.1,2.1))
 barplot(sapply(esets.rescaled.with.subtype[dataset.names], function(x) ncol(exprs(x))), horiz=TRUE, las=2, col="blue", main="HGS sample sizes")
