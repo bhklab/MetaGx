@@ -48,7 +48,6 @@ set.seed(660 + task.id * 100)
 }
 
 .getConsensusKMeansClasses <- function(eset, filter.genes=TRUE, num.genes=2000, k=4, num.iterations=100) {
-  # rescale eset by z-score per gene
   expression.matrix <- exprs(eset)
   if(filter.genes) {
     mad.vals <- apply(exprs(eset), 1, mad)
