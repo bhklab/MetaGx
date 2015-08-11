@@ -104,7 +104,7 @@ algorithm <- config.grid$algorithm[config.id]
 dataset.index <- config.grid$dataset.index[config.id]
 k <- config.grid$k[config.id]
 
-out.dir <- paste0("aug8clusters/", gene.set, "_", algorithm, "_", k)
+out.dir <- paste0("aug11clusters/", gene.set, "_", algorithm, "_", k)
 dir.create(out.dir)
 
 current.eset <- esets.not.rescaled[[dataset.index]]

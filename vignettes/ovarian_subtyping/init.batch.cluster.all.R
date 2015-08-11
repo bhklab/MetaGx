@@ -3,7 +3,7 @@ library(MetaGxOvarian)
 
 source("../../inst/extdata/reproduce.results.patientselection.config")
 rule.2 <- c("histological_type","^ser$")
-rule.3 <- c("summarystage","^late$")
+#rule.3 <- c("summarystage","^late$")
 rule.4 <- c("summarygrade","^high$")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
