@@ -17,25 +17,27 @@ getVerhaakSubtypes <- function(eset) {
                                                              c("ID", "SUBTYPE") ]
 	supplementary.tcga.discovery <- supplementary.tcga.discovery[ supplementary.tcga.discovery$SUBTYPE %in% c("Mesenchymal", "Immunoreactive"), ]
   
-  tcga.eset <- esets$TCGA
-  tcga.eset <- tcga.eset[,tcga.eset$unique_patient_ID %in% supplementary.tcga.discovery$ID]
-  tcga.expression.matrix <- exprs(tcga.eset)
-  rownames(tcga.expression.matrix) <- fData(tcga.eset)$gene
-  tcga.gsva.out <- gsva(tcga.expression.matrix, genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=4)
-  tcga.gsva.out <- as.data.frame(t(tcga.gsva.out))
-  tcga.gsva.out$ID = tcga.eset$unique_patient_ID
+  #tcga.eset <- esets$TCGA
+  #tcga.eset <- tcga.eset[,tcga.eset$unique_patient_ID %in% supplementary.tcga.discovery$ID]
+  #tcga.expression.matrix <- exprs(tcga.eset)
+  #rownames(tcga.expression.matrix) <- fData(tcga.eset)$gene
+  #tcga.gsva.out <- gsva(tcga.expression.matrix, genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=4)
+  #tcga.gsva.out <- as.data.frame(t(tcga.gsva.out))
+  #tcga.gsva.out$ID = tcga.eset$unique_patient_ID
 	
-  tcga.gsva.out.with.published.subtype <- merge(tcga.gsva.out, supplementary.tcga.discovery, by="ID")
-  IMR.threshold <- min(tcga.gsva.out.with.published.subtype$IMR[ tcga.gsva.out.with.published.subtype$SUBTYPE=="Immunoreactive" ])
-  MES.threshold <- min(tcga.gsva.out.with.published.subtype$MES[ tcga.gsva.out.with.published.subtype$SUBTYPE=="Mesenchymal" ])
+  #tcga.gsva.out.with.published.subtype <- merge(tcga.gsva.out, supplementary.tcga.discovery, by="ID")
+  IMR.threshold <- 0.63 #min(tcga.gsva.out.with.published.subtype$IMR[ tcga.gsva.out.with.published.subtype$SUBTYPE=="Immunoreactive" ])
+  MES.threshold <- 0.56 #min(tcga.gsva.out.with.published.subtype$MES[ tcga.gsva.out.with.published.subtype$SUBTYPE=="Mesenchymal" ])
  
 	expression.matrix <- exprs(eset)
   rownames(expression.matrix) <- fData(eset)$gene
   
   ## Get ssGSEA subtype scores
-	gsva.out <- gsva(expression.matrix, genesets, method="ssgsea", min.sz=10, tau=0.75, parallel.sz=4)
+	gsva.out <- gsva(expression.matrix, genesets, method="ssgsea", tau=0.75, parallel.sz=4, mx.diff=FALSE, ssgsea.norm=FALSE)
   gsva.out <- t(gsva.out)
-    
+  
+  gsva.out <- apply(gsva.out, 2, function(x) ( x - min(x) ) / ( max(x) - min(x) ))
+  
   ## Classify each sample according to the max ssGSEA subtype score, using the scheme provided in the methods.
   
   subclasses <- apply(gsva.out, 1, function(x) {

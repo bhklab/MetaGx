@@ -60,32 +60,16 @@ library(randomForest)
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
 
 source("../../inst/extdata/reproduce.results.patientselection.config")
+rule.2 <- c("histological_type","^ser$")
+rule.3 <- c("summarystage","^late$")
+rule.4 <- c("summarygrade","^high$")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
 probe.gene.mapping <- TRUE
 rescale <- FALSE
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-esets.not.rescaled <- esets
-rescale <- TRUE
-source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-if(normalization == "none") {
-  
-} else if(normalization == "z.pergene") {
-  esets <- lapply(esets, function(eset) {
-    exprs(eset) <- t(scale(t(exprs(eset))))
-    return(eset)
-  })
-} else if(normalization == "z.perpatient") {
-  esets <- lapply(esets, function(eset) {
-    exprs(eset) <- scale(exprs(eset))
-    return(eset)
-  })
-} else if(normalization == "z.global") {
-  esets <- lapply(esets, function(eset) {
-    exprs(eset) <- ( exprs(eset) - mean(unlist(exprs(eset))) ) / sd(unlist(exprs(eset)))
-    return(eset)
-  })
-}
+#esets.not.rescaled <- esets
+#rescale <- TRUE
 @
 
 <<helper_functions>>=
