@@ -149,7 +149,6 @@ rm(esets)
 }
 
 .getConsensusKMeansClasses <- function(eset, filter.genes=TRUE, num.genes=2000, k=4, num.iterations=100) {
-  # rescale eset by z-score per gene
   expression.matrix <- exprs(eset)
   if(filter.genes) {
     mad.vals <- apply(exprs(eset), 1, mad)
@@ -393,12 +392,6 @@ tothill.clustering.genes <- read.table("../../inst/extdata/tothill.clustering.ge
 #original.tothill.eset <- original.tothill.eset[apply(exprs(original.tothill.eset), 1, function(x) any(x > 7) & var(x) >= 0.5),]
 #tothill.clustering.genes <- data.frame(probe=fData(original.tothill.eset)$ID, entrez.id=fData(original.tothill.eset)$ENTREZ_GENE_ID)
 #write.table(tothill.clustering.genes, file="../../inst/extdata/tothill.clustering.genes.txt")
-
-tothill.cluster.entrez.ids <- tothill.clustering.genes$entrez.id
-tothill.gene.indices <- match(tothill.cluster.entrez.ids, fData(esets.rescale.by.gene$GSE9891)$EntrezGene.ID)
-tothill.expression.matrix.to.cluster <- exprs(esets.rescale.by.gene$GSE9891[tothill.gene.indices,])
-tothill.expression.matrix.to.cluster <- tothill.expression.matrix.to.cluster[apply(tothill.expression.matrix.to.cluster, 1, function(x) all(!is.na(x))),]
-tothill.expression.matrix.to.cluster <- t(tothill.expression.matrix.to.cluster)
 
 tothill.implemented.clustering.kmeans <- data.frame(ID=esets.not.rescaled.probes$GSE9891$alt_sample_name, consensus.kmeans.classes=.getConsensusKMeansClasses(esets.not.rescaled.probes$GSE9891, k=6, num.iterations=1000))
 

@@ -128,11 +128,30 @@ In order to permit comparability between subtyping schemes, all datasets were fi
 Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
 
 <<TCGA_pred_str>>=
-tcga.ps.vals <- lapply(1:length(classifier.subtypes$Verhaak), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Verhaak[[x]], clustering.subtypes$tcga_nmf_4[[x]][[y]])))
-colnames(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
+tcga.ps.vals <- lapply(1:length(classifier.subtypes$Verhaak), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Verhaak[[x]], clustering.subtypes$tcga_nmf_4[[x]][[y]])$ps))
+names(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
+
+tcga.ordered.classes <- c("IMR", "DIF", "PRO", "MES")
+
+# returns a list of matrices. List elements are datasets, matrix elements are the stat values, by subtype.
+tcga.vi <- lapply(1:length(classifier.subtypes$Verhaak), function(x) {
+  vi.per.subtype <- sapply(tcga.ordered.classes, function(subtype) {
+    sapply(1:100, function(y) mcclust::vi.dist(as.character(classifier.subtypes$Verhaak[[x]] == subtype), clustering.subtypes$tcga_nmf_4[[x]][[y]]))
+  })
+  return(vi.per.subtype)
+})
+names(tcga.vi) <- names(classifier.subtypes$Verhaak)
+tcga.vi.m <- melt(tcga.vi)
+tcga.vi.means <- melt(sapply(tcga.vi, function(x) apply(x, 2, mean)))
+boxplot(value ~ Var1, tcga.vi.means, outline=FALSE, ylab="Variation of Information", main="Verhaak subtypes")
+stripchart(value ~ Var1, tcga.vi.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
+#ggplot(tcga.adj.rand.m, aes(x=L1, y=value, col=Var2)) + geom_jitter(position=position_jitter(0.2)) + scale_y_continuous(limits=c(0,1))
+#ggplot(tcga.mean.things, aes(x=Var1, y=value, fill=Var2)) + geom_bar(stat="identity", position="dodge")
 @
 <<TCGA_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(tcga.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
+par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
 \pagebreak
 \subsection{Tothill/Helland}
@@ -142,9 +161,26 @@ Using the subtype labels from the implemented Tothill/Helland classifier, compar
 <<Tothill_pred_str>>=
 tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Helland[[x]], clustering.subtypes$tothill_kmeans_4[[x]][[y]])$ps))
 colnames(tothill.ps.vals) <- names(classifier.subtypes$Helland)
+
+tothill.ordered.classes <- c("C2", "C4", "C5", "C1")
+
+# returns a list of matrices. List elements are datasets, matrix elements are the stat values, by subtype.
+tothill.vi <- lapply(1:length(classifier.subtypes$Helland), function(x) {
+  vi.per.subtype <- sapply(tothill.ordered.classes, function(subtype) {
+    sapply(1:100, function(y) mcclust::vi.dist(as.character(classifier.subtypes$Helland[[x]] == subtype), clustering.subtypes$tothill_kmeans_4[[x]][[y]]))
+  })
+  return(vi.per.subtype)
+})
+names(tothill.vi) <- names(classifier.subtypes$Helland)
+tothill.vi.m <- melt(tothill.vi)
+tothill.vi.means <- melt(sapply(tothill.vi, function(x) apply(x, 2, mean)))
+boxplot(value ~ Var1, tothill.vi.means, outline=FALSE, ylab="Variation of Information", main="Helland subtypes")
+stripchart(value ~ Var1, tothill.vi.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
 @
 <<Tothill_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(tothill.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
+par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
 
 \pagebreak
@@ -153,9 +189,26 @@ Using the subtype labels from the implemented Konecny classifier, compared again
 <<Konecny_pred_str>>=
 konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Konecny[[x]], clustering.subtypes$konecny_nmf_4[[x]][[y]])$ps))
 colnames(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
+
+konecny.ordered.classes <- c("C1_immL", "C2_diffL", "C3_profL", "C4_mesL")
+
+# returns a list of matrices. List elements are datasets, matrix elements are the stat values, by subtype.
+konecny.vi <- lapply(1:length(classifier.subtypes$Konecny), function(x) {
+  vi.per.subtype <- sapply(konecny.ordered.classes, function(subtype) {
+    sapply(1:100, function(y) mcclust::vi.dist(as.character(classifier.subtypes$Konecny[[x]] == subtype), clustering.subtypes$konecny_nmf_4[[x]][[y]]))
+  })
+  return(vi.per.subtype)
+})
+names(konecny.vi) <- names(classifier.subtypes$Helland)
+konecny.vi.m <- melt(konecny.vi)
+konecny.vi.means <- melt(sapply(konecny.vi, function(x) apply(x, 2, mean)))
+boxplot(value ~ Var1, konecny.vi.means, outline=FALSE, ylab="Variation of Information", main="Konecny subtypes")
+stripchart(value ~ Var1, konecny.vi.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
 @
 <<Konecny_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(konecny.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
+par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
 
 \pagebreak
