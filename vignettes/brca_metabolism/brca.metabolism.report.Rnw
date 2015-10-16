@@ -68,7 +68,7 @@ if(basal.only) {
 
 
 
-<<load_data, cache=TRUE>>=
+<<load_data, cache=FALSE>>=
 source("../../inst/extdata/brca.patientselection.config")
 source(system.file("extdata", "createEsetList.R", package="MetaGxBreast"))
 

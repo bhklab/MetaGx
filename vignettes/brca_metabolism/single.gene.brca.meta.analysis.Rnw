@@ -24,6 +24,13 @@ survival.df.list <- lapply(survival.df.list, function(survival.df) {
   survival.df$event_status <- surv.cens.obj$surv.event.cens
   return(survival.df)
 })
+
+# Remove datasets with zero events for either the low or high group
+survival.dfs.to.keep <- sapply(survival.df.list, function(current.survival.df) {
+  min(table(current.survival.df[,paste0("geneid.", entrez.ids[{{current.index}}], ".quantile")][current.survival.df$event_status == 1])) != 0
+  })
+print(sum(!survival.dfs.to.keep))
+survival.df.list <- survival.df.list[survival.dfs.to.keep]
 @
 
 <<survival_grid_{{current.index}}, fig.width=12, fig.height=12, out.width="1.0\\textwidth", cache=FALSE>>=
