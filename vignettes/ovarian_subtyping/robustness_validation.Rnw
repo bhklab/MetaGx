@@ -1,6 +1,6 @@
 
 
-<<load_data_from_files, cache=FALSE>>=
+<<load_data_from_files>>=
 load("esets.not.rescaled.classified.RData")
 
 # These are the dataset names with TCGA RNASeq removed
@@ -20,6 +20,7 @@ for(dirname in c("konecny_nmf_4", "tcga_nmf_4", "tothill_kmeans_4")) {
   clustering.subtypes[[dirname]] <- cluster.classes
 }
 
+
 classifier.subtypes <- lapply(c("Konecny.subtypes", "Verhaak.subtypes", "Helland.subtypes"), function(subtype.colname) {
   subtype.classes <- list()
   for(current.eset.name in dataset.names) {
@@ -29,6 +30,12 @@ classifier.subtypes <- lapply(c("Konecny.subtypes", "Verhaak.subtypes", "Helland
 })
 
 names(classifier.subtypes) <- c("Konecny", "Verhaak", "Helland")
+
+# Remove clustering/classification subtypes performed on the original dataset
+clustering.subtypes$tcga_nmf_4$TCGA <- NULL
+clustering.subtypes$tothill_kmeans_4$GSE9891 <- NULL
+classifier.subtypes$Verhaak$TCGA <- NULL
+classifier.subtypes$Helland$GSE9891 <- NULL
 
 getAdjacencyMatrix <- function(classes) {
   adj.matrix <- matrix(NA, nrow=length(classes), ncol=length(classes))
@@ -98,11 +105,6 @@ In order to permit comparability between subtyping schemes, all datasets were fi
 %\hline Algorithm & Gene Set & k \\ \hline 
 %Consensus k-means NMF & TCGA gene set Tothill gene set Top 1000 by MAD Top 1500 by MAD Top 2000 by MAD Top 2500 by MAD Top 3000 by MAD & 2 3 4 5 6 7 8 9 10
 %\\ \hline \end{tabular}
-
-\pagebreak
-\subsection{Verhaak/TCGA}
-Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
-
 <<TCGA_pred_str>>=
 
 .getSubtypeSpecificRandIndexValues <- function(classifier.subtypes.list, clustering.subtypes.list, ordered.classes, main) {
@@ -124,27 +126,43 @@ Using the subtype labels from the implemented Verhaak classifier, compared again
   }
 
 tcga.ps.vals <- sapply(1:length(classifier.subtypes$Verhaak), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Verhaak[[x]], clustering.subtypes$tcga_nmf_4[[x]][[y]])$ps))
-names(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
+colnames(tcga.ps.vals) <- names(classifier.subtypes$Verhaak)
 
 tcga.ordered.classes <- c("IMR", "DIF", "PRO", "MES")
 
-# returns a list of matrices. List elements are datasets, matrix elements are the stat values, by subtype.
-#tcga.vi <- lapply(1:length(classifier.subtypes$Verhaak), function(x) {
-#  vi.per.subtype <- sapply(tcga.ordered.classes, function(subtype) {
-#    sapply(1:100, function(y) mcclust::vi.dist(as.character(classifier.subtypes$Verhaak[[x]] == subtype), clustering.subtypes$tcga_nmf_4[[x]][[y]]))
-#  })
-#  return(vi.per.subtype)
-#})
-#names(tcga.vi) <- names(classifier.subtypes$Verhaak)
-#tcga.vi.m <- melt(tcga.vi)
-#tcga.vi.means <- melt(sapply(tcga.vi, function(x) apply(x, 2, mean)))
-#boxplot(value ~ Var1, tcga.vi.means, outline=FALSE, ylab="Variation of Information", main="Verhaak subtypes")
-#stripchart(value ~ Var1, tcga.vi.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
-#ggplot(tcga.adj.rand.m, aes(x=L1, y=value, col=Var2)) + geom_jitter(position=position_jitter(0.2)) + scale_y_continuous(limits=c(0,1))
-#ggplot(tcga.mean.things, aes(x=Var1, y=value, fill=Var2)) + geom_bar(stat="identity", position="dodge")
+@
+<<Tothill_pred_str>>=
+tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Helland[[x]], clustering.subtypes$tothill_kmeans_4[[x]][[y]])$ps))
+colnames(tothill.ps.vals) <- names(classifier.subtypes$Helland)
+
+tothill.ordered.classes <- c("C2", "C4", "C5", "C1")
 @
 
+<<Konecny_pred_str>>=
+konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Konecny[[x]], clustering.subtypes$konecny_nmf_4[[x]][[y]])$ps))
+colnames(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
+
+konecny.ordered.classes <- c("C1_immL", "C2_diffL", "C3_profL", "C4_mescL")
+
+@
+\pagebreak
+\section{Prediction Strength Summary}
+<<ps_combined_boxplot>>=
+set.seed(900)
+combined.ps <- sapply(list(Tothill=tothill.ps.vals, TCGA=tcga.ps.vals, Konecny=konecny.ps.vals), function(x) apply(x, 2, mean))
+combined.ps.m <- melt(combined.ps)
+my.boxplot <- ggplot(combined.ps.m, aes(x=L1, y=value)) + stat_boxplot(geom='errorbar', stat_params = list(width = 0.5)) + geom_boxplot(color="black") + geom_jitter(position=position_jitter(0.1)) + scale_y_continuous(limits=c(0,1), breaks=seq(0,1,0.2)) + theme_bw() + ggtitle("Robustness of Molecular Subtyping Schemes") + xlab("") + ylab("Prediction Strength") + xlab("Subtyping Scheme") + theme(plot.title=element_text(size=20, vjust=2)) + geom_hline(y=0.8, linetype="dotted") + coord_cartesian(ylim = c(0, 1)) 
+my.boxplot
+
+@
+
+\pagebreak
+\subsection{Verhaak/TCGA}
+Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
+
+
 <<TCGA_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+
 par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(tcga.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 par(mar=c(5.1, 4.1, 4.1, 2.1))
@@ -159,42 +177,6 @@ tcga.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Verhaak,
 
 Using the subtype labels from the implemented Tothill/Helland classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:\footnote{this gene list was obtained by closely replicating their filtering methods, and is probably pretty accurate since the clustering we did previously was very concordant}
 
-<<Tothill_pred_str>>=
-tothill.ps.vals <- sapply(1:length(classifier.subtypes$Helland), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Helland[[x]], clustering.subtypes$tothill_kmeans_4[[x]][[y]])$ps))
-colnames(tothill.ps.vals) <- names(classifier.subtypes$Helland)
-
-tothill.ordered.classes <- c("C2", "C4", "C5", "C1")
-
-# returns a list of matrices. List elements are datasets, matrix elements are the stat values, by subtype.
-
-.getConsistencyValues <- function(classifier.subtypes.list, clustering.subtypes.list, ordered.classes, distance.function) {
-    consistency.list.of.matrices <- lapply(1:length(classifier.subtypes.list), function(x) {
-      distance.per.subtype <- sapply(ordered.classes, function(subtype) {
-        sapply(1:100, function(y) distance.function(as.character(classifier.subtypes.list[[x]] == subtype), clustering.subtypes.list[[x]][[y]]))
-      })
-      return(distance.per.subtype)
-    })
-    
-    distance.per.subtype.means <- melt(sapply(consistency.list.of.matrices, function(x) apply(x, 2, mean)))
-    boxplot(value ~ Var1, distance.per.subtype.means, outline=FALSE, ylab="Stat", main="Boxplot")
-    stripchart(value ~ Var1, distance.per.subtype.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
-    return(consistency.list.of.matrices)
-}
-
-
-
-#tothill.vi <- lapply(1:length(classifier.subtypes$Helland), function(x) {
-#  vi.per.subtype <- sapply(tothill.ordered.classes, function(subtype) {
-#    sapply(1:100, function(y) mcclust::vi.dist(as.character(classifier.subtypes$Helland[[x]] == subtype), clustering.subtypes$tothill_kmeans_4[[x]][[y]]))
-#  })
-#  return(vi.per.subtype)
-#})
-#names(tothill.vi) <- names(classifier.subtypes$Helland)
-#tothill.vi.m <- melt(tothill.vi)
-#tothill.vi.means <- melt(sapply(tothill.vi, function(x) apply(x, 2, mean)))
-#boxplot(value ~ Var1, tothill.vi.means, outline=FALSE, ylab="Variation of Information", main="Helland subtypes")
-#stripchart(value ~ Var1, tothill.vi.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
-@
 
 <<Tothill_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
 par(mar=c(10,4.1,4.1,2.1))
@@ -209,25 +191,6 @@ tothill.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Hella
 \pagebreak
 \subsection{Konecny}
 Using the subtype labels from the implemented Konecny classifier, compared against de novo clustering with consensus k-means, k = 4, and the top 2000 genes by MAD:
-<<Konecny_pred_str>>=
-konecny.ps.vals <- sapply(1:length(classifier.subtypes$Konecny), function(x) sapply(1:100, function(y) ps.cluster(classifier.subtypes$Konecny[[x]], clustering.subtypes$konecny_nmf_4[[x]][[y]])$ps))
-colnames(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
-
-konecny.ordered.classes <- c("C1_immL", "C2_diffL", "C3_profL", "C4_mescL")
-
-# returns a list of matrices. List elements are datasets, matrix elements are the stat values, by subtype.
-#konecny.vi <- lapply(1:length(classifier.subtypes$Konecny), function(x) {
-#  vi.per.subtype <- sapply(konecny.ordered.classes, function(subtype) {
-#    sapply(1:100, function(y) mcclust::vi.dist(as.character(classifier.subtypes$Konecny[[x]] == subtype), clustering.subtypes$konecny_nmf_4[[x]][[y]]))
-#  })
-#  return(vi.per.subtype)
-#})
-#names(konecny.vi) <- names(classifier.subtypes$Helland)
-#konecny.vi.m <- melt(konecny.vi)
-#konecny.vi.means <- melt(sapply(konecny.vi, function(x) apply(x, 2, mean)))
-#boxplot(value ~ Var1, konecny.vi.means, outline=FALSE, ylab="Variation of Information", main="Konecny subtypes")
-#stripchart(value ~ Var1, konecny.vi.means, add=TRUE, vertical=TRUE, method='jitter', pch=21)
-@
 
 <<Konecny_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
 par(mar=c(10,4.1,4.1,2.1))
@@ -239,14 +202,6 @@ par(mar=c(5.1, 4.1, 4.1, 2.1))
 konecny.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Konecny, clustering.subtypes$konecny_nmf_4, konecny.ordered.classes, "Konecny")
 @
 
-<<ps_combined_boxplot>>=
-
-set.seed(900)
-combined.ps <- sapply(list(Tothill=tothill.ps.vals, TCGA=tcga.ps.vals, Konecny=konecny.ps.vals), function(x) apply(x, 2, mean))
-combined.ps.m <- melt(combined.ps)
-my.boxplot <- ggplot(combined.ps.m, aes(x=Var2, y=value)) + stat_boxplot(geom='errorbar', stat_params = list(width = 0.5)) + geom_boxplot(color="black") + geom_jitter(position=position_jitter(0.1)) + scale_y_continuous(limits=c(0,1), breaks=seq(0,1,0.2)) + theme_bw() + ggtitle("Robustness of Molecular Subtyping Schemes") + xlab("") + ylab("Prediction Strength") + xlab("Subtyping Scheme") + theme(plot.title=element_text(size=20, vjust=2)) + geom_hline(y=0.8, linetype="dotted") + coord_cartesian(ylim = c(0, 1)) 
-
-@
 
 \pagebreak
 <<dataset_barplot>>=
