@@ -18,7 +18,7 @@
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
-knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=FALSE)
+knitr::opts_chunk$set(include=TRUE, results="hide", fig.width=8, fig.height=8, fig.path='figures/', fig.align='center', fig.show='hold',warning=FALSE, echo=FALSE, message=FALSE, cache=TRUE)
 options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
@@ -62,47 +62,22 @@ library(GEOquery)
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
-
 source("../../inst/extdata/reproduce.results.patientselection.config")
-
-rm(probe.gene.mapping)
-rescale <- FALSE
-source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-esets.not.rescaled.probes <- esets
-
-probe.gene.mapping <- TRUE
 rule.2 <- c("histological_type","^ser$")
-rule.3 <- c("summarystage","^late$")
+#rule.3 <- c("summarystage","^late$")
 rule.4 <- c("summarygrade","^high$")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
-
+rescale <- FALSE
+rm(probe.gene.mapping)
+source("../../inst/extdata/reproduce.results.patientselection.config")
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-esets.not.rescaled <- esets
-
-esets.quantile.norm <- esets.not.rescaled
-esets.quantile.norm <- lapply(esets.quantile.norm, function(eset) {
-  ee <- exprs(eset)
-      # ee <- apply(ee, 2, genefu::rescale)
-      splitix <- parallel::splitIndices(nx=ncol(ee), ncl=4)
-      mcres <- parallel::mclapply(splitix, function(x, data) {
-        res <- apply(data[ , x, drop=FALSE], 2, function (dx) {
-          return ((genefu::rescale(dx, q=0.05, na.rm=TRUE) - 0.5) * 2)
-        })
-        return (res)
-      }, data=ee, mc.cores=4)
-      ee <- do.call(cbind, mcres)
-      ## quantile normalization
-      ee <- limma::normalizeBetweenArrays(object=ee, method="quantile")
-      exprs(eset) <- ee
-  return(eset)
-})
-
-
-rescale <- TRUE
-source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-esets.rescale.by.gene <- esets
+esets.not.rescaled.probes <- esets
 rm(esets)
+
+# This file was produced by classificationAcrossDatasets.Rnw
+load("esets.not.rescaled.RData")
+
 @
 %\tableofcontents 
 
@@ -169,62 +144,7 @@ rm(esets)
 %TCGA
 
 \section{TCGA}
-
-<<TCGA_clustering_mad>>=
-# Filter to 1500 genes by top median absolute deviation
-set.seed(110)
-tcga.clustering.authordata <- read.delim("../../inst/extdata/TCGA_489_UE.top1500.txt", sep="\t")
-
-verhaak.spreadsheet.data <- read.xls("../../inst/extdata/JCI65833sd1.xls", skip=1)
-verhaak.labels.table <- verhaak.spreadsheet.data[verhaak.spreadsheet.data$DATASET == "TCGA-discovery", c("ID", "SUBTYPE", "SILHOUETTE.WIDTH")]
-
-tcga.eset <- esets.not.rescaled$TCGA
-tcga.eset <- tcga.eset[,tcga.eset$unique_patient_ID %in% verhaak.labels.table$ID]
-
-tcga.implemented.clustering.mad <- data.frame(ID=tcga.eset$unique_patient_ID, nmf.classes=.getNMFClasses(tcga.eset, num.genes = 1500, nrun=100))
-
-tcga.eset.mad.1500 <- .getFilteredEsetByMAD(tcga.eset, 1500)
-mad.1500.gene.list <- fData(tcga.eset.mad.1500)$gene
-
-tcga.merged.mad <- merge(tcga.implemented.clustering.mad, verhaak.labels.table)
-@
-
-In the TCGA study (2011), the authors performed clustering as follows. First, the gene list was filtered to genes that correlate above 0.7 between each of three microarray platforms and the unified estimate; then, the top 1500 genes by median absolute deviation (MAD) were selected. Clustering was performed by non-negative matrix factorization.
-
-In order to perform clustering across datasets, we selected the top 1500 genes by MAD, then performed non-negative matrix factorization with 100 iterations. 
-\vspace*{10pt}
-<<TCGA_contingency_mad, results="asis">>=
-kable(table(tcga.merged.mad$SUBTYPE, tcga.merged.mad$nmf.classes)[c(3,4,1,2),c(4,2,3,1)], format="latex")
-@
-
-%TCGA et al. performed analysis subtypes after filtering out the lowest approximately 10\% of samples by silhouette width. %Considering only these samples, we get the following table.
-%
-%<<TCGA_contingency_mad_silhouette, results="asis">>=
-%tcga.merged.mad.silhouette <- tcga.merged.mad[tcga.merged.mad$SILHOUETTE.WIDTH > quantile(tcga.merged.mad$SILHOUETTE.WIDTH, 0.1),]
-%kable(table(tcga.merged.mad.silhouette$SUBTYPE, tcga.merged.mad.silhouette$nmf.classes)[c(1,2,3,4),], format="latex")
-%
-
-<<tcga_mad_contingency_heatmap, fig.width=6, fig.height=4, out.width="0.4\\textwidth">>=
-.getContingencyHeatmap(table(tcga.merged.mad$SUBTYPE, tcga.merged.mad$nmf.classes)[c(3,4,1,2),c(4,2,3,1)])
-@
-
-This procedure was repeated 16 times, and we observed relatively stable clustering (with the exception of Differentiated and Immunoreactive classes sometimes clustering together, as in the centre-bottom-left image).
-
-<<tcga_merged_mad_multiple, fig.width=24, fig.height=16, out.width="1\\textwidth">>=
-#plots <- lapply(1:16, function(i) {
-#  load(paste0("tcga.merged.mad.", i, ".RData"))
-#  .getContingencyHeatmap(table(tcga.merged.mad$SUBTYPE, tcga.merged.mad$nmf.classes))
-#})
-#do.call(gridExtra::grid.arrange, plots)
-
-my.plots <- lapply(1:16, function(i) {
-  load(paste0("tcga.merged.mad.consensus.", i, ".RData"))
-  .getContingencyHeatmap(table(tcga.merged.mad.consensus$SUBTYPE, tcga.merged.mad.consensus$nmf.classes)[c(3,4,1,2),])
-})
-do.call(gridExtra::grid.arrange, my.plots)
-@
-
-<<TCGA_clustering_authorlist>>=
+<<TCGA_clustering_authorlist, cache=TRUE>>=
 set.seed(120)
 tcga.clustering.authordata <- read.delim("../../inst/extdata/TCGA_489_UE.top1500.txt", sep="\t")
 
@@ -243,25 +163,24 @@ tcga.merged.authorlist <- merge(tcga.implemented.clustering.authorlist, verhaak.
 @
 
 
-We contacted the authors to acquire the original gene list used for clustering.\footnote{Out of 1500 genes, there was an overlap of \Sexpr{length(intersect(rownames(tcga.clustering.authordata), mad.1500.gene.list))}. The difference is likely due to the correlation step across platforms, which the original gene list did not account for.} The clusters appeared similar.
+We contacted the authors to acquire the original gene list used for clustering. Using \texttt{R} package \texttt{NMF}, we ran NMF with 100 iterations, and used hierarchical clustering on the co-membership matrix to define consensus cluster groupings.
+
 \vspace*{10pt}
 <<TCGA_contingency_authorlist, results="asis">>=
-
 kable(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[c(3,4,1,2),c(3,4,2,1)], format="latex")
 @
 
 <<tcga_authorlist_contingency_heatmap, fig.width=6, fig.height=4, out.width="0.4\\textwidth">>=
-
 .getContingencyHeatmap(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[c(3,4,1,2),c(3,4,2,1)])
 @
 
-Repeating this process 16 times:
-<<tcga_authorlist_repeated, fig.width=24, fig.height=16, out.width="1\\textwidth">>=
-my.plots <- lapply(1:16, function(i) {
-  load(paste0("tcga.merged.authorlist.", i, ".RData"))
-  .getContingencyHeatmap(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[c(3,4,1,2),])
-})
-do.call(gridExtra::grid.arrange, my.plots)
+%Repeating this process 16 times:
+%<<tcga_authorlist_repeated, fig.width=24, fig.height=16, out.width="1\\textwidth">>=
+%my.plots <- lapply(1:16, function(i) {
+%  load(paste0("tcga.merged.authorlist.", i, ".RData"))
+%  .getContingencyHeatmap(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[c(3,4,1,2),])
+%})
+%do.call(gridExtra::grid.arrange, my.plots)
 @
 
 %Considering only the samples after removing the bottom 10\% by silhouette width:
@@ -341,35 +260,18 @@ kable(table(konecny.merged.authorlist$MAYO.C4, konecny.merged.authorlist$nmf.cla
 
 <<konecny_contingency_heatmap, fig.width=5, fig.height=4, out.width="0.4\\textwidth">>=
 # table with rows published labels, columns de novo labels
-.getContingencyHeatmap <- function(contingency.table) {
-    contingency.table <- contingency.table[nrow(contingency.table):1,]
-    contingency.matrix <- as.matrix(contingency.table)
-    contingency.m <- melt(contingency.matrix)
-    colnames(contingency.m) <- c("Published.classes", "New.cluster.classes", "value")
-    
-   # contingency.m$Published.classes <- factor(contingency.m$Published.classes, levels=rev(levels(contingency.m$Published.classes)))
-    
-    p <- ggplot(contingency.m, aes_string("New.cluster.classes", "Published.classes")) + 
-      geom_tile(aes(fill = value), colour = "white") + 
-      #scale_fill_gradient(name="Frequency", low="white", high="#CC0000", limits=c(0,800)) + 
-      #ggtitle(paste0("Contingency table: ", subtype.name.pair[1], " vs ", subtype.name.pair[2])) +
-      theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank()) +
-    
-      geom_text(label=as.character(contingency.matrix), colour="white")
-    return(p)
-}
 .getContingencyHeatmap(table(konecny.merged.authorlist$MAYO.C4, konecny.merged.authorlist$nmf.classes)[c(4,3,2,1),c(3,2,4,1)])
 @
 
-To get a feel for the consistency of the clustering procedure to random seeds, I performed the same clustering procedure (consensus NMF clustering with 100 iterations each) sixteen times. While the clusters were fairly consistent, in some cases (e.g. top-left) the consensus NMF clustering appeared to return only three clusters.\footnote{This could be due to the last step of the consensus NMF clustering that I used, which uses hierarchical clustering. It is unclear from the authors' description what method they used to generate the consensus classes.}
-
-<<konecny_16_plots, fig.width=24, fig.height=16, out.width="1\\textwidth">>=
-my.plots <- lapply(1:16, function(i) {
-  load(paste0("konecny.merged.authorlist.", i, ".RData"))
-  .getContingencyHeatmap(table(konecny.merged.authorlist$MAYO.C4, konecny.merged.authorlist$nmf.classes)[c(4,3,2,1),])
-})
-do.call(gridExtra::grid.arrange, my.plots)
-@
+%To get a feel for the consistency of the clustering procedure to random seeds, I performed the same clustering procedure (consensus NMF clustering with 100 iterations each) sixteen times. While the clusters were fairly consistent, in some cases (e.g. top-left) the consensus NMF clustering appeared to return only three clusters.\footnote{This could be due to the last step of the consensus NMF clustering that I used, which uses hierarchical clustering. It is unclear from the authors' description what method they used to generate the consensus classes.}
+%
+%<<konecny_16_plots, fig.width=24, fig.height=16, out.width="1\\textwidth">>=
+%my.plots <- lapply(1:16, function(i) {
+%  load(paste0("konecny.merged.authorlist.", i, ".RData"))
+%  .getContingencyHeatmap(table(konecny.merged.authorlist$MAYO.C4, konecny.merged.authorlist$nmf.classes)[c(4,3,2,1),])
+%})
+%do.call(gridExtra::grid.arrange, my.plots)
+%@
 
 
 %Tothill
@@ -437,29 +339,26 @@ kable(table(tothill.merged.kmeans.5$group, tothill.merged.kmeans.5$consensus.kme
 .getContingencyHeatmap(table(tothill.merged.kmeans.5$group, tothill.merged.kmeans.5$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(4,5,2,1,3)])
 @
 
-Since both Konecny / TCGA used NMF of rank 4, it seemed interesting to investigate how this algorithm would perform on the Tothill dataset. The top 3000 genes were selected by top MAD, and NMF was performed. 
+%Since both Konecny / TCGA used NMF of rank 4, it seemed interesting to investigate how this algorithm would perform on the Tothill dataset. The top 3000 genes were selected by top MAD, and NMF was performed. 
+%
+%NMF with rank = 4:
 
+%<<tothill_nmf_clustering, eval=FALSE>>=
+%
+%tothill.implemented.clustering.nmf <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, nmf.classes=.getNMFClasses(esets%.not.rescaled$GSE9891, num.genes = 3000, nrun=100))
+%tothill.implemented.clustering.nmf$ID <- sub("X", "", tothill.implemented.clustering.nmf$ID)
+%tothill.merged.nmf <- merge(tothill.implemented.clustering.nmf, tothill.original.labels.hgs)
+%@
+%\vspace*{10pt}
+%<<tothill_nmf_contingency, results="asis", eval=FALSE>>=
+%kable(table(tothill.merged.nmf$group, tothill.merged.nmf$nmf.classes)[c(1,4,3,2),c(2,3,4,1)], format="latex")
+%#table(tothill.merged$nmf.classes, tothill.merged$group)
+%@
+%
+%<<tothill_4_contingency_heatmap, fig.width=5, fig.height=4, out.width="0.4\\textwidth", eval=FALSE>>=
+%.getContingencyHeatmap(table(tothill.merged.nmf$group, tothill.merged.nmf$nmf.classes)[c(1,4,3,2),c(2,3,4,1)])
+%@
 
-
-NMF with rank = 4:
-
-<<tothill_nmf_clustering, eval=FALSE>>=
-
-tothill.implemented.clustering.nmf <- data.frame(ID=esets.not.rescaled$GSE9891$alt_sample_name, nmf.classes=.getNMFClasses(esets.not.rescaled$GSE9891, num.genes = 3000, nrun=100))
-tothill.implemented.clustering.nmf$ID <- sub("X", "", tothill.implemented.clustering.nmf$ID)
-tothill.merged.nmf <- merge(tothill.implemented.clustering.nmf, tothill.original.labels.hgs)
-@
-\vspace*{10pt}
-<<tothill_nmf_contingency, results="asis", eval=FALSE>>=
-kable(table(tothill.merged.nmf$group, tothill.merged.nmf$nmf.classes)[c(1,4,3,2),c(2,3,4,1)], format="latex")
-#table(tothill.merged$nmf.classes, tothill.merged$group)
-@
-
-<<tothill_4_contingency_heatmap, fig.width=5, fig.height=4, out.width="0.4\\textwidth", eval=FALSE>>=
-.getContingencyHeatmap(table(tothill.merged.nmf$group, tothill.merged.nmf$nmf.classes)[c(1,4,3,2),c(2,3,4,1)])
-@
-
-%Bentink
 \pagebreak
 \section{Preliminary work: Prediction Strength}
 
