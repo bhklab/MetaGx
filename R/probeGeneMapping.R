@@ -89,6 +89,7 @@ function (eset, platform=c("MISC", "GPL8300", "GPL96", "GPL3921", "GPL97", "GPL5
     "variance" = {
       ## other platform, select the most variant probe per Entrez Gene ID
       gid <- stripWhiteSpace(as.character(Biobase::fData(eset)[ , "ENTREZID"]))
+      gid[!is.na(gid) & gid == ""] <- NA
       names(gid) <- rownames(Biobase::exprs(eset))
       ugid <- sort(unique(gid))
       rr <- genefu::geneid.map(geneid1=gid, data1=t(Biobase::exprs(eset)), geneid2=ugid)

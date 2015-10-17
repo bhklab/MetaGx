@@ -29,7 +29,7 @@ function (eset, model=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2
   sbtn2.ssp <- c("Basal", "Her2", "Lums", "LumB", "LumA", "Normal")
   
   datage <- t(Biobase::exprs(eset))   
-  annotge <- cbind("probe"=rownames(Biobase::fData(eset)), "EntrezGene.ID"=stripWhiteSpace(as.character(Biobase::fData(eset)[ , "EntrezGene.ID"])), "gene"=Biobase::fData(eset)[ , "gene"])
+  annotge <- cbind("probe"=rownames(Biobase::fData(eset)), "EntrezGene.ID"=stripWhiteSpace(as.character(Biobase::fData(eset)[ , "ENTREZID"])), "gene"=Biobase::fData(eset)[ , "SYMBOL"])
   rownames(annotge) <- stripWhiteSpace(as.character(annotge[ , "probe"]))
   
   ## SCM family
