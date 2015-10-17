@@ -79,8 +79,17 @@ rm(esets)
 load("esets.not.rescaled.RData")
 
 @
-%\tableofcontents 
+\tableofcontents 
 
+\section{Introduction}
+
+The discovery of molecular subtypes of ovarian cancer requires two steps: a clustering step, and a classification step. We sought to address the question of whether the methods used to define molecular subtypes are robust. In cluster analysis, robustness is a measure of how Tibshirani and Walther (2005) suggest Prediction Strength as a statistic for cluster validation. Prediction Strength is a measure of the similarity between pairwise co-memberships of a validation dataset from class labels assigned by (1) a clustering algorithm and (2) a classification algorithm trained on another dataset.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{prediction_strength_flowchart.png}
+\end{figure}
+\pagebreak
 
 <<cluster_functions>>=
 .getFilteredEsetByMAD <- function(eset, num.genes) {
@@ -199,7 +208,7 @@ kable(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[
 %  .getContingencyHeatmap(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[c(3,4,1,2),])
 %})
 %do.call(gridExtra::grid.arrange, my.plots)
-@
+%@
 
 %Considering only the samples after removing the bottom 10\% by silhouette width:
 %<<TCGA_contingency_authorlist_silhouette, results="asis">>=
@@ -212,7 +221,7 @@ kable(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[
 
 
 %Konecny
-
+\pagebreak
 \section{Konecny}
 
 <<Konecny_clustering>>=
@@ -290,7 +299,7 @@ kable(table(konecny.merged.authorlist$MAYO.C4, konecny.merged.authorlist$nmf.cla
 %do.call(gridExtra::grid.arrange, my.plots)
 %@
 
-
+\pagebreak
 %Tothill
 \section{Tothill}
 
@@ -346,7 +355,7 @@ tothill.implemented.clustering.kmeans.5 <- data.frame(ID=esets.not.rescaled.prob
 tothill.implemented.clustering.kmeans.5$ID <- sub("X", "", tothill.implemented.clustering.kmeans.5$ID)
 tothill.merged.kmeans.5 <- merge(tothill.implemented.clustering.kmeans.5, tothill.original.labels)
 @
-
+\pagebreak
 Since it appears that this implementation of k-means clustering is not capturing C6, we performed consensus k-means clustering with k = 5:
 \vspace*{10pt}
 <<tothill_kmeans_5_contingency, results="asis">>=

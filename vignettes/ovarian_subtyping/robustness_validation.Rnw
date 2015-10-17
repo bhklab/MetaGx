@@ -93,7 +93,7 @@ getMeanPairwiseSimilarityMeasure <- function(class.list, metricFunction) {
 An important trait of a robust molecular subtyping scheme is that it should be present and discoverable in multiple datasets. We performed de novo clustering in \Sexpr{length(dataset.names)} independent ovarian datasets using the authors' original gene lists and clustering method. We compared these de novo cluster groupings to the labels from our implemented classifiers using the prediction strength statistic of Tibshirani and Walther, 2005.
 
 
-In order to permit comparability between subtyping schemes, all datasets were filtered to patients with high-grade, late-stage, serous ovarian carcinomas.
+In order to permit comparability between subtyping schemes, all datasets were filtered to patients with high-grade serous ovarian carcinomas.
 %I performed clustering on 11 datasets from MetaGxOvarian:
 %\Sexpr{dataset.names}
 
@@ -145,9 +145,12 @@ colnames(konecny.ps.vals) <- names(classifier.subtypes$Konecny)
 konecny.ordered.classes <- c("C1_immL", "C2_diffL", "C3_profL", "C4_mescL")
 
 @
-\pagebreak
-\section{Prediction Strength Summary}
-<<ps_combined_boxplot>>=
+
+Each dataset was clustered according to our implementation of the clustering algorithms and gene sets of Konecny, TCGA, and Tothill. Each dataset was also classified using our implementation of the corresponding classification algorithms of Konecny, TCGA/Verhaak, and Tothill/Helland. This produced two sets of subtype labels for each validation dataset, from which we computed prediction strength.
+
+We performed each clustering algorithm 100 times for each dataset, producing 100 prediction strength estimates per dataset. In the boxplot below, each data point represents the mean estimated prediction strength for a dataset under a given subtyping clustering/classification scheme.
+
+<<ps_combined_boxplot, out.width="0.7\\textwidth">>=
 set.seed(900)
 combined.ps <- sapply(list(Tothill=tothill.ps.vals, TCGA=tcga.ps.vals, Konecny=konecny.ps.vals), function(x) apply(x, 2, mean))
 combined.ps.m <- melt(combined.ps)
@@ -157,34 +160,46 @@ my.boxplot
 @
 
 \pagebreak
+<<dataset_barplot, fig.width=8, fig.height=5>>=
+par(mar=c(5.1,10,4.1,2.1))
+barplot(sapply(esets.not.rescaled.classified[dataset.names], function(x) ncol(exprs(x))), horiz=TRUE, las=2, col="darkblue", main="HGS sample sizes")
+par(mar=c(5.1, 4.1, 4.1, 2.1))
+@
+
+\pagebreak
+\section{Prediction Strength: Supplemental}
+
+For each classification and clustering algorithm, we produced a stripplot of the prediction strength values for each of the 100 clustering runs. In order to investigate a subtype-specific measure of robustness, we plot the subtype-specific Rand Index for each subtype. For a given subtype (as defined by classifier labels), the subtype-specific Rand Index is defined by the fraction of pairs that co-cluster divided by the total number of pairwise relationships.
+
+\pagebreak
 \subsection{Verhaak/TCGA}
 Using the subtype labels from the implemented Verhaak classifier, compared against de novo clustering with NMF, k = 4, and the same gene list used by the authors:
 
 
-<<TCGA_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+<<TCGA_pred_str_plot, width=800, height=800, out.width="0.6\\textwidth">>=
 
 par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(tcga.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
 
-<<tcga_adj_rand>>=
+<<tcga_adj_rand, out.width="0.6\\textwidth">>=
 tcga.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Verhaak, clustering.subtypes$tcga_nmf_4, tcga.ordered.classes, main="TCGA")
 @
 
 \pagebreak
 \subsection{Tothill/Helland}
 
-Using the subtype labels from the implemented Tothill/Helland classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list used by the authors:\footnote{this gene list was obtained by closely replicating their filtering methods, and is probably pretty accurate since the clustering we did previously was very concordant}
+Using the subtype labels from the implemented Tothill/Helland classifier, compared against de novo clustering with consensus k-means, k = 4, and the gene list produced by the methods used by the authors:
 
 
-<<Tothill_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+<<Tothill_pred_str_plot, width=800, height=800, out.width="0.6\\textwidth">>=
 par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(tothill.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
 
-<<tothill_adj_rand>>=
+<<tothill_adj_rand, out.width="0.6\\textwidth">>=
 tothill.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Helland, clustering.subtypes$tothill_kmeans_4, tothill.ordered.classes, main="Tothill")
 @
 
@@ -192,20 +207,12 @@ tothill.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Hella
 \subsection{Konecny}
 Using the subtype labels from the implemented Konecny classifier, compared against de novo clustering with consensus k-means, k = 4, and the top 2000 genes by MAD:
 
-<<Konecny_pred_str_plot, width=800, height=800, out.width="0.7\\textwidth">>=
+<<Konecny_pred_str_plot, width=800, height=800, out.width="0.6\\textwidth">>=
 par(mar=c(10,4.1,4.1,2.1))
 stripchart(as.data.frame(konecny.ps.vals), vertical=TRUE, method="jitter", pch=20, cex=0.8, las=2, ylim = c(0,1), ylab="Prediction Strength")
 par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
 
-<<konecny_adj_rand>>=
+<<konecny_adj_rand, out.width="0.6\\textwidth">>=
 konecny.adj.rand <- .getSubtypeSpecificRandIndexValues(classifier.subtypes$Konecny, clustering.subtypes$konecny_nmf_4, konecny.ordered.classes, "Konecny")
-@
-
-
-\pagebreak
-<<dataset_barplot>>=
-par(mar=c(5.1,10,4.1,2.1))
-barplot(sapply(esets.not.rescaled.classified[dataset.names], function(x) ncol(exprs(x))), horiz=TRUE, las=2, col="blue", main="HGS sample sizes")
-par(mar=c(5.1, 4.1, 4.1, 2.1))
 @
