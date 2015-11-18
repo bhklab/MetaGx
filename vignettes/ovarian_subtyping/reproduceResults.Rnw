@@ -12,6 +12,8 @@
 \usepackage[table]{xcolor}
 %\newcommand{\sectionbreak}{\clearpage}
 
+\graphicspath{images}
+
 \begin{document}
 
 <<setup, include=FALSE, cache=FALSE>>=
@@ -54,15 +56,12 @@ library(e1071)
 library(randomForest)
 @
 
-<<load_data, cache=TRUE>>=
+<<load_data, cache=FALSE>>=
 #
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
 
 source("../../inst/extdata/reproduce.results.patientselection.config")
-rule.2 <- c("histological_type","^ser$")
-rule.3 <- c("summarystage","^late$")
-rule.4 <- c("summarygrade","^high$")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
 probe.gene.mapping <- TRUE
@@ -112,7 +111,7 @@ source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 }
 @
 
-This document reports the results of my initial implementations of ovarian cancer subtyping classification schemes described below. Using the gene lists provided in supplementary data for each publication, I have implemented the subtyping classifiers as described in the methods or supplementary texts, replicating their methods as closely as possible.
+This document reports our implementations of ovarian cancer subtyping classification algorithms. Using the gene lists provided in supplementary data for each publication, we implemented the subtyping classifiers as described in the methods or supplementary texts.
 \tableofcontents
 
 \Sexpr{knit_child('reproduceKonecny.Rnw')}

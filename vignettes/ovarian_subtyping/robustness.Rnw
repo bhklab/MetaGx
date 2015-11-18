@@ -12,6 +12,8 @@
 \usepackage[table]{xcolor}
 \usepackage{amsmath}
 \setlength{\textfloatsep}{10pt plus 1.0pt minus 2.0pt}
+
+\graphicspath{images}
 %\newcommand{\sectionbreak}{\clearpage}
 
 \begin{document}
@@ -63,9 +65,9 @@ library(GEOquery)
 #source(system.file("extdata", "reproduce.results.patientselection.config", package="MetaGx2"))
 #source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
 source("../../inst/extdata/reproduce.results.patientselection.config")
-rule.2 <- c("histological_type","^ser$")
+#rule.2 <- c("histological_type","^ser$")
 #rule.3 <- c("summarystage","^late$")
-rule.4 <- c("summarygrade","^high$")
+#rule.4 <- c("summarygrade","^high$")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
 rescale <- FALSE
@@ -224,7 +226,7 @@ kable(table(tcga.merged.authorlist$SUBTYPE, tcga.merged.authorlist$nmf.classes)[
 \pagebreak
 \section{Konecny}
 
-<<Konecny_clustering>>=
+<<Konecny_clustering, cache=TRUE>>=
 set.seed(840)
 
 load("konecny.eset.RData")
@@ -308,7 +310,6 @@ set.seed(132)
 tothill.original.labels <- read.table("../../inst/extdata/tothill.supptable.1.classes.txt", header=TRUE, stringsAsFactors = FALSE)
 tothill.original.labels <- tothill.original.labels[tothill.original.labels$group %in% c(1, 2, 3, 4, 5, 6),]
 tothill.original.labels$group <- sub("^", "C", tothill.original.labels$group)
-tothill.original.labels.hgs <- tothill.original.labels[tothill.original.labels$group %in% c("C1", "C2", "C4", "C5"),]
 
 if(file.exists("../../inst/extdata/tothill.clustering.probesets.txt")) {
   tothill.clustering.probesets <- scan("../../inst/extdata/tothill.clustering.probesets.txt")
@@ -341,16 +342,17 @@ Despite the difference between the consensus strategies, the cluster results app
 \vspace*{10pt}
 <<tothill_kmeans_contingency, results="asis">>=
 
-kable(table(tothill.merged.kmeans$group, tothill.merged.kmeans$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(3,1,6,2,5,4)], format="latex")
+kable(table(tothill.merged.kmeans$group, tothill.merged.kmeans$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(5,6,4,3,2,1)], format="latex")
 #table(tothill.merged$nmf.classes, tothill.merged$group)
 @
 \vspace*{10pt}
 
 <<tothill_6_contingency_heatmap, fig.width=6, fig.height=5.5, out.width="0.6\\textwidth">>=
-.getContingencyHeatmap(table(tothill.merged.kmeans$group, tothill.merged.kmeans$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(3,1,6,2,5,4)])
+.getContingencyHeatmap(table(tothill.merged.kmeans$group, tothill.merged.kmeans$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(5,6,4,3,2,1)])
 @
 
 <<tothill_kmeans_5_clustering>>=
+
 tothill.implemented.clustering.kmeans.5 <- data.frame(ID=esets.not.rescaled.probes$GSE9891$alt_sample_name, consensus.kmeans.classes=.getConsensusKMeansClasses(esets.not.rescaled.probes$GSE9891, k=5, num.iterations=1000))
 tothill.implemented.clustering.kmeans.5$ID <- sub("X", "", tothill.implemented.clustering.kmeans.5$ID)
 tothill.merged.kmeans.5 <- merge(tothill.implemented.clustering.kmeans.5, tothill.original.labels)
@@ -359,11 +361,11 @@ tothill.merged.kmeans.5 <- merge(tothill.implemented.clustering.kmeans.5, tothil
 Since it appears that this implementation of k-means clustering is not capturing C6, we performed consensus k-means clustering with k = 5:
 \vspace*{10pt}
 <<tothill_kmeans_5_contingency, results="asis">>=
-
 kable(table(tothill.merged.kmeans.5$group, tothill.merged.kmeans.5$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(4,5,2,1,3)], format="latex")
 @
 \vspace*{10pt}
 <<tothill_5_contingency_heatmap, fig.width=5.5, fig.height=5.5, out.width="0.5\\textwidth">>=
+
 .getContingencyHeatmap(table(tothill.merged.kmeans.5$group, tothill.merged.kmeans.5$consensus.kmeans.classes)[c(1,5,4,2,3,6),c(4,5,2,1,3)])
 @
 

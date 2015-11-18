@@ -19,7 +19,7 @@ implemented.bentink.esets <- list(
   mok=mok.eset)
 
 implemented.bentink.esets <- lapply(implemented.bentink.esets, function(x) {
-  x <- x[,x$histological_type=="ser" & x$summarygrade=="high" & x$summarystage=="late" & !is.na(x$histological_type) & !is.na(x$summarygrade) & !is.na(x$summarystage)]
+  x <- x[,!is.na(x$histological_type) & !is.na(x$summarygrade) & !is.na(x$summarystage) & x$histological_type=="ser" & x$summarygrade=="high" & x$summarystage=="late"]
   x <- x[,!is.na(x$days_to_death) & !is.na(x$vital_status)]
 })
 

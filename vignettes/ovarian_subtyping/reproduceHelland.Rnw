@@ -32,7 +32,7 @@ print(xtable(table(helland.merged$Helland.subtypes, helland.merged$ClassLabel), 
 \begin{figure}[H]
 \centering
 We performed survival analysis on the TCGA dataset.
-<<helland_survival, fig.width=5, fig.height=5, out.width="0.7\\textwidth">>=
+<<helland_survival, fig.width=5, fig.height=4, out.width="0.55\\textwidth">>=
 helland.data.for.survival <- pData(implemented.helland.out$Annotated.eset)[,c("unique_patient_ID", "days_to_death", "vital_status", "Helland.subtypes")]
 helland.data.for.survival <- helland.data.for.survival[helland.data.for.survival$unique_patient_ID %in% helland.labelled.validation$unique_patient_ID,]
 # Remove patients with missing survival information

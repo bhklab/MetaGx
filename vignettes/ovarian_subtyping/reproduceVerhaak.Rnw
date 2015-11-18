@@ -2,7 +2,7 @@
 % Verhaak et al., 2013
 \pagebreak
 \section{Verhaak et al., 2013 / TCGA 2011}
-<<verhaak_get_subtypes, cache=TRUE>>=
+<<verhaak_get_subtypes, cache=FALSE>>=
 source("../../R/getVerhaakSubtypes.R", chdir=TRUE)
 verhaak.spreadsheet.data <- read.xls("../../inst/extdata/JCI65833sd1.xls", skip=1)
 
@@ -103,12 +103,12 @@ accuracy.classification.by.max <- mean(apply(verhaak.merged[,3:6],1,which.max) =
 
 Next, we implemented the subtype classification scheme given by Verhaak et al., 2013. The authors designed a classifier based on single-sample GSEA to classify samples into subtypes previously defined in TCGA, 2011. In their supplementary materials, the authors provide a list of four sets of gene symbols (100 total gene symbols), with each gene set associated with a subtype. 
 
-We implemented this subtype classification scheme using the provided gene sets and the ssGSEA implementation in \texttt{R} package \texttt{GSVA}. The parameters to the function \texttt{gsva} were: \texttt{method="ssgsea"}, \texttt{tau=0.75}, which resemble default GenePattern parameters.\footnote{These parameters differ slightly from the function call used in Waldron et al. (2014)}
+We implemented this subtype classifier using the provided gene sets and the ssGSEA implementation in \texttt{R} package \texttt{GSVA}. The parameters to the function \texttt{gsva} were: \texttt{method="ssgsea"}, and \texttt{tau=0.75}.
 
-To compare our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients reported in their supplementary; we matched \Sexpr{nrow(verhaak.merged)} patients from MetaGxOvarian data. 
+To assess our implementation, we compared our normalized ssGSEA scores with the scores in the validation set used in the original study. In their supplementary materials, Verhaak et al. provide their normalized ssGSEA scores for a validation set consisting of the datasets of Bonome, Crijns, Denkert, Dressman, Tothill, Yoshihara, and a subset of TCGA. This validation dataset consisted of \Sexpr{ nrow(verhaak.spreadsheet.data[ !is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients reported in their supplementary; we matched \Sexpr{ nrow(verhaak.merged)} patients from MetaGxOvarian data based on sample IDs. 
 
-Of the \Sexpr{nrow(verhaak.spreadsheet.data[!is.na(verhaak.spreadsheet.data$CloverLeaf),])} patients in the supplementary material, \Sexpr{nrow(verhaak.merged)} were matched. We observed Pearson's correlation coefficients of \Sexpr{round(DIF.cor, digits=2)}, \Sexpr{round(IMR.cor, digits=2)}, \Sexpr{round(MES.cor, digits=2)}, and \Sexpr{round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
-
+We observed Pearson's correlation coefficients of \Sexpr{ round(DIF.cor, digits=2)}, \Sexpr{ round(IMR.cor, digits=2)}, \Sexpr{ round(MES.cor, digits=2)}, and \Sexpr{ round(PRO.cor, digits=2)} for subtypes DIF, IMR, MES, and PRO respectively. 
+\vspace*{-30pt}
 \begin{figure}[H]
 <<verhaak_scatterplots, eval=TRUE, fig.width=10, fig.height=8, out.width="0.9\\textwidth">>=
 #png("verhaak_scatterplots.png", width=800, height=700)
@@ -131,10 +131,11 @@ legend(1.1,2.61,
 
 par(par.original)
 @
-\caption{ssGSEA scores for the >700 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
+\vspace*{-15pt}
+\caption{ssGSEA scores for the >800 patient validation set from our implementation (x axis) and the supplementary material (y axis) for each of the four subtypes.}
 \end{figure}
 
-From these normalized ssGSEA scores, a natural subtype classification may be performed by assigning a patient according to the highest ssGSEA score. Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.by.max, digits=2)}\% of patients classified identically between our implementation and supplementary results.
+From these normalized ssGSEA scores, subtype classification may be performed by assigning a patient according to the highest ssGSEA score. Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.by.max, digits=2)}\% of patients classified identically between our implementation and supplementary results.
 
 <<verhaak_table_bymax, results='asis'>>=
 implemented.classes.from.max <-  as.factor(c("DIF", "IMR", "MES", "PRO")[apply(verhaak.merged[,c("DIF", "IMR", "MES", "PRO")],1,which.max)]) 
@@ -144,11 +145,11 @@ addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
 addtorow$pos[[2]] <- 0
 addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & DIF & IMR & MES & PRO  \\\\\n")
-print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using the max ssGSEA score for each class. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
+print(xtable(table(implemented.classes.from.max, supplementary.classes.from.max), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript. The predictions for both implementations were made on the combined >800 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
 
-Verhaak et al. describe their subtype classification using the following method: first, Immunoreactive and Mesenchymal subtypes are classified by the higher score if corresponding ssGSEA scores exceed a given threshold. \footnote{The authors obtained these threshold as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively.} Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples classified identically between our implementation and supplementary results.
+Verhaak et al. describe their subtype classification using the following method: first, Immunoreactive and Mesenchymal subtypes are classified by the higher score if corresponding ssGSEA scores exceed a given threshold.\footnote{The authors obtained these threshold as the lowest ssGSEA scores for samples clustered within Immunoreactive and Mesenchymal subtypes respectively.} Overall, this method produces a concordance of \Sexpr{ round(100 * accuracy.classification.with.thresholds, digits=2)}\% of samples classified identically between our implementation and supplementary results.
 
 <<verhaak_table_bythreshold, results='asis'>>=
 
@@ -159,7 +160,7 @@ addtorow$pos <- list()
 addtorow$pos[[1]] <- 0
 addtorow$pos[[2]] <- 0
 addtorow$command <- c('& Verhaak Subtypes from Supplementary & & &\\\\\n', "Implemented Verhaak Subtypes & DIF & IMR & MES & PRO \\\\\n")
-print(xtable(table(implemented.classes.from.threshold, supplementary.classes.from.threshold), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using threshold values for Immunoreactive and Mesenchymal subtypes. The predictions for both implementations were made on the combined >700 sample dataset by taking the max ssGSEA subtype score."), add.to.row=addtorow, include.colnames=FALSE)
+print(xtable(table(implemented.classes.from.threshold, supplementary.classes.from.threshold), caption="Contingency table showing concordance using our implementation of the Verhaak subtyping classifier and the predictions given in the supplementary of the Verhaak manuscript, using threshold values for Immunoreactive and Mesenchymal subtypes."), add.to.row=addtorow, include.colnames=FALSE)
 @
 
 \pagebreak
@@ -183,10 +184,13 @@ wilcox.out <- wilcox.test(margins.concordant, margins.non.concordant, alternativ
 #plot(quantile.xvals, sapply(quantile.xvals, function(x) mean(verhaak.merged$implemented.subtype[ecdf(verhaak.margins)(verhaak.margins) > x] == verhaak.merged$CloverLeaf[ecdf(verhaak.margins)(verhaak.margins) > x])), ylim=c(0,1), pch=19, col="#6E6E6E", cex = 0.5, xlab="Margin (percentile)", ylab="Concordance")
 par(mfrow=c(1,1))
 @
-\caption{Left: the condordance of patients classified above a given margin threshold. Cases with a small difference between top ssGSEA subtype scores are more likely to be classified non-concordantly. Right: The margin values of patients with concordant vs non-concordant classification between our implementation and published subtypes. Patient classified differently between our implementation and the published subtypes had significantly lower margin values (one-sided Wilcoxon rank-sum p = \Sexpr{sprintf("%0.1E", wilcox.out$p.value)}).}
+\caption{Left: the condordance of patients classified above a given margin threshold. Cases with a large difference between top ssGSEA subtype scores are more likely to be classified concordantly. Right: The margin values of patients with concordant vs non-concordant classification between our implementation and published subtypes. Patient classified differently between our implementation and the published subtypes had significantly lower margin values (one-sided Wilcoxon rank-sum p = \Sexpr{sprintf("%0.1E", wilcox.out$p.value)}).}
 \end{figure}
 
-\begin{figure}
+We performed survival analysis with using the clinical annotations of the validation datasets, and observed similar survival curves as figure 2B in Verhaak et al.
+
+\begin{figure}[H]
+\centering
 <<verhaak_survival_curves_implemented, fig.height=5, fig.width=5, out.width="0.5\\textwidth">>=
 verhaak.merged$vital_status <- verhaak.merged$vital_status == "deceased"
 verhaak.merged$months_to_death <- verhaak.merged$days_to_death / days.per.month
@@ -198,6 +202,6 @@ verhaak.merged$vital_status <- time.cens.out$surv.event.cens
 verhaak.merged$surv.obj <- Surv(verhaak.merged$months_to_death, verhaak.merged$vital_status)
 km.coxph.plot(surv.obj ~ implemented.subtype, verhaak.merged, x.label="Time (months)", y.label = "Survival", main.title="Survival: Implemented Classifier", show.n.risk = FALSE, leg.text = levels(verhaak.merged$implemented.subtype), .col=c("#E38010", "green", "blue", "purple"), leg.pos="topright", leg.inset=0, n.risk.cex=0.85, cex=0.4)
 @
-\includegraphics[width=0.35\textwidth]{verhaak_fig2B.png}
+\includegraphics[width=0.5\textwidth]{verhaak_fig2B.png}
 \caption{The survival curves produced by our implemented classifier (top) appear similar to Figure 2B in the original publication (bottom).}
 \end{figure}
