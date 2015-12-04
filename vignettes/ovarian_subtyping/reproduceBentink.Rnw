@@ -65,7 +65,7 @@ Our implementation of the Bentink et al. subtype classifier on the Tothill et al
 grid.arrange(bentink.plots[["tothill"]][[1]], bentink.plots[["tothill"]][[2]], ncol=2)
 @
 }
-\includegraphics[width=\textwidth]{bentink_supp2_tothill.png}
+\includegraphics[width=\textwidth]{images/bentink_supp2_tothill.png}
 \caption{Tothill dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
 \end{figure}
 
@@ -78,7 +78,7 @@ Our implementation of the Bentink et al. subtype classifier on the Crijns et al.
 grid.arrange(bentink.plots[["crijns"]][[1]], bentink.plots[["crijns"]][[2]], ncol=2)
 @
 }
-\includegraphics[width=\textwidth]{bentink_supp2_crijns.png}
+\includegraphics[width=\textwidth]{images/bentink_supp2_crijns.png}
 \caption{Crijns dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
 \end{figure}
 
@@ -91,7 +91,7 @@ Our implementation of the Bentink et al. subtype classifier on the Denkert et al
 grid.arrange(bentink.plots[["denkert"]][[1]], bentink.plots[["denkert"]][[2]], ncol=2)
 @
 }
-\includegraphics[width=\textwidth]{bentink_supp2_denkert.png}
+\includegraphics[width=\textwidth]{images/bentink_supp2_denkert.png}
 \caption{Denkert dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
 \end{figure}
 
@@ -105,7 +105,7 @@ Our implementation of the Bentink et al. subtype classifier on the Dressman et a
 grid.arrange(bentink.plots[["dressman"]][[1]], bentink.plots[["dressman"]][[2]], ncol=2)
 @
 }
-\includegraphics[width=\textwidth]{bentink_supp2_dressman.png}
+\includegraphics[width=\textwidth]{image/bentink_supp2_dressman.png}
 \caption{Dressman dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
 \end{figure}
 
@@ -118,6 +118,6 @@ Our implementation of the Bentink et al. subtype classifier on the Mok et al. da
 grid.arrange(bentink.plots[["mok"]][[1]], bentink.plots[["mok"]][[2]], ncol=2)
 @
 }
-\includegraphics[width=\textwidth]{bentink_supp2_mok.png}
+\includegraphics[width=\textwidth]{image/bentink_supp2_mok.png}
 \caption{Mok dataset. (Above) Score distribution and survival plot from our implementation. (Below) Score distribution fitted to a normal distribution and survival plot from the Bentink et al. supplementary.}
 \end{figure}
