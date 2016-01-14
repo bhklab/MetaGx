@@ -1,0 +1,15 @@
+R/OvarianSubtyping/test/
+.Rproj.user
+*.Rproj
+*.synctex.gz
+.RData
+.Rhistory
+.DS_Store
+# Auto-generated knitr files
+vignettes/*.log
+vignettes/*.pdf
+vignettes/*.toc
+vignettes/*.tex
+*.aux
+vignettes/cache
+vignettes/figures
