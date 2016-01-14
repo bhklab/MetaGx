@@ -2,7 +2,7 @@ getTothillSubtypes <- function(eset, gene.mapping=c("Entrez.ID", "Probe.ID")) {
   gene.mapping <- match.arg(gene.mapping)
   
   ## Load train data with predefined class labels
-  supp.table.2 <- read.table(paste0(package.dir, "/inst/extdata/tothill.supptable.probes.entrez.txt"), header=TRUE)
+  supp.table.2 <- read.table(system.file(file.path("extdata", "tothill.supptable.probes.entrez.txt", package="MetaGx"), header=TRUE)
   supplementary.probesets <- as.character(supp.table.2$Probe.ID)
   supplementary.entrez.ids <- unique(supp.table.2[supp.table.2$Entrez.ID != "---",]$Entrez.ID)
   
@@ -44,8 +44,7 @@ getTothillSubtypes <- function(eset, gene.mapping=c("Entrez.ID", "Probe.ID")) {
   tothill.expression.matrix <- t(tothill.expression.matrix)
   
 	## Train and classify with diagonal LDA based on the cla
-  #supplementary.classes <- read.table(system.file(file.path("extdata", "tothill.supptable.1.classes.txt"), package="MetaGx"), header=TRUE)
-  supplementary.classes <- read.table(paste0(package.dir, "/inst/extdata/tothill.supptable.1.classes.txt"), header=TRUE)
+  supplementary.classes <- read.table(system.file(file.path("extdata", "tothill.supptable.1.classes.txt"), package="MetaGx"), header=TRUE)
   supplementary.classes$group <- as.character(supplementary.classes$group)
   supplementary.classes <- supplementary.classes[supplementary.classes$group != "NC",]
   supplementary.classes$group <- as.factor(supplementary.classes$group)

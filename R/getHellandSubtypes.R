@@ -1,8 +1,8 @@
 getHellandSubtypes <- function(eset) {
-  supplementary.type.1 <- read.xls(paste0(package.dir,"/inst/extdata/journal.pone.0018064.s015.XLS"), sheet=1)
-  supplementary.type.2 <- read.xls(paste0(package.dir,"/inst/extdata/journal.pone.0018064.s015.XLS"), sheet=2)
-  supplementary.type.4 <- read.xls(paste0(package.dir,"/inst/extdata/journal.pone.0018064.s015.XLS"), sheet=3)
-  supplementary.type.5 <- read.xls(paste0(package.dir, "/inst/extdata/journal.pone.0018064.s015.XLS"), sheet=4)
+  supplementary.type.1 <- read.xls(system.file("extdata", "journal.pone.0018064.s015.XLS", package="MetaGx"), sheet=1)
+  supplementary.type.2 <- read.xls(system.file("extdata", "journal.pone.0018064.s015.XLS", package="MetaGx"), sheet=2)
+  supplementary.type.4 <- read.xls(system.file("extdata", "journal.pone.0018064.s015.XLS", package="MetaGx"), sheet=3)
+  supplementary.type.5 <- read.xls(system.file("extdata", "journal.pone.0018064.s015.XLS", package="MetaGx"), sheet=4)
   supplementary.tables <- list(C1=supplementary.type.1, C2=supplementary.type.2, C4=supplementary.type.4, C5=supplementary.type.5)
   
   entrez.id.logFC.list <- lapply(supplementary.tables, function(x) {
