@@ -2,7 +2,7 @@ getTothillSubtypes <- function(eset, gene.mapping=c("Entrez.ID", "Probe.ID")) {
   gene.mapping <- match.arg(gene.mapping)
   
   ## Load train data with predefined class labels
-  supp.table.2 <- read.table(system.file(file.path("extdata", "tothill.supptable.probes.entrez.txt", package="MetaGx"), header=TRUE)
+  supp.table.2 <- read.table(system.file(file.path("extdata", "tothill.supptable.probes.entrez.txt", package="MetaGx"), header=TRUE))
   supplementary.probesets <- as.character(supp.table.2$Probe.ID)
   supplementary.entrez.ids <- unique(supp.table.2[supp.table.2$Entrez.ID != "---",]$Entrez.ID)
   
