@@ -38,5 +38,5 @@ Maintainer: Who to complain to <yourfault@somewhere.net>
 ~~ \code{\link[<pkg>:<pkg>-package]{<pkg>}} ~~
 }
 \examples{
-Simple examples of the most important functions
+#Simple examples of the most important functions
 }
