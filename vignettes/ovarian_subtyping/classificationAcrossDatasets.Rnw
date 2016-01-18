@@ -13,6 +13,7 @@
 %\newcommand{\sectionbreak}{\clearpage}
 
 \begin{document}
+\SweaveOpts{concordance=TRUE}
 
 <<setup, include=FALSE, cache=FALSE>>=
 # Set options
@@ -21,7 +22,7 @@ options(replace.assign=TRUE,width=90)
 par.original <- par()
 days.per.month <- 30.4368
 days.per.year <- 365.242
-package.dir <- "~/repos/MetaGx/"
+file.path(getwd(), "..", "..")
 source("../../R/create.survival.plot.R")
 @
 
@@ -61,10 +62,10 @@ source("../../R/subtypeClassification.R")
 source("../../R/setSubtype.R")
 source("../../R/stripWhiteSpace.R")
 
-package.dir = "~/repos/MetaGx/"
+package.dir = file.path(getwd(), "..", "..")
 @
 
-<<load_data, eval=FALSE>>=
+<<define_dataselection, echo=TRUE, results=verbatim>>=
 library(Biobase)
 library(MetaGxOvarian)
 
@@ -75,7 +76,18 @@ rule.4 <- c("summarygrade","^high$")
 ### use this line if you do not want to get rid of duplicates
 rm(remove.duplicates)
 rescale <- FALSE
+print(min.number.of.genes)
+print(min.sample.size)
+print(remove.retracted)
+print(remove.subsets)
+print(keep.common.only)
+print(strict.checking)
+print(rescale)
+t(sapply(ls(pattern="^rule"), get) )
+@
 
+Do the sample selection:
+<<load_data, cache=TRUE>>=
 source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
 
 esets.not.rescaled <- esets
@@ -87,7 +99,7 @@ esets.not.rescaled <- esets.not.rescaled[sapply(esets.not.rescaled, function(x) 
 save(esets.not.rescaled, file="esets.not.rescaled.RData")
 @
 
-<<classify_data, eval=FALSE>>=
+<<classify_data, cache=TRUE>>=
 #
 load("esets.not.rescaled.RData")
 
@@ -191,7 +203,7 @@ pooled.subtypes.survival$surv.obj <- Surv(time = pooled.subtypes.survival$years_
 
 From MetaGxOvarian, we identified \Sexpr{nrow(pooled.subtypes.survival)} patients from diagnosed with high-grade serous ovarian carcinoma.
 
-<<Dataset_table, results='asis'>>=
+<<Dataset_table, results='tex'>>=
 data.counts <- as.data.frame(table(pooled.subtypes.survival$data.source))
 colnames(data.counts) <- c("Data Source", "Number of Patients")
 data.counts[,1] <- as.character(data.counts[,1])
@@ -357,7 +369,7 @@ do.call(grid.arrange, margin.contingency.plots[[3]], c(ncol=2))
 margin.scatterplots[[3]]
 @
 
-<<Forest_plots, eval=FALSE>>=
+<<Forest_plots, eval=TRUE>>=
 out <- lapply(ovarian.publication.years$dataset, function(dataset.name) {
   current.survival.df <- pooled.subtypes.survival[pooled.subtypes.survival$data.source == dataset.name,]
   survcomp::hazard.ratio(x = current.survival.df$Konecny, surv.time = current.survival.df$years_to_death, surv.event = current.survival.df$vital_status)
