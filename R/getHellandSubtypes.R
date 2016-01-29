@@ -9,7 +9,7 @@ getHellandSubtypes <- function(eset) {
     ## Use the supplementary table's listed probe id and gene name to determine the Entrez ID
     # If there is only one EntrezID that maps to a probe in hgu133plus2.db, use that Entrez ID.
     # If there are multiple EntrezIDs that map to a probe, then use the EntrezID (if any) that corresponds to the provided gene symbol.
-    current.mapping <- suppressWarnings(select(hgu133plus2.db, as.character(x$ID), c("ENTREZID", "SYMBOL")))
+    current.mapping <- suppressWarnings(AnnotationDbi::select(hgu133plus2.db, as.character(x$ID), c("ENTREZID", "SYMBOL")))
     current.mapping <- current.mapping[ !is.na(current.mapping$ENTREZID), ]
     colnames(x)[1:2] <- c("PROBEID", "SYMBOL")
     mappings.with.unique.probeid <- current.mapping[ !(current.mapping$PROBEID %in% current.mapping$PROBEID[duplicated(current.mapping$PROBEID)]),]
