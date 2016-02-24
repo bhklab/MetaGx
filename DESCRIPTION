@@ -9,5 +9,4 @@ VignetteBuilder: knitr
 Description: This package contains a set of functions to perform meta-analysis of cancer gene expression profiles.
 License: Artistic-2.0
 Depends: Biobase, BiocGenerics, org.Hs.eg.db, jetset, survival, survcomp, genefu, mRMRe, WriteXLS, lsa
-Imports: gdata::read.xls
 Suggests: knitr
