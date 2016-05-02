@@ -1,7 +1,7 @@
 Package: MetaGx
 Type: Package
 Title: R package for meta-analysis of breast cancer gene expressions
-Version: 0.9.10
+Version: 0.9.11
 Date: 2015-06-04
 Author: Benjamin Haibe-Kains, Deena Gendoo, Gregory Chen, Natchar Ratanasirigulchai, Pierre-Olivier Bachant-Winner
 Maintainer: Benjamin Haibe-Kains <benjamin.haibe.kains@utoronto.ca>
