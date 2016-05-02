@@ -1,12 +1,12 @@
 getKonecnySubtypes <- function(eset) {
+  expression.matrix <- exprs(eset)
   # Rescale per gene
-  exprs(eset) <- t(scale(t(exprs(eset))))
+  expression.matrix <- t(scale(t(expression.matrix)))
   
 	## Load centroids defined in Konecny et al., 2014
   supplementary.data <- read.xls(system.file("extdata", "jnci_JNCI_14_0249_s05.xls", package="MetaGx"), sheet=4)
   
 	## Classify using nearest centroid with Spearman's rho
-  expression.matrix <- exprs(eset)
   rownames(expression.matrix) <- as.numeric(sub("geneid.", "", rownames(expression.matrix)))
   
   # Subset supplementary.data to consist of centroids with intersecting genes
