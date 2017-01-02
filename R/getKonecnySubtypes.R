@@ -2,12 +2,15 @@ getKonecnySubtypes <- function(eset) {
   expression.matrix <- exprs(eset)
   # Rescale per gene
   expression.matrix <- t(scale(t(expression.matrix)))
+  ## take only the first entry for ambiguous probes
+  pn <- sub("geneid.", "", rownames(expression.matrix))
+  pn <- sapply(strsplit(pn, ","), function (x) { return (x[[1]]) })
+  rownames(expression.matrix) <- pn  
   
 	## Load centroids defined in Konecny et al., 2014
-  supplementary.data <- read.xls(system.file("extdata", "jnci_JNCI_14_0249_s05.xls", package="MetaGx"), sheet=4)
-  
+  supplementary.data <- gdata::read.xls(system.file("extdata", "jnci_JNCI_14_0249_s05.xls", package="MetaGx"), sheet=4)
+    
 	## Classify using nearest centroid with Spearman's rho
-  rownames(expression.matrix) <- as.numeric(sub("geneid.", "", rownames(expression.matrix)))
   
   # Subset supplementary.data to consist of centroids with intersecting genes
   # For genes with multiple probesets, take the mean

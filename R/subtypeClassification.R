@@ -6,7 +6,7 @@
 
 
 `subtypeClassification` <- 
-function (eset, model=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2003", "intClust")) {
+function (eset, model=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2003", "intClust"), cancerType=c("breast", "ovarian")) {
   # Classify GSE subtype and give out the probability of being that subtype
   #
   # Args:
@@ -16,6 +16,11 @@ function (eset, model=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2
   #   eset: expression set with updated subtype information (subtype claling and subtype.probabilities)
   
   model <- match.arg(model)
+ 
+  cancerType <- match.arg(cancerType)
+  if (cancerType != "breast") {
+    stop("only breast subtypes are currently implemented")
+  }
   
   ## convert SCM to SSP nomenclature
   sbt.conv <- rbind(c("ER-/HER2-", "Basal"),
