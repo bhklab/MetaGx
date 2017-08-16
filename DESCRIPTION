@@ -1,0 +1,29 @@
+Package: metaGx
+Title: What the Package Does (one line, title case)
+Version: 0.0.0.9000
+Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+Imports:
+	MetaGxOvarian,
+	MetaGxBreast,
+	survival,
+	survcomp,
+	gdata,
+	forestplot,
+	xlsx,
+	GSVA,
+  mclust,
+  org.Hs.eg.db,
+  hgu133plus2.db,
+  HiDimDA,
+  matrixStats,
+	survival,
+	survcomp,
+	genefilter,
+	logging,
+	knitr,
+	grid
+Depends: R (>= 3.3.2)
+License: What license is it under?
+Encoding: UTF-8
+RoxygenNote: 6.0.1
