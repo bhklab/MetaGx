@@ -1,0 +1,339 @@
+\documentclass{article}
+
+\usepackage{changepage}
+\usepackage{tabularx}
+\usepackage{environ}
+\usepackage[vmargin=1in,hmargin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{colortbl, xcolor}
+
+\newenvironment{widestuff}{\begin{adjustwidth}{-4.5cm}{-4.5cm}\centering}{\end{adjustwidth}}
+\usepackage{hyperref}
+\usepackage{longtable}
+\setlength{\LTleft}{0pt}
+\usepackage[
+    singlelinecheck=false,
+    justification=centering
+]{caption}
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+
+\begin{document}
+
+\setlength\LTleft{0pt}
+\setlength\LTright{0pt}
+
+
+<<setup, include=FALSE, cache=FALSE>>=
+#\SweaveOpts{concordance=TRUE} was after begn doc
+# Set options
+#rm(list=ls())
+@
+
+<<,fig=TRUE,echo=FALSE, warning=FALSE, results='asis', error=FALSE, message=FALSE, fig.keep='all', fig.show='asis', fig.keep='all'>>=
+#TO DO
+#mention that individual gene section just uses 1 direction
+
+if(cancerType == "breast")
+  titleString = "Prognostic Value of Genes in Breast Cancer"
+if(cancerType == "ovarian")
+  titleString = "Prognostic Value of Genes in Ovarian Cancer"
+
+cat(paste("\\title{", titleString, "}"))
+cat("\\maketitle")
+cat("\\tableofcontents")
+
+#geneInfoLists = getGenesProgValue(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups, dataNames, soloGeneAnalysis, removeMid, censorTime = censorTime, addBenchmarks)
+#load("geneInfoLists.R")
+dataList = geneInfoLists$datasets
+survFramesList = geneInfoLists$patientSurvData
+subtypeProgTabList = geneInfoLists$genesPrognosticVal
+genesForestPlotList = geneInfoLists$genesDindexInfo
+genesSummaryList = geneInfoLists$genesPrognosticSummary
+geneStatusVec = geneInfoLists$genesStatus
+genesFrameList = geneInfoLists$genesInfo
+
+
+if(grepl("overall", survivalMetric, ignore.case = TRUE))
+{
+   dataStr = "Overall survival"
+   survivalMetric = "overall"
+}
+if(grepl("relapse", survivalMetric, ignore.case = TRUE))
+{
+   dataStr = "Relapse free survival"
+   survivalMetric = "relapse"
+}
+
+
+cat("\\newpage")
+cat("\\clearpage")
+
+graphics.off()
+
+cat("\\section{Analysis Information}")
+
+cat("\\subsection{Data Information}")
+
+dataTab = obtainDataInfo(dataList, survivalMetric)
+#Platform is usally unknown
+dataTab = dataTab[, -which(colnames(dataTab)=="Platform")]
+print(xtable::xtable(dataTab, align=c("p{2.5cm}","p{2.5cm}","p{2cm}","p{1.5cm}","p{2cm}","p{2cm}","p{3cm}")), include.rownames = FALSE)
+
+cat("\\subsection{Parameter Information}")
+censorStr = "10 years"
+splitStr = "median expression levels of patients"
+combEstStr = "Random effect model"
+subtypeStr = subtype
+
+cat("\\begin{itemize}")
+cat("\\item{", dataStr," data used in the survival analysis}")
+if(removeMid > 0)
+  cat("\\item{Patients with middle", removeMid*100," percent risk predictions in each dataset removed from the analysis}")
+cat("\\item{Data censored at ",censorStr,"}")
+cat("\\item{Survival curve groups determined via ",splitStr,"}")
+cat("\\item{", combEstStr," used when combining estimators (D index)}")
+cat("\\item{", subtypeStr,"molecular subtyping scheme used}")
+if(addBenchmarks == TRUE)
+  cat("\\item{Benchmark/Hallmark signatures identifiable by red text in tables/plots and phrase benchmarks}")
+cat("\\item{Direction of +1 implies the gene's expression was added to the score}")
+cat("\\item{For survival curves using individual genes, direction of association was +1}")
+cat("\\end{itemize}")
+
+cat("\\subsection{R Session Info}")
+toLatex(sessionInfo(), locale=FALSE)
+cat("\\clearpage")
+
+cat("\\section{Gene Signature Prognostics}")
+
+numSigs = length(geneSigList)
+if(addBenchmarks == TRUE)
+  numSigs = numSigs + length(obtainCancerSigs(cancerType)$geneSigList)
+
+for(i in 1:numSigs)
+{
+  ################################Put tables describing the signature in the report###################################
+  ################################Put tables describing the signature in the report###################################
+  cat("\\subsection{", names(survFramesList)[i],"}")
+  cat("\\subsubsection{Signature Info}")
+  geneFrame = genesFrameList[[i]]
+  geneSigTab = cbind(geneFrame$Symbol, geneFrame$Description, geneFrame$`Entrez ID`, geneFrame$Direction)
+  #add printing the missing genes from the signature
+  #geneSigTab = geneSigTab[!is.na(geneFrame$`Entrez ID`), ]
+  colnames(geneSigTab) = c("Gene Symbol", "Description", "Entrez ID", "Direction")
+  tableCap = "Information Pertaining to the Genes in the Signature"
+
+  geneSigTab = xtable::xtable(geneSigTab, digits = 5, caption = tableCap, align=c("l", "l", "l", "l", "p{5cm}"))
+  addtorow = list()
+  addtorow$pos = list()
+  addtorow$pos[[1]] = c(0)
+  addtorow$command  = c(paste("\\hline \n", "\\endhead \n",  "\\hline \n", "{\\footnotesize Continued on next page} \n", "\\endfoot \n", "\\endlastfoot \n",sep=""))
+  print(geneSigTab, caption.placement = getOption("xtable.caption.placement", "bottom"), tabular.environment = 'longtable', floating = TRUE, include.rownames=FALSE, hline.after=c(-1, 0), add.to.row = addtorow)
+  cat("\\clearpage")
+
+  geneMissFrame = determMissingGenes(geneSigList[[i]], dataList)
+  geneMissFrame = geneMissFrame[, -which(colnames(geneMissFrame) == "Entrez IDs of Missing Genes")]
+  colnames(geneMissFrame)[ncol(geneMissFrame)] = "IDs of Missing Genes"
+  geneMissFrame$`IDs of Missing Genes` = gsub("ID ", " ", geneMissFrame$`IDs of Missing Genes`)
+  genesMissVec = geneMissFrame$`IDs of Missing Genes`
+  for(k in 1:length(genesMissVec))
+  {
+    genesMiss = genesMissVec[k]
+    if(as.numeric(as.character(geneMissFrame$`Genes Missing`))[k] > 5)
+    {
+       genesMiss = substr(genesMiss, 1, gregexpr(",", genesMiss)[[1]][5]-1)
+       genesMiss = paste0(genesMiss, "...")
+       geneMissFrame$`IDs of Missing Genes`[k] = genesMiss
+    }
+  }
+  tableCap = "Information Pertaining to the Number of Genes Missing from the Signature in the Datasets"
+  
+  
+  geneMissFrame = xtable::xtable(geneMissFrame, digits = 5, caption = tableCap, align=c("p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{7cm\\textwidth}"))
+  addtorow = list()
+  addtorow$pos = list()
+  addtorow$pos[[1]] = c(0)
+  addtorow$command  = c(paste("\\hline \n", "\\endhead \n",  "\\hline \n", "{\\footnotesize Continued on next page} \n", "\\endfoot \n", "\\endlastfoot \n",sep=""))
+  print(geneMissFrame, caption.placement = getOption("xtable.caption.placement", "bottom"), include.rownames=FALSE)
+  #print(geneMissFrame, caption.placement = getOption("xtable.caption.placement", "bottom"), tabular.environment = 'longtable', floating = TRUE, include.rownames=FALSE, hline.after=c(-1, 0), add.to.row = addtorow)
+  cat("\\clearpage")
+
+  ############Put table describing the prognostic value of the signature on all patients and each subtype in the report###################
+  cat("\\subsubsection{Signature Survival Statistics Summary}")
+  print(xtable::xtable(subtypeProgTabList[[i]], digits = 5, caption = paste("survival statistics summary for the gene signature"), tabular.environment = 'longtable'), scalebox = 1.25)
+  cat("\\clearpage")
+
+  sigSurvFrameList = survFramesList[[i]]
+  sigForestPlotList = genesForestPlotList[[i]]
+  for(k in 1:length(sigSurvFrameList))
+  {
+    ############Put survival curve of the signature on all patients and each subtype in the report###################
+    cat("\\subsubsection{Kaplan-Meier Survival Curve when Using ", names(sigSurvFrameList)[k], "}")
+    an = paste("sigAllPlotIns",k ,".pdf", sep = "")
+    aname = paste(system.file("latex", package = "metaGx"),"/","sigAllPlotIns", k, sep = "")
+    #aname = paste("sigAllPlotIns",k, sep = "")
+    pdf(an)
+    titleStr = paste("Survival Curve \nUsing", names(sigSurvFrameList)[k])
+
+    makeSurvivalPlot(sigSurvFrameList[[k]], as.numeric(numGroups), normalizeEsetScores = TRUE, titleStr)
+    dev.off()
+    cat(paste("\\includegraphics[bb = 80 158 233 482, scale = 1]{{", aname, "}.pdf}", sep = ""))
+    cat("\\clearpage")
+
+    if(length(unique(sigSurvFrameList[[k]]$dataName)) > 1)
+    {
+      ############Put forest plot of the D indices from the datasets on all patients and each subtype in the report###################
+      an = paste("sigForPlotIns", k, ".pdf", sep = "")
+      #aname = paste("sigForPlotIns", k, sep = "")
+      aname = paste(system.file("latex", package = "metaGx"),"/","sigForPlotIns", k, sep = "")
+      #below dimensions fill whole page
+      #pdf(file = an, width = 14, height = 38)
+      #onefile = FALSE prevents first page from being blank
+      pdf(file = an, width = 14, height = 15, onefile = FALSE)
+
+      cat("\\subsubsection{Forest Plot For D Indices when using ", names(sigSurvFrameList)[k], "}")
+      makeForestPlot(sigSurvFrameList[[k]], reportSize = TRUE)
+      
+      minPatients = 10
+      forestPlotData = getDindexOfDatasets(sigSurvFrameList[[k]], minPatients)
+      remData = unique(which(is.na(forestPlotData), arr.ind = TRUE)[, 1])
+      if(length(remData) > 0)
+        forestPlotData = forestPlotData[-remData, ]
+      if(nrow(forestPlotData) == 0){
+        cat("\\vbox{None of the datasets had a sufficient number of samples so the foresplot was not generated}")
+      }else{
+        cat(paste("\\includegraphics[bb = 120 158 433 1112, scale = .55]{{", aname, "}.pdf}", sep = ""))
+      }
+      #if(!is.null(dev.list()))
+      dev.off()
+      cat("\\clearpage")
+    }
+  }
+}
+
+if(numSigs > 1)
+{
+  cat("\\subsection{Signature Correlation}")
+  an = paste("heatmap.pdf", sep = "")
+  aname = paste(system.file("latex", package = "metaGx"),"/","heatmap", sep = "")
+  pdf(file = an, width = 14, height = 15, onefile = FALSE)
+  
+  corMat = geneInfoLists$sigCorrelationMat
+  corMat = round(corMat*1000)/1000
+  numBenchmarks = numSigs - length(geneSigList)
+  colorVec = c(rep("black", length(geneSigList)), rep("red", numBenchmarks))
+
+  heatmap.2(corMat,  Rowv=FALSE, Colv=FALSE, col = cm.colors(256), scale="column", margins=c(12,12), cellnote = corMat, trace="none", notecex = 1.7, notecol = "black", key = FALSE, main = "Pearson Correlation Between Signatures", colsep = c(1:numSigs), rowsep = c(1:numSigs), sepcolor = "black", sepwidth = c(.01, .01), colRow = colorVec, colCol = colorVec, dendrogram = "none")      
+  
+  cat(paste("\\includegraphics[bb = 120 158 433 1112, scale = .55]{{", aname, "}.pdf}", sep = ""))
+  dev.off()
+  cat("\\clearpage")
+}
+
+################End Gene Sig Info Printing##################
+if(nrow(geneInfoLists$genesPrognosticSummary[[1]]) > 1)
+{
+  cat("\\vbox{ }")
+  cat("\\section{Comparison of Survival Curve Statistics}")
+  cat("\\vbox{The tables are organized by the log rank p values of the signatures}")
+
+  for(i in 1:length(genesSummaryList))
+  {
+  ############Put summary of survival results for each gene in a tabel to see which is most prognostic###################
+    cat("\\vbox{ }")
+    cat("\\subsection{Signature/Gene Survival Curve Statistics When Using ", names(genesSummaryList)[i], "}")
+    summaryTab = geneInfoLists$genesPrognosticSummary[[i]]
+    tableCap = paste("Prognostic Value of the Genes on", names(genesSummaryList)[i])
+    if(addBenchmarks == FALSE){
+      tableTemp = xtable::xtable(summaryTab, digits = 5, caption = tableCap) 
+      print(tableTemp, caption.placement = getOption("xtable.caption.placement", "bottom"), tabular.environment = 'longtable')
+    }else{
+      #have to add row like this as otherwise report doesnt work due to color{red} being placed before /midrule when 
+      #a benchmark sig is first in the table
+      summaryTab = rbind(rep("", ncol(summaryTab)), summaryTab)
+      rownames(summaryTab)[1] = ""
+      rowsToColor = c()
+      for(j in 2:nrow(summaryTab))
+        if(sum(rownames(summaryTab)[j] == c(names(geneSigList), unique(unlist(geneSigList)))) == 0)
+          rowsToColor = c(rowsToColor, j - 1)
+      #rowsToColor[rowsToColor == 0] = 1 
+      col = rep("\\color{red}", length(rowsToColor))
+      tableTemp = xtable::xtable(summaryTab, digits = 5, caption = tableCap)
+      print(tableTemp, caption.placement = getOption("xtable.caption.placement", "bottom"), tabular.environment = 'longtable', booktabs = TRUE, add.to.row = list(pos = as.list(rowsToColor), command = col))
+
+    }
+    cat("\\makebox[\\textwidth]{")
+    #print(tableTemp, floating = FALSE)
+    cat("}")
+    cat("\\clearpage")
+  }
+}
+
+if(soloGeneAnalysis == TRUE)
+{
+  cat("\\section{Individual Gene Survival Analysis}")
+  for(i in 1:length(survFramesList))
+  {
+    geneName = names(survFramesList)[i]
+    geneSurvList = survFramesList[[i]]
+    cat("\\subsection{",geneName,"}")
+
+    if(length(geneSurvList$`All Patients`) > 0){
+      cat("\\vbox{ }")
+      print(xtable::xtable(subtypeProgTabList[[i]], digits = 5, caption = paste("survival statistics summary for gene ", geneName), tabular.environment = 'longtable'), scalebox = 1.25)
+
+      an = paste("allPlotIns",i, ".pdf", sep = "")
+      aname = paste(system.file("latex", package = "metaGx"),"/","allPlotIns",i, sep = "")
+      #aname = paste("allPlotIns",i, sep = "")
+      pdf(an)
+      xLoc = 2
+      titleStr = paste(names(geneSurvList)[1])
+      makeSurvivalPlot(geneSurvList$`All Patients`, as.numeric(numGroups), normalizeEsetScores = TRUE, titleStr, xLoc = xLoc)
+      xLoc = 3.5
+      cat(paste("\\includegraphics[bb = 40 158 233 482, scale = .8]{{", aname, "}.pdf}", sep = ""))
+      dev.off()
+      cat("\\clearpage")
+      
+      #order below matters
+      for(j in 2:(length(geneSurvList) + 1))
+      {
+        if((((j-2)%%4 == 0) & j >= 6) | j == (length(geneSurvList) + 1))
+        {
+          cat(paste("\\includegraphics[bb = 10 158 233 482, scale = 1]{{", fname, "}.pdf}", sep = ""))
+          dev.off()
+          cat("\\clearpage")
+        }
+        
+        if((j-2)%%4 == 0 & j != (length(geneSurvList) + 1))
+        {
+          fn <- paste("survPlotIns",i*max(lengths(survFramesList))+j, ".pdf", sep = "")
+          fname = paste(system.file("latex", package = "metaGx"),"/","survPlotIns",i*max(lengths(survFramesList))+j, sep = "")
+          pdf(fn)
+          par(mar=c(4, .5, 1, 1))
+          par(mfrow=c(2,2))
+        }
+        
+        if(j != (length(geneSurvList) + 1))
+        {
+          titleStr = paste(names(geneSurvList)[j])
+          makeSurvivalPlot(geneSurvList[[j]], as.numeric(numGroups), normalizeEsetScores = TRUE, titleStr, xLoc = xLoc) 
+        }
+      }
+    }else{
+      cat("\\vbox{", geneStatusVec[i],"}")
+    }
+    cat("\\clearpage")
+  }
+  cat("\\clearpage")
+}
+#name pdf plot dev clear
+
+@
+
+
+\end{document}
