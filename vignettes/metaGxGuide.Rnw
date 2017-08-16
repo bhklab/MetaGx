@@ -1,0 +1,444 @@
+%\VignetteIndexEntry{metaGx User Guide}
+%\VignetteDepends{MetaGxOvarian, MetaGxBreast}
+%\VignetteSuggests{knitr}
+%\VignetteImports{amap}
+%\VignetteKeywords{Breast Cancer, Survival Analysis, Prognosis, Classification}
+%\VignettePackage{metaGx}
+%\VignetteEngine{knitr::knitr}
+
+%%%http://yihui.name/knitr/options/
+
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage[latin1]{inputenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{authblk}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\usepackage[table]{xcolor}
+
+%------------------------------------------------------------
+% newcommand
+%------------------------------------------------------------
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+\newcommand{\Robject}[1]{{\texttt{#1}}}
+\newcommand{\Rfunction}[1]{{\texttt{#1}}}
+\newcommand{\Rclass}[1]{\textit{#1}}
+\newcommand{\Rpackage}[1]{\textit{#1}}
+\newcommand{\Rexpression}[1]{\texttt{#1}}
+\newcommand{\Rmethod}[1]{{\texttt{#1}}}
+\newcommand{\Rfunarg}[1]{{\texttt{#1}}}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+\title{\Rpackage{metaGx}: a package for gene signature prognostics in cancer patients}
+
+\author[1]{Michael Zon}
+\author[1,2]{Benjamin Haibe-Kains\thanks{benjamin.haibe.kains@utoronto.ca }}
+
+\affil[1]{Bioinformatics and Computational Genomics Laboratory, Princess Margaret Cancer Center, University Health Network, Toronto, Ontario, Canada}
+\affil[2]{Department of Medical Biophysics, University of Toronto, Toronto, Canada}
+
+\maketitle
+\tableofcontents
+
+%------------------------------------------------------------
+\section{Introduction}
+%------------------------------------------------------------ 
+
+The metaGx package provides functions to asses the prognostic value of gene signatures in cancer patients and automatically obtain PDF reports with the results. The package also includes a number of algorithms that allow for molecular subtype classification of the patients in the expression sets. The data packages MetaGxOvarian and MetaGxBreast are reccomended when assessing the prognostic value of gene signatures in Ovarian cancer data and Breast cancer data, respectively. metaGx includes function that help users load the data in these datasets into a list that can be used with the various functions. Note that there is also a R Shiny app available for obtaining PDF reports with the prognostic value of a single gene signature without directly using the metaGx package. 
+
+Please refer to the manuscript URL and Lab website: http://www.pmgenomics.ca/bhklab/software/metaGx for additional 
+information regarding the package and Shiny app
+
+%------------------------------------------------------------
+\section{Loading the package for case studies}
+%------------------------------------------------------------ 
+First we load metaGx into the workspace. 
+The package is publicly available and can be installed from Bioconductor version 3.5 or higher in R version 3.3.2 or higher. 
+
+To install the metaGx package run the following code
+<<installAndLoadPackages,eval=FALSE,results='hide',message=FALSE>>=
+knitr::opts_chunk$set(eval=TRUE,cache=TRUE)
+source("http://bioconductor.org/biocLite.R")
+biocLite("metaGx")
+@
+
+
+%------------------------------------------------------------
+\section{Quickly Generating Gene Signature Prognostics}
+%------------------------------------------------------------ 
+
+The following example illustrates the easiest way to use the metaGx package in R to obtain all the objects that contain info pertaining to the prognostic value of a set of gene signatures. The only required information when assessing a set of gene signatures is as follows. 1. A variable called geneSigList that is a list of vectors containing the ensemble IDs, entrez IDs, or gene symbols for the gene in the signature. 2. A variable called geneDirecList that is a list the same size as geneSigList, where each element is again a vector, but now specifies the direction of association (+1 or -1) for each gene in the signature list. 3. A variable called canerType that is a string specifying the type of cancer to assess the prognostic value of the gene signatures in. 4. A variable called subtype that is a string specifying the subtyping scheme that will be used in order to classsify the patients into molecular subtypes and assess the prognostic value of the gene signatures on the subtypes. 5. A variable called survivalMetric which specifies the metric that should be used when conducting survival analyses using the signature. More information can be found in the documentation for the getGenesProgValue function and additional inputs are available to tailor the analysis. At the present time, the options for the survivalMetric input are overall survival, relapse free survival, distant metastasis free survival (not available for the ovarian cancer analysis), and hierarchy. The hierarchy scheme is a combination of the other schemes, each dataset is searched for relapse free survival data, then distant metastasis free survival data if relapse is not found, and lastly overall survival data if distanct metastasis data is not available. Also noteworthy is that overallMeta and overallTcga must be entered in order to conduct an analysis on the TCGA and Metabric study patients. These datasets are ommitted from the analyses involving other other breast datasets because their sample sizes are so large that they would effectively result in the other studies datasets having little to no impact. The optional inputs soloGeneAnalysis and addBenchmarks are used in the following examples and result in some additional results that will be discussed shortly. Note that the same mandatory 5 inputs can be supplied to the createSurvivalReport function in order to obtain a PDF in ones working directory containing the prognostic value of the gene signatures. For simplicity, metaGx was setup such that most of the metaGx functions only require the first element of the list returned from the getGenesProgValue object, and a few other inputs. 
+
+The following code obtains all the objects that contain info pertaining to the prognostic value of the set of gene signatures.
+<<getGeneSigPrognostics,eval=TRUE,results='hide',message=FALSE>>=
+
+geneSigList = list(c("KLK14","RHOX8","ADAMTS20","IDO1"), c("ADAMTS20","IDO1", "FAP"))
+names(geneSigList) = c("4 Gene Signature", "3 Gene Signature")
+geneDirecList = list(c(1, 1, -1, -1), c(-1, -1, 1))
+sigInfoList = getGenesProgValue(geneSigList, geneDirecList, cancerType = "ovarian", subtype = "verhaak", survivalMetric = "overall", soloGeneAnalysis = TRUE, addBenchmarks = TRUE)
+
+@
+
+The remainder of this user guide will primarily be spent on demonstrating the uses of the sigInfoList object and how the elements of sigInfoList can be generated through the metaGx functions. However, the results of these demonstrations which illustrate the prognostic value of the gene signatures can be obtained in a PDF by simply running the following code.
+
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+createSurvivalReport(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, soloGeneAnalysis = TRUE, addBenchmarks = TRUE)
+
+@
+
+Thus, those who simply require results as opposed to using the package extensively can simply use the above code to get those results in a PDF (or use the Shiny app). The next 7 sections of this guide will go through the contents of the PDF report generated by the above code and illustrate how they can be obtained from the results of the getGenesProgValue function (sigInfoList object). The next 7 section names in the guide correspond to the sections within the table of contents in the report.
+
+%------------------------------------------------------------
+\section{Analysis Information}
+%------------------------------------------------------------ 
+
+%------------------------------------------------------------
+\subsection{Data Information}
+%------------------------------------------------------------ 
+
+There are a few functions within the metaGx package that are present in order to provide information pertaining to the results of the analysis on the gene signatures. For instance, in order to obtain information pertaining to the data (table in report section 1.1) the obtainDataInfo function is used. The function is given a list containing the datasets used in the analysis along with the survival metric used in the analysis. The list containing the datasets can be obtained from the loadMetaData function or taken from the sigInfoList object. Most functions in the package can be run using the sigInfoList object or one of its list elements. 
+
+The table is generated by running the following
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+dataList = sigInfoLists$datasets
+#alternatively
+#dataList = loadMetaData(cancerType = "ovarian", survivalMetric = "overall")
+
+dataTab = obtainDataInfo(dataList, survivalMetric = "overall")
+print(xtable::xtable(dataTab, align=c("p{2.5cm}","p{2.5cm}","p{2cm}","p{1.5cm}","p{2cm}","p{2cm}","p{3cm}", "p{3cm}")), include.rownames = FALSE)
+
+@
+
+This table is the same as that which appears in th Data Information section (1.1) of the reports generated by createSurvivalReport except that for the reports the platform used is removed from the table (since it is often not available in the datasets). 
+
+%------------------------------------------------------------
+\subsection{Parameter Information}
+%------------------------------------------------------------ 
+the Parameter Information section of the report (1.2) simply outlines what inputs were used when generating the report. 
+
+%------------------------------------------------------------
+\subsection{R Session Info}
+%------------------------------------------------------------ 
+The final section of the analysis information section, R Session Info (1.3), just places the R session info in the report. 
+
+
+%------------------------------------------------------------
+\section{Gene Signature Info}
+%------------------------------------------------------------ 
+
+%------------------------------------------------------------
+\subsection{Genes in the Signature}
+%------------------------------------------------------------ 
+
+The sigInfoList object returned from the getGenesProgValue has all the data pertaining to the prognostic value of each supplied gene signature. The elements of this list named patientSurvData, genesPrognosticVal, genesDindexInfo, genesPrognosticSummary, and genesInfo themselves contain an element named after each gene signature supplied. If names were not assigned to the gene signatures supplied they will simply be called "signature i", where i corresponds to the i'th signature of the geneSigList object sent into the getGenesProgValue function. Note that each signature supplied received its own sub section within most of the sections of the report generated by createSurvivalReport. The genesInfo element cotains a list of dataframes, each of which describes what genes where present in the signature (report section 2.Signature names.1). These data frames are generated by the metaGx function getGeneInfo, which requires the IDs (entrez IDs, ensemble IDs, or gene symbols) of the signature and the direction of association for each ID.
+
+The table appears as follows
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+#alternatively
+#geneFrame = getGeneInfo(geneSigList$`4 Gene Signature`, geneDirecList$`4 Gene Signature`)
+
+geneFrame = sigInfoList$genesInfo$`4 Gene Signature`
+tableCap = "Information Pertaining to the Genes in the Signature"
+geneSigTab = xtable::xtable(geneFrame, digits = 5, caption = tableCap, align=c("l", "l", "l", "l", "p{5cm}"))
+
+@
+
+The function itself is useful for obtaining gene symbols, entrez IDs, or ensemble IDs given one of the three and obtaining descriptions about the genes in a signature. Note that if the gene could not be mapped, the columns will report NA as opposed to the desired information. These tables are found throughout section 2.Signature name.1 of the PDF reports.
+
+As the metaGx package performs a meta analysis across multiple data sets in order to obtain a meta-estimate for the D.index, a measure of the prognostic value of the signature, it is important to know the number of genes present and missing in each of the datasets. By using the metaGx function determMissingGenes, the sigInfoList object can be used to determine how many genes were present in each dataset. The function determMissingGenes requires the entrez IDs, ensemble IDs, or gene symbols that one wants to search the datasets for as well as a list of datasets to search. 
+
+The table is generated as follows
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+#alternatively
+#geneFrame = getGeneInfo(geneSigList$`4 Gene Signature`, geneDirecList$`4 Gene Signature`)
+
+geneIds = sigInfoList$genesInfo$`4 Gene Signature`$Symbol
+dataList = sigInfoList$datasets
+#alternatively
+#geneIds = geneSigList$`4 Gene Signature`
+#dataList = loadMetaData(cancerType = "ovarian", survivalMetric = "overall")
+
+genesMissFrame = determMissingGenes(geneIds, dataList)
+
+tableCap = "Information Pertaining to the Number of Genes Missing from the Signature in the Datasets"
+geneMissFrame = xtable::xtable(as.data.frame(geneMissFrame), digits = 5, caption = tableCap, align=c("p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{7cm\\textwidth}"))
+print(geneMissFrame, caption.placement = getOption("xtable.caption.placement", "bottom"), include.rownames=FALSE)
+@
+
+The results of this function are particularly useful for investigating differences in the prognostic value a gene signature across various data sets. If a signature is performing well in most but not all of the datasets, as evident from the analyses that will follow in this guide, one should check whether it is not prognostic in a subset of the datasets due to the fact that many genes from the signature are missing from the datasets. If the signature is performing poorly in most of the datasets it could be due to the fact that most of the genes in the signature are not found in the datasets. Users are reccomended to use the determMissingGenes function prior to running their analysis in order to determine which datasets they should use based on the number of genes from the signature present in the dataset. Note that if a gene ID supplied cannot be mapped to a entrez gene ID or gene symbol than it will show up in the missing genes columns of the table in the format that it was present in the geneIds input to the function. The optional dataNames variable in getGenesProgValue and createSurvivalReport can be used to specify which datasets to use in the analysis. Note that the tables generated by the determMissingGenes function are found throughout section 2.Signature name.2 of the PDF reports. 
+
+%------------------------------------------------------------
+\subsection{Signature Survival Statistics Summary}
+%------------------------------------------------------------ 
+
+The genesPrognosticValue element of sigInfoList contains a list of data frames with a summary of the final results for each signature analyzed. This data frame has the log rank p value and D.index of the signature in analyses stratified by each subtype as well as the analysis that included all of the patients (report section 6.Signature name.1). Although the tables are in the sigInfoList$genesPrognosticValue element, they can be generated by passing one of the patientSurvData lists of sigInfoList to the function getMetaDindexAndLogP. The patientSurvData list itself can be generated from the function getPatientSurvivalData. The metaGx package was setup such that the results of the getPatientSurvivalData function are sufficient to run the majority of the metaGx functions that deal with conducting a survival analysis. 
+
+The three methods of generating the summary data frame, as well as the contents of the data frame, are shown below
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+#Method 1
+sigSummaryFrame = sigInfoList$genesPrognosticVal$`4 Gene Signature`
+
+#Method 2
+sigSummaryFrame = getMetaDindexAndLogP(sigInfoList$patientSurvData$`4 Gene Signature`, numGroups = 2)
+
+#Method 3
+geneFrame = getGeneInfo(geneSigList$`4 Gene Signature`, geneDirecList$`4 Gene Signature`)
+geneEntrezIds = geneFrame$`Entrez ID`
+geneDirecs = geneDirecList$`4 Gene Signature`
+survInfoList = getPatientSurvivalData(geneEntrezIds, geneDirecs, cancerType = "ovarian", subtype = "verhaak", survivalMetric = "overall")
+sigSummaryFrame = getMetaDindexAndLogP(survInfoList, numGroups = 2)
+
+print(xtable::xtable(sigSummaryFrame, digits = 5, caption = paste("survival statistics summary for the gene signature"), tabular.environment = 'longtable'), scalebox = 1.25)
+
+@
+
+The getPatientSurvivalData function returns a list of data frames, one for each subtype and one for an analysis that uses all the patients, and has all the information required by the metaGx package to conduct a survival analysis. These data frames contain the risk predictions, whether the event occured or not, the amount of time between the onset of the disease and the last follow up, the dataset name, the number of genes from the signature present in the dataset, and the patient ID for each patient in the list of datasets used. Each individual data frame is generated from the survInfo function and within survInfo the calcSigScore function computes the risk predictions for the patients using the signed average of their gene expression for the genes in the signature. The sign here refers to the direction of association of the gene (+1 or -1) and is an input variable presumably determined by some phenotype or other criteria. The getGenesProgValue function essentially just stores the results for each indiviual signature, as determined by the getpatientSurvivalData function. 
+
+%------------------------------------------------------------
+\subsection{Kaplan-Meier Survival Curves}
+%------------------------------------------------------------ 
+
+The metaGx package can be used to generate survival curves and forest plots of the D.indices across the datasets in order to assess the prognostic value of the signatures. In order to generate a Kaplan-Meier survial curve the metaGx package's makeSurvivalPlot function uses the risk prediction scores to separate the patients into groups, then creates a survival object using the Surv function from the survival package, and lastly utilizes the km.coxh.plot function from the survcomp package n order to generate a survival curve. The makeSurvivalCurve function requires one of the dataframes from the survInfoList object returned from getPatientsSurvivalData along with an argument called numGroups that specifies the number of groups to split the patients into and plot on the curve. The patient grouping is determined by splitting the patients' according to their risk predictions/scores into a number (specified by numGroups) of equally sized groups. The optional normalizeEsetScores parameter specifies whether the groups should be formed by analyzing the patients from each dataset individually or by normalizing the scores and analyzing all of the patients together. The default value is TRUE as this generally seems to yield better results for the survival curves (smaller log rank p value, better curve split).
+
+Since the addBenchmarks parameter was used in the analysis, a few prognostically relevant signatures from literature were inserted into the analysis for comparison with the provided signatures. To isolate these signatures simply pass the name of the cancer type to the obtainCancerSigs function (seel below code). The below code illustrates how to generate a survival curve using one of these benchmark signatures, namely ESR1. 
+
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+#Method 1
+survInfo = sigInfoList$patientSurvData$`ESR1 Benchmark`$`All Patients`
+
+#Method 2
+cancerSigs = obtainCancerSigs("breast")
+geneEntrezIds = cancerSigs$geneSigList$ESR1
+geneDirecs = cancerSigs$geneDirecList$ESR1
+survInfoList = getPatientSurvivalData(geneEntrezIds, geneDirecs, cancerType = "breast", subtype = "scmod2", survivalMetric = "overall")
+survInfo = survInfoList$`All Patients`
+
+makeSurvivalPlot(survInfo, numGroups = 2)
+
+@
+
+Throughout the reports generated by createSurvivalReport, survival curves for each signature are found in section 6 starting from section 6.signature number.2. Following the survival curves are forest plots for the D index in each dataset and than the reports contain alternating Kaplan-Meier survival curves and forest plots until the plots for each subtype have been displayed. 
+
+%------------------------------------------------------------
+\subsection{Forest Plots for D Indices}
+%------------------------------------------------------------ 
+
+Forest plots are generated by the makeForestPlot function which requires one of the dataframes from the survInfoList object returned from getPatientsSurvivalData. In order to obtain the D.indices displayed in the forest plot one simply passes the dataframe to getDindexOfDatasets instead of makeForestPlot. The D.indices are calculated by passing the risk predictions, the amount of time between the onset of the disease and the last follow up, and whether the event of interest has been observed for the patients to the D.index function of the survcomp package. The D.index is a measure of separation between two independent survival distributions and as a result is a good metric for assessing the prognostic value of a signature.
+
+The following code generates a forest plot using the metaGx package
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+dIndexTable = getDindexOfDatasets(survInfo)
+makeForestPlot(survInfo)
+
+@
+
+At this point only 2 of the inputs to the createSurvivalReport and getGenesProgValue functions have not been mentioned either directly or through their use in another function. Both of these inputs, namely censorTime and removeMid, have an effect on the prognostic value of the gene signature. By default the paramater censorTime, which censors the survival data of the patients at a specific point in time, is set to 10 years. If users believe that the datasets have different follow-up periods, or that anything past a certain time period is unreliable, they may change this parameter accordingly. The second paramater, removeMid, is a number between 0 and 0.5 that specifies what fraction of patients with risk predictions/scores in the middle of the risk predictions/scores should be removed from the analysis. By default all patients in the analysis are used so removeMid is 0. An example of a scenario in which a user might take advantage of this variable is if one desired to assess the prognostic value of a signature on the top and bottom tertile (top and bottom defined by the highest and lowest 33 percent of risk predictions for all the patients, respectively) in which case removeMid would be set to 1/3.
+
+%------------------------------------------------------------
+\section{Comparison of Survival Curve Statistics}
+%------------------------------------------------------------ 
+
+One of the useful features of the getGenesProgValue function is its ability to analyze multiple signatures and return information that compares and summarizes the prognostic values of these signatures. The element named genesPrognosticSummary in the object returned from getGenesProgValue contains a table ordered by log rank p value with information about the D indices and log rank p values for each signature and benchmark analyzed. Additionally, since the soloGeneAnalysis option was used in the analysis, each individual gene was treated as a signature and had its prognostic value assessed. Thus, the in the lists of the object returned from getGenesProgValue, and in this objects summarizing tables, each individual gene from the provided signatures can be found. This allows users to quickly verify whether their signature performed better than individual genes in the signature. Section 5 of the PDF reprts generated by createSurvivalReport contains the summary tables in the genesPrognosticSummary element for the analysis conducted on all the patients as well as for each analysis that was stratified by subtype. This saves users the trouble of going through each individual survival plot to determine which signature (or benchmarks) was the most prognostic as the information can be found within the one table. An example of one of the summary tables is shown below.
+
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+    
+summaryTab = xtable::xtable(sigInfoList$genesPrognosticSummary$`All Patients`, digits = 5, caption = tableCap) 
+tableCap = paste("Prognostic Value of the Genes on All the Patients")
+print(summaryTab, caption.placement = getOption("xtable.caption.placement", "bottom"), tabular.environment = 'longtable')
+
+@
+
+%------------------------------------------------------------
+\section{Signature Correlation Heatmaps}
+%------------------------------------------------------------ 
+
+When assessing the prognostic value of multiple signatures one may want to know whether these signatures are highly correlated or if the prognosticaly relavant signatures are extremely similar to previously known signatures. The results of the getGenesProgValue function contains an element called sigCorrelationList that provides a heatmap containing the correlations between the risk prediction/scores of patients between each pair of signatures. As usual, the list has a correlation matrix for the analysis on all the patients and for the analyses stratified by subtype, and the correlations themselves are meta-estimates obtained from the correlations between the signatures in each individual dataset. Alternatively, The metaGx function correlateGeneSigs can be used to obtain these heatmaps. The method parameter can be used to specify what type of correlation should be performed (default pearson), the subtypeName parameter can be used to specify which patients to analyze (default is NULL which uses all patients), and by default the genesRequired argument is set to 0.75 so that patients from datasets where 75 percent of the genes from the signature are not present are removed from the analysis. Note that in order to check if genes within the signature are highly correlated the correlateGenes function can be used (more details later).
+
+The following code generates/displays the aforementioned heatmap
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+#Method 1
+pateintSurvDataList = sigInfoList$patientSurvData
+corMat = correlateGeneSigs(pateintSurvDataList)
+
+#Method 2 - see example of correlateGeneSigs, just manually 
+#pateintSurvDataList = list()
+#for(i in 1:length(geneSigList))
+#      pateintSurvDataList[[i]] = getPatientSurvivalData(.......)
+#names(patientSurvDataList) = names(geneSigList)
+#corMat = correlateGeneSigs(pateintSurvDataList)
+
+#Method 3
+corMat = sigInfoList$sigCorrelationList$`All Patients`
+
+corMat = round(corMat*1000)/1000
+heatmap.2(corMat,  Rowv=FALSE, Colv=FALSE, col = cm.colors(256), scale="column", margins=c(12,12), cellnote = corMat, trace="none", notecex = 1.7, notecol = "black", key = FALSE, main = "Pearson Correlation Between Signatures", colsep = c(1:nrow(corMat)), rowsep = c(1:nrow(corMat)), sepcolor = "black", sepwidth = c(.01, .01), dendrogram = "none")      
+
+@
+
+If more than one signature has been passed to the createSurvivalReport function, than the heatmaps will be generated and appended to the report in section 3. Note that within the reports any benchmark signatures added to the report using addBenchmarks will have their text in red within content that compares multiple signatures.
+
+%------------------------------------------------------------
+\section{Signature Risk Prediction Boxplots}
+%------------------------------------------------------------ 
+
+The metaGx package provides the makeRiskBoxplots function in order to allow users to visualize the differences between the risk prediction scores in the analyses on all the patients versus those stratified by subtype for a signature. The functions only input is the list returned from the getPatientsSurvivalData and the resulting output is a boxplot of the risk prediction scores, where each group corresponds to the scores for one of the subtypes or the scores from all the patients. The plot also contains the p value from a krukal-wallis rank sum test run on the groups. The boxplots appear throughout section 4 of the PDFs created by the createSurvivalReport function.
+
+The following code illustrates how to generate the boxplots
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+#method 1
+survInfoList = sigInfoList$patientSurvData$`ESR1 Benchmark`
+
+#method 2
+cancerSigs = obtainCancerSigs("breast")
+geneEntrezIds = cancerSigs$geneSigList$ESR1
+geneDirecs = cancerSigs$geneDirecList$ESR1
+survInfoList = getPatientSurvivalData(geneEntrezIds, geneDirecs, cancerType = "breast", subtype = "scmod2", survivalMetric = "overall")
+ 
+makeSurvivalPlot(survInfoList)
+
+@
+
+%------------------------------------------------------------
+\section{Individual Gene Survival Analysis}
+%------------------------------------------------------------ 
+
+If the variable soloGeneAnalysis is set to TRUE during the analysis then as previously mentioned each individual gene from the signature will be analyzed as a signature be the getGenesProgn function and the PDFs generated by the createSurvivalReport function will have an additional section called Individual Gene Survival Analysis. Note that this section does not contain any new analyses and all of the functions required to generate the contents of the section have already been mentioned. For each gene, signature, and benchmark the section contains a table summarizing the D index and log rank p value for each analysis. Also present is one page showing the survival curve for the analysis using all patients and subsequent pages (as many as are needed for all the subtypes) that place 4 survival curves for the analyses performed on 4 of the subtypes in the specified subtyping scheme. Although the sections purpose is to show the prognostic value of the individual genes, the signature and benchmark results are recapped in this section as well in case users desire the subtype plots condensed into less pages or easier comparison of the signatures with the individual gene plots.
+
+This concludes all of the sections that could possibly appear in the PDFs generated by the createSurvivalReport function. As the previous sections were named such that they overlapped with the section names in the PDF reports, it is worht mentioning that since all of the sections in the report have been covered the following sections detail additional uses of the package and are not named in relaton to the reports.
+
+%------------------------------------------------------------
+\section{Additional Useful Functions}
+%------------------------------------------------------------ 
+
+%------------------------------------------------------------
+\subsection{Obtaining Datasets along with their Subtypes, Best Probes, and Survival Events}
+%------------------------------------------------------------ 
+
+When the loadMetaData function is used to load the datasets the patients of these datasets do not have any subtypes assigned to them and their expression data has not been filtered such that their is only 1 probe present for each gene. Throughout the analysis, various functions handle subtyping the patients in the datasets, obtaining the best probes for each gene, and gathering the survival event status and event time for each patient. For those that would like to quickly obtain a list of eSets and their corresponding best probes, patient subtypes, patient survival event statuses, and patient survival event times (last follow up or time to event)  the getEsetsProbesSubtypesEvents function should be used. This function accepts the cancer type, survival metric, and subtyping scheme and returns lists corresponding to the aforementioned information. The subtypes for the patients are contained in the eSet$subtype variable and the i'th element of this vector corresponds to the patient in the i'th column of the eSet's expression data. The best probes for each dataset are determined by keeping the probes with the highest IQR amongst those probes with the same IDs. The getBestProbes function can be used on an individual eSet in order to determine the rows of the expression data that contains the best probes and the getSurvEvenData can be used on lists of esets to obtain their event statuses and event times.
+
+The following code provides a brief example of the aforementioned functions in use
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+    
+esetsProbesEvents = getEsetsProbesSubtypes("ovarian", "overall", "verhaak")
+eset = esetsProbesEvents$esets$E.MTAB.386
+esetBestProbes = esetsProbesEvents$esetsBestProbes$E.MTAB.386
+esetSurvEvents = esetsProbesEvents$esetsEventStatus$E.MTAB.386
+esetSurvEventTimes = esetsProbesEvents$esetsEventTimes$E.MTAB.386
+#alternatively
+esetBestProbes = getBestProbes(eset)
+eventStatusTimes = getSurvEventData(list(eset), "overall")
+esetSurvEvents = eventStatusTimes$eventList[[1]]
+esetSurvEventTimes = eventStatusTimes$eventTimeList[[1]]
+
+esetExpressData = eset@assayData$exprs[esetBestProbes, ]
+bestProbeEntrezIds = eset@featureData@data$EntrezGene.ID[[esetBestProbes, ]]
+
+@
+
+
+%------------------------------------------------------------
+\subsection{Obtaining Patient Subtypes for an Expression Set}
+%------------------------------------------------------------ 
+
+Many of the subtyping schemes that were present in the genefu package have been wrapped into a single subtyping function that requires the eset, cancer type, and desired subtyping scheme. This function, named getPatientSubtypes (creative right?), returns the eset with the element eset$subtype populated. For breast cancer, the subtyping options currently available are "scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2003", "intClust", "AIMS", or "claudinLow". For ovarian cancer the options are "verhaak", "bentink", "tothill", "helland", and "konecny".
+
+The below code illustrates this function in use
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+    
+eset = esetsAndProbes$esets$E.MTAB.386
+#original subtypes of first 10 patients from runnign getEsetsProbesSubtypes, would be NULL if loadMetaData was used
+print(eset$subtypes[1:10])
+
+esetBestProbes = getBestProbes(eset)
+eset = getPatientSubtypes(eset, cancerType = "ovarian", subtype = "bentink")
+#new subtypes
+print(eset$subtypes[1:10])
+
+@
+
+
+%------------------------------------------------------------
+\subsection{Obtaining Risk Predictions for an Expression Set}
+%------------------------------------------------------------ 
+
+At the heart of the survival analyses lies the risk predictions/scores for the patients, and the metaGx package uses the getSurvInfo function in order to obtain these predictions. The funcion is especially useful for those who would like to select which probes in the eset to use based on a different criteria than that which is used by the metaGx package as an optional argument of the function (bestProbes) allows users to use their own preferred probes. The function requires an eset, entrez IDs, the IDs directions of association, and the preferred survival metric in order to return the data frame that contains the risk predictions/scores. Additionally, one can optionally set the subtype argument to one of the names of the subtypes in the eset$subtype variable in order to have the analysis carried out on the patients with the specified subtype instead of on all the patients. However, note that if loadMetaData was used to obtain the datasets than getPatientSubtypes must be used on the eset in order to determne the subtypes prior to running getSrvInfo as the eset$subtype element will be NULL. 
+
+An example of the getSurvInfo function follows
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+    
+geneEntrezIds = c("43847", "434768", "80070", "3620")
+geneDirecs = c(1, 1, -1, -1)
+
+eset = esetsAndProbes$esets$E.MTAB.386
+survInfoAll = getSurvInfo(eset, geneEntrezIds, geneDirecs, survivalMetric = "overall")
+
+subtypeStr = unique(as.character(eset$subtypes))[1]
+survInfoSubtype = getSurvInfo(eset, geneEntrezIds, geneDirecs, survivalMetric = "overall", subtypeName = subtypeStr)
+
+@
+
+
+%------------------------------------------------------------
+\subsection{Determining the Correlation Between Genes in a Signature}
+%------------------------------------------------------------ 
+
+In order to determine whether certain genes in a signature are highly correlated with other genes within a set of patients, the correlateGenes function in the metaGx package can be used. Ideally, this would be helpful in determining whether certain genes in a signature were redundant and could be removed from the signature (very high correlation) or if genes in a signature were working against one another (eg high correlation but opposite direction of association). The minimum requirements of the correlateGenes function is a set of entrez IDs, the cancer type, and the survival metric. The function returns a matrix containing the pairwise correlations between the supplied genes with the rows and columns named after the entrez gene ids. Each correlation is a meta-estimate of the correlations computed between the genes within each dataset.
+
+An example of the function and its results follow
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+geneEntrezIds = c("43847", "434768", "80070", "3620")
+corMat = correlateGenes(geneEntrezIds, cancerType = "ovarian", survivalMetric = "overall")
+
+corMat = round(corMat*1000)/1000
+heatmap.2(corMat,  Rowv=FALSE, Colv=FALSE, col = cm.colors(256), scale="column", margins=c(12,12), cellnote = corMat, trace="none", notecex = 1.7, notecol = "black", key = FALSE, main = "Pearson Correlation Between Signatures", colsep = c(1:nrow(corMat)), rowsep = c(1:nrow(corMat)), sepcolor = "black", sepwidth = c(.01, .01), dendrogram = "none")      
+
+
+@
+
+%------------------------------------------------------------
+\subsection{Determining the p value of a signature through permutation tests}
+%------------------------------------------------------------ 
+
+As the size of th eprovided signature gets larger, the chance that a sinature is prognostic by chance increases. This raises the question as to whether a signature is actually prognostic, or if the signature was so large that it was likely a few genes that were prognostically relevant would be included. The metaGx function permTestSig runs a permutation test for the signature by running an analysis on thousands (number specified by the user) of random signatures of the same size and comparing the prognostic value of these random signatures to the signature of interest. The function returns a vector of p values that specify the likelihood the prgnostic value of the signature was observed by chance for the analysis on all the patients and the analyses stratified by subtype.
+
+The below code illustrates how to use this function
+<<getGeneSigReport,eval=TRUE,results='hide',message=FALSE>>=
+
+geneSig = c("KLK14","RHOX8","ADAMTS20","IDO1")
+geneDirecs = c(1, 1, 1, 1)
+pVec = permTestSig(geneSig, geneDirecs, cancerType = "ovarian", subtype = "verhaak", survivalMetric = "overall", numbPerms = 10)
+
+@
+
+%------------------------------------------------------------
+\section{Session Info}
+%------------------------------------------------------------ 
+<<sessionInfo,results='asis'>>=
+toLatex(sessionInfo())
+@
+
+\end{document}
+
+
+
+
+
+
+
+
