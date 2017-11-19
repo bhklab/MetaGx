@@ -5,7 +5,7 @@
 #' @param eset an eset object
 #' @param cancerType a string representing the cancer type of the patients in the eset object. Must be one of "ovarian" or "breast".
 #' @param subtype a string representing the subtyping scheme the patients will be classified under. For breast cancer, the options are "scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2003", "intclust", "AIMS", or "claudinLow".
-#' For ovarian cancer the options are "verhaak", "bentink", "tothill", "helland", and "konecny".
+#' For ovarian cancer the options are "verhaak", "bentink", "tothill", "helland", "konecny", and consensusov.
 #' @param intersectThresh the fraction of genes from the eset that must be present in each verhaak subtype gene set in order for the patients in the eset to be classified according to the verhaak subtypes. Default value is 0.75 and the variable is not relevant for the other subtyping schemes.
 #' @return the original eset with a new subtype factor (eset$subtype) whose j'th element corresponds to the subtype for the patient in the j'th column of the eSets expression data (eset@assayData$exprs[, j])
 #' @export
@@ -31,7 +31,7 @@ getPatientSubtypes = function(eset, cancerType, subtype, intersectThresh = 0.75)
       eset$subtypes = subtypePredictions$subtype
     }
   }else if(cancerType == "ovarian"){
-    validSchemes = c("verhaak", "bentink","tothill","helland","konecny")
+    validSchemes = c("verhaak", "bentink","tothill","helland","konecny", "consensusov")
     if(sum(grepl(subtype, validSchemes)) == 0){
       stop(paste(subtype, "is not an available subtyping scheme for ovarian cancer data...... Exiting the function."))
     }else{

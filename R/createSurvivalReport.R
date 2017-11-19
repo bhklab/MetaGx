@@ -22,6 +22,8 @@
 #' @param dataNames a character vector specifying the names of the datasets to include in the analysis. The names must match the names in the column "Data Name" from the dataframe returned from the
 #' obtainDataInfo function. Use loadMetaData followed by obtainDataInfo with the cancerType and survivalMetric of interest to get the appropriate data names in the obtainDataInfo table for your analysis. By default
 #' all datasets are included.
+#' @param patientNames a character vector specifying which patients from the datasets should dbe used in the analysis. The names should corresponsd with the IDs of the patients from the esets obtained via the loadMetaData function
+#' @param patientScoresList a list of numeric vectors specifying the patient scores in each signature for the patients provided in the patientNames variables 
 #' @param soloGeneAnalysis a boolean specifying whether each unique gene in geneSigList should have an survival analysis conducted on it in order to assess its
 #' prognostic value independent of its gene signature. Results will show up in a section called Individual Gene Survival Analysis and high scores in the survival curves correspond to high expression as the direction is defaulted to 1
 #' to allow for easy comparison amongst all the genes. Default value is FALSE
@@ -29,9 +31,16 @@
 #' The default is 0, all patients used in the analysis
 #' @param censorTime a number specifying the point in time (years) at which the survival data must be censored. The default is 10 years
 #' @param addBenchmarks a boolean specifying whether to add known signatures from literature to the analysis for comparison to the provided signatures. Default value is FALSE
+#' @param genesRequired a fraction between 0 and 1 (1 inclusive) specifying what fraction of genes from a signature must be present in a dataset for the patients in that dataset to be used in the analysis of that signature (default is 0, use all datasets)
+#' @param docTitle a title for the output document with the results. The default is metaGxReport.pdf
 #' @return A pdf called MetaGxReport in R's working directory at the time the function was called
-#' @importFrom matrixStats rowIQRs
+#' @importFrom matrixStats rowIQRs iqr
+#' @importFrom XML htmlParse xpathApply xmlGetAttr
+#' @importFrom knitr knit2pdf
+#' @importFrom gplots heatmap.2
+#' @importFrom httr GET
 #' @importFrom GSVA gsva
+#' @importFrom ranger ranger
 #' @importFrom survcomp censor.time combine.est D.index km.coxph.plot
 #' @importFrom survival Surv
 #' @importFrom forestplot forestplot fpTxtGp fpColors
@@ -44,7 +53,7 @@
 #' createSurvivalReport(geneSigList, geneDirecList, cancerType = "breast", subtype = "scmod2", survivalMetric = "relapse", addBenchmarks = TRUE)
 #'
 
-createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups = 2, dataNames = NULL, soloGeneAnalysis = FALSE, removeMid = 0, censorTime = 10, addBenchmarks = FALSE)
+createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups = 2, dataNames = NULL, patientNames = NULL, patientScores = NULL, soloGeneAnalysis = FALSE, removeMid = 0, censorTime = 10, addBenchmarks = FALSE, genesRequired = 0, docTitle = "metaGxReport.pdf")
 {
   #install.packages('knitr', dependencies = TRUE)
   #Sys.setenv(JAVA_HOME='C:\\Users\\micha\\Documents\\jre1.8.0_111')
@@ -67,6 +76,7 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
   #library(XML)
   #library(httr)
   #library(Biobase)
+  #library(ranger)
   #below 3 needed for breast subtype code
   #library(AIMS)
   #library(iC10)
@@ -96,6 +106,15 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
   if(length(geneSigList) != length(geneDirecList))
     stop("There is not a 1 to 1 relationship between the geneSigList supplied and the geneDirecList supplied (lengths of each list are not equal)")
 
+  if(is.null(patientScoresList) == FALSE){
+    for(i in 1:length(patientScoresList))
+      if((sum(length(patientNames) != length(patientScoresList[[i]]))))
+        stop("patientScoresList elements must contain a single score for each patient in patientNames")
+    }
+  
+  if(!is.null(patientScoresList) & is.null(patientNames))
+    stop("Cannot provide patientScores without patientNames")
+  
   for(i in 1:length(geneSigList))
     if(length(geneSigList[[i]]) != length(geneDirecList[[i]]))
       stop(paste0("There is not a 1 to 1 relationship between the gene IDs in geneSigList and the directions in geneDirecList (length of geneSigList[[", i,"]] is not equal to the length of geneDirecList[[",i,"]])"))
@@ -109,11 +128,14 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
   assign("subtype", subtype, knitrenv)
   assign("survivalMetric", survivalMetric, knitrenv)
   assign("numGroups", numGroups, knitrenv)
+  assign("patientNames", patientNames, knitrenv)
+  assign("patientScoresList", patientScoresList, knitrenv)
   assign("dataNames", dataNames, knitrenv)
   assign("soloGeneAnalysis", soloGeneAnalysis, knitrenv)
   assign("removeMid", removeMid, knitrenv)
   assign("censorTime", censorTime, knitrenv)
   assign("addBenchmarks", addBenchmarks, knitrenv)
+  assign("genesRequired", genesRequired, knitrenv)
   #setwd(system.file("latex", package = "metaGx"))
   knitInput = system.file("latex", "MetaGxReport.Rnw", package = "metaGx")
   #knit2pdf(input = knitInput, output = knitOutput)
@@ -143,14 +165,23 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
 #geneDirecs = genesOfInt$t
 #genesInSig = genesOfInt$geneInSig
 #cancerType = "ovarian"
-#numGroups = 3
-#subtype = "verhaak"
+#numGroups = 2
+#subtype = "consensusOv"
 #survivalMetric = "overall"
-#soloGeneAnalysis = TRUE
-#censorTime = 5
+#soloGeneAnalysis = FALSE
+#censorTime = 10
 #removeMid = 0
 #addBenchmarks = FALSE
 #dataNames = NULL
+#genesRequired = 0.750
+#includeAll = FALSE
+#patientNames = NULL
+#patientScores = NULL
+#geneSigList = geneSigListOvarian
+#geneDirecList = geneDirecListOvarian
+#ovarianSigs = obtainCancerSigs("ovarian")
+#geneSigList = ovarianSigs$geneSigList
+#geneDirecList = ovarianSigs$geneDirecList
 
 #library("devtools")
 #library(roxygen2)
@@ -174,6 +205,14 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
 #setwd("..")
 #install("MetaGxBreast")
 #library(MetaGxBreast)
+
+#library("devtools")
+#library(roxygen2)
+#setwd("C:\\Users\\micha\\Documents\\PMH Research\\MetaGxOvarian_0.99.0\\MetaGxOvarian")
+#document()
+#setwd("..")
+#install("MetaGxOvarian")
+#library(MetaGxOvarian)
 
 #ovarian sigs
 

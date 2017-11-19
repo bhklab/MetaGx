@@ -12,6 +12,7 @@
 #' all datasets are included.
 #' @param remMissSubtypeData A boolean specifying whether datasets that do not contain patients with all of the subtypes in the subtyping scheme specified should be removed. TRUE by default and TRUE is required in order for the 
 #' results to be used as inputs to the getPatientSurvivalData function when running a survival analysis on a given signatur eor gene
+#' @param includeAll a boolean specifying whether to include the TCGA and METABRIC datasets in the breast cancer analysis. Default is FALSE
 #' @return a data frame with information about the esets supplied
 #' @export
 #' @examples
@@ -19,10 +20,10 @@
 #' esetsProbesEvents = getEsetsProbesSubtypesEvent("ovarian", "overall", "verhaak")
 #' 
 
-getEsetsProbesSubtypesEvents = function(cancerType, survivalMetric, subtype, dataNames = NULL, remMissSubtypeData = TRUE)
+getEsetsProbesSubtypesEvents = function(cancerType, survivalMetric, subtype, dataNames = NULL, remMissSubtypeData = TRUE, includeAll = FALSE)
 {
   
-  dataList = loadMetaData(cancerType, survivalMetric, dataNames)
+  dataList = loadMetaData(cancerType, survivalMetric, dataNames, includeAll)
   dataListBestProbes = list()
   
   for(i in 1:length(dataList))
@@ -31,10 +32,21 @@ getEsetsProbesSubtypesEvents = function(cancerType, survivalMetric, subtype, dat
   for(i in 1:length(dataList))
     dataList[[i]] = getPatientSubtypes(dataList[[i]], cancerType, subtype, intersectThresh = 0.75)
   
+  missSubInds = which(sapply(1:length(dataList), function(x) sum(is.na(dataList[[x]]$subtypes))) == sapply(1:length(dataList), function(x) length(dataList[[x]]$subtypes)))
+  dataList[missSubInds] = NULL
+  dataListBestProbes[missSubInds] = NULL
+  
   survEventList = getSurvEventData(dataList, survivalMetric)
   
-  numSubtypes = max(sapply(dataList, function(x) length(unique(as.vector(x$subtypes)))))
-  allSubNotPresent = which(sapply(dataList, function(x) length(unique(as.vector(x$subtypes))) != numSubtypes))
+  subtypeVec = c()
+  for(i in 1:length(dataList))
+    subtypeVec = c(subtypeVec, unique(as.character((dataList[[i]]@phenoData@data$subtypes))))
+  subtypes = unique(subtypeVec)
+  #in case of NAs from inability to map patient to subtype
+  subtypes = subtypes[!is.na(subtypes)]
+  numSubtypes = length(subtypes)
+  allSubNotPresent = which(sapply(dataList, function(x) length(unique(as.vector(x$subtypes))[!is.na(unique(as.vector(x$subtypes)))])) != numSubtypes)
+  
   if(length(allSubNotPresent) > 0)
   {
     dataList[allSubNotPresent] = NULL

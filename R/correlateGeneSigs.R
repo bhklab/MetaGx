@@ -135,7 +135,7 @@ correlateGeneSigs = function(sigInfoList, method = "pearson", subtypeName = NULL
       yPatDataNames = yPatDataNames[yKeep]
       x = x[xKeep]
       xPatNames = xPatNames[xKeep]
-      xPatDataNames = xPatDataNames[yKeep]
+      xPatDataNames = xPatDataNames[xKeep]
       
       for(k in 1:length(dataNames))
       {

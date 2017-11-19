@@ -24,6 +24,8 @@
 #' @param dataNames a character vector specifying the names of the datasets to include in the analysis. The names must match the names in the column "Data Name" from the dataframe returned from the
 #' obtainDataInfo function. Use loadMetaData followed by obtainDataInfo with the cancerType and survivalMetric of interest to get the appropriate data names in the obtainDataInfo table for your analysis. By default
 #' all datasets are included.
+#' @param patientNames a character vector specifying which patients from the datasets should dbe used in the analysis. The names should corresponsd with the IDs of the patients from the esets obtained via the loadMetaData function
+#' @param patientScoresList a list of numeric vectors specifying the patient scores in each signature for the patients provided in the patientNames variables 
 #' @param soloGeneAnalysis a boolean specifying whether each unique gene in geneSigList should have an survival analysis conducted on it in order to assess its
 #' prognostic value independent of its gene signature. Results will show up in a section called Individual Gene Survival Analysis and high scores in the survival curves correspond to high expression as the direction is defaulted to 1
 #' to allow for easy comparison amongst all the genes. Default value is FALSE.
@@ -31,6 +33,8 @@
 #' The default is 0, all patients used in the analysis
 #' @param censorTime a number specifying the point in time (years) at which the survival data must be censored. The default is 10 years
 #' @param addBenchmarks a boolean specifying whether to add known signatures from literature to the analysis for comparison to the provided signatures. Default value is FALSE
+#' @param genesRequired a fraction between 0 and 1 specifying what fraction of genes from a signature must be present in a dataset for the patients in that dataset to be used in the analysis of that signature
+#' @param includeAll a boolean specifying whether to include the TCGA and METABRIC datasets in the breast cancer analysis. Default is FALSE
 #' @return A list containing the results used to generate the pdf report made by the createSurvivalReport function. The list has the elements patientSurvData, genesPrognosticVal, genesDindexInfo, genesPrognosticSummary, datasets, genesStatus, and genesInfo.
 #' patientSurvData has the survival data frames for the signature and each gene (1 frame for each subtype and all patients), genesPrognosticValue has the D index and log p values for the signature and individual genes on the patients and subtypes.
 #' genesDindexInfo has the D indices and their standard errors for the signature and the genes in each individual dataset (genesPrognosticValue D indices are the meta estimates from using the D index in each dataset), genesPrognosticSummary is the info in
@@ -45,10 +49,12 @@
 #' sigInfoList = getGenesProgValue(geneSigList, geneDirecList, cancerType = "ovarian", subtype = "verhaak", survivalMetric = "overall")
 #'
 
-getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups = 2, dataNames = NULL, soloGeneAnalysis = FALSE, removeMid = 0, censorTime = 10, addBenchmarks = FALSE)
+getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups = 2, dataNames = NULL, patientNames = NULL, patientScoresList = NULL, soloGeneAnalysis = FALSE, removeMid = 0, censorTime = 10, addBenchmarks = FALSE, genesRequired = 0.80, includeAll = FALSE)
 {
   geneSigOrigList = geneSigList
   #geneInfoList = geneSigList
+  if(genesRequired < 0 | genesRequired > 1)
+    stop("ivalid genes required value, the value must be between 0 and 1 (1 included)")
   if(addBenchmarks == TRUE)
   {
     cancerSigs = obtainCancerSigs(cancerType)
@@ -104,7 +110,7 @@ getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, su
   if(length(notMapped) == 0)
     notMapped = 0
 
-  esetsAndProbes = getEsetsProbesSubtypesEvents(cancerType, survivalMetric, subtype, dataNames)
+  esetsAndProbes = getEsetsProbesSubtypesEvents(cancerType, survivalMetric, subtype, dataNames, includeAll = includeAll)
   dataList = esetsAndProbes$esets
   dataListBestProbes = esetsAndProbes$esetsBestProbes
   infoString = names(dataList)
@@ -115,7 +121,9 @@ getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, su
   geneFrameList = list()
   for(i in 1:length(geneEntrezList))
   {
-    print(i)
+    dataListSig = dataList
+    dataListBestProbesSig = dataListBestProbes
+    #print(i)
     if(mapVec[i] == FALSE){
       geneFrameList[[i]] = NA
     }else{
@@ -124,7 +132,15 @@ getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, su
       else
         geneFrameList[[i]] = getGeneInfo(geneEntrezList[[i]], geneDirecList[[i]])
     }
-    geneDataList[[i]] = getPatientSurvivalData(as.numeric(geneEntrezList[[i]]), geneDirecList[[i]], cancerType, subtype, survivalMetric, dataList = dataList, bestProbesList = dataListBestProbes, removeMid = removeMid, censorTime = censorTime)
+    missingFrame = determMissingGenes(geneSigList[[i]], dataList)
+    remData = which(as.numeric(as.character(missingFrame$`Genes Present`)) <= genesRequired*length(geneSigList[[i]]))
+    if(length(remData) == nrow(missingFrame) & is.null(patientScoresList))
+      stop(paste("The signature named", names(geneSigList)[i], "has no datasets with the required number of genes from the signature present. Please remove this signature from the analysis or rerun the analysis with genesRequired = 0"))
+    if(length(remData) > 0 & is.null(patientScoresList)){
+      dataListSig[remData] = NULL
+      dataListBestProbesSig[remData] = NULL
+    }
+    geneDataList[[i]] = getPatientSurvivalData(as.numeric(geneEntrezList[[i]]), geneDirecList[[i]], cancerType, subtype, survivalMetric, dataList = dataListSig, bestProbesList = dataListBestProbesSig, removeMid = removeMid, censorTime = censorTime, patientNames = patientNames, patientScores = patientScoresList[[i]])
     names(geneDataList)[i] = geneNameList[[i]]
     names(geneFrameList)[i] = geneNameList[[i]]
 
@@ -200,10 +216,10 @@ getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, su
     reportListSig = reportList
     if(length(reportListSig$patientSurvData) > numSigs)
       reportListSig$patientSurvData[(numSigs + 1):length(reportList$patientSurvData)] = NULL
+    #note that if scores are provided then no datasets are removed 
     for(i in 1:length(subtypeNames))
-    {
       corMatrix[[i]] = correlateGeneSigs(reportListSig, subtypeName = subtypeNames[i])  
-    }
+    
     names(corMatrix) = names(reportList$patientSurvData[[1]])
   }
   reportList$sigCorrelationList = corMatrix

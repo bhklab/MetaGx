@@ -11,13 +11,14 @@
 #' @param dataNames a character vector specifying the names of the datasets to include in the analysis. The names must match the names in the column "Data Name" from the dataframe returned from the
 #' obtainDataInfo function. Use loadMetaData followed by obtainDataInfo with the cancerType and survivalMetric of interest to get the appropriate data names in the obtainDataInfo table for your analysis. By default
 #' all datasets are included.
+#' @param includeAll a boolean specifying whether to include the TCGA and METABRIC datasets in the breast cancer analysis. Default is FALSE
 #' @return a list containing the datasets that will be used in the analysis
 #' @export
 #' @examples
 #'
-#' dataList = loadMetaData(cancerType = "ovarian", survivalMetric = "overall")
+#' dataList = loadMetaData(cancerType = "breast", survivalMetric = "hierarchy")
 
-loadMetaData = function(cancerType, survivalMetric, dataNames = NULL)
+loadMetaData = function(cancerType, survivalMetric, dataNames = NULL, includeAll = FALSE)
 {
 
   #will need to
@@ -35,9 +36,10 @@ loadMetaData = function(cancerType, survivalMetric, dataNames = NULL)
     #library(survcomp)
     #library("MetaGxOvarian")
     #is below line out okay?
+
     source(system.file("extdata", "patientselection.config", package="MetaGxOvarian"))
     source(system.file("extdata", "createEsetList.R", package="MetaGxOvarian"))
-
+    
     dataList[[1]] = E.MTAB.386
     dataList[[2]] = GSE2109
     dataList[[3]] = GSE6008
@@ -50,29 +52,31 @@ loadMetaData = function(cancerType, survivalMetric, dataNames = NULL)
     dataList[[10]] = GSE14764
     dataList[[11]] = GSE17260
     dataList[[12]] = GSE18520
-    dataList[[13]] = GSE19829
-    dataList[[14]] = GSE20565
-    dataList[[15]] = GSE26193
-    dataList[[16]] = GSE26712
-    dataList[[17]] = GSE30009
-    dataList[[18]] = GSE30161
-    dataList[[19]] = GSE32062
-    dataList[[20]] = GSE32063
-    dataList[[21]] = GSE44104
-    dataList[[22]] = GSE49997
-    dataList[[23]] = GSE51088
-    dataList[[24]] = PMID15897565
-    dataList[[25]] = PMID17290060
-    dataList[[26]] = PMID19318476
-    dataList[[27]] = TCGA
-    dataList[[28]] = TCGA.RNASeqV2
+    #below dataset every row has NA values
+    #dataList[[13]] = GSE19829
+    dataList[[13]] = GSE20565
+    dataList[[14]] = GSE26193
+    dataList[[15]] = GSE26712
+    dataList[[16]] = GSE30009
+    dataList[[17]] = GSE30161
+    dataList[[18]] = GSE32062
+    dataList[[19]] = GSE32063
+    dataList[[20]] = GSE44104
+    dataList[[21]] = GSE49997
+    dataList[[22]] = GSE51088
+    dataList[[23]] = PMID15897565
+    dataList[[24]] = PMID17290060
+    dataList[[25]] = PMID19318476
+    dataList[[26]] = TCGAOVARIAN
+    #tcga.rnaseq is a subset of the tcgaovarian data
+    #dataList[[27]] = TCGA.RNASeqV2
 
     #PMID158 and PMID 193 are not mentioned in Deena's metaGx paper?
 
     infoString = c("E.MTAB.386", "GSE2109" ,"GSE6008", "GSE6822", "GSE8842", "GSE9891", "GSE12418",
-                   "GSE12470", "GSE13876", "GSE14764", "GSE17260", "GSE18520", "GSE19829"
-                   , "GSE20565", "GSE26193", "GSE26712", "GSE30009", "GSE30161", "GSE32062"
-                   , "GSE32063", "GSE44104", "GSE49997", "GSE51088", "PMID15897565", "PMID17290060", "PMID19318476", "TCGA", "TCGA.RNASeqV2")
+                   "GSE12470", "GSE13876", "GSE14764", "GSE17260", "GSE18520",
+                    "GSE20565", "GSE26193", "GSE26712", "GSE30009", "GSE30161", "GSE32062"
+                   , "GSE32063", "GSE44104", "GSE49997", "GSE51088", "PMID15897565", "PMID17290060", "PMID19318476", "TCGAOVARIAN")
 
   }else if(cancerType == "breast"){
     #if(mord == FALSE)
@@ -81,6 +85,7 @@ loadMetaData = function(cancerType, survivalMetric, dataNames = NULL)
     #  setwd("//mnt//work1//users//home2//mzon//sweaveBreastAll//data")
 
     #if(mord = TRUE)
+    
     source(system.file("extdata", "patientselection.config", package="MetaGxBreast"))
     source(system.file("extdata", "createEsetList.R", package="MetaGxBreast"))
 
@@ -178,9 +183,12 @@ loadMetaData = function(cancerType, survivalMetric, dataNames = NULL)
   if(cancerType == "breast")
   {
     if(survivalMetric == "overall" | survivalMetric == "hierarchy"){
-      metaTcgaInds = c(which(infoString == "METABRIC"), which(infoString == "TCGA"))
-      dataList[metaTcgaInds] = NULL
-      infoString = infoString[-metaTcgaInds]
+      if(includeAll == FALSE)
+      {
+        metaTcgaInds = c(which(infoString == "METABRIC"), which(infoString == "TCGA"))
+        dataList[metaTcgaInds] = NULL
+        infoString = infoString[-metaTcgaInds] 
+      }
     }else if(survivalMetric == "overallTcga"){
       dataList = list(TCGA)
       infoString = c("TCGA")

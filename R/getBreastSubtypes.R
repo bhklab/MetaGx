@@ -15,7 +15,15 @@
 
 getBreastSubtypes = function (data, subtypeModel=c("scmgene", "scmod1", "scmod2", "pam50", "ssp2006", "ssp2003", "intclust", "aims","claudinlow"), annot, doMapping=FALSE) {
 
+  #eset = CAL
+  #data = eset@assayData$exprs
+  #subtypeModel = "pam50"
+  #annot = eset@featureData@data
+  #doMapping = TRUE
+  verbose = FALSE
+  data = t(data)  
   subtypeModel = tolower(subtypeModel)
+  #subtypePredictions = metaGx::getBreastSubtypes(data = eset@assayData$exprs, subtypeModel = subtype, annot = eset@featureData@data, doMapping = TRUE)
   #data(list=data(package="metaGx")[[3]][,3])
   #strEsets <- as.character(data(package="metaGx")[[3]][,3])
   #remInds = c(which(grepl("annot.", strEsets)), which(grepl("data.", strEsets)), which(grepl("demo", strEsets)))
@@ -25,10 +33,21 @@ getBreastSubtypes = function (data, subtypeModel=c("scmgene", "scmod1", "scmod2"
   #  eset <- get(strEset)
   #}
 
-  verbose = FALSE
-  data = t(data)
     #if(getRversion() >= "2.15.1")  utils::globalVariables(c("scmgene.robust","scmod2.robust","pam50.robust","ssp2006.robust","ssp2003.robust","claudinLowData"))
 
+  overlapSets<-function(x,y){
+    
+    # subset the two lists to have a commonly ordered gene list
+    x<-x[dimnames(x)[[1]] %in% dimnames(y)[[1]],]
+    y<-y[dimnames(y)[[1]] %in% dimnames(x)[[1]],]
+    
+    #and sort such that thing are in the correct order
+    x<-x[sort.list(row.names(x)),]
+    y<-y[sort.list(row.names(y)),]
+    
+    return(list(x=x,y=y))
+  }
+  
     `rescale` <-
       function(x, na.rm=FALSE, q=0) {
         if(q == 0) {
@@ -399,6 +418,11 @@ getBreastSubtypes = function (data, subtypeModel=c("scmgene", "scmod1", "scmod2"
     `intrinsic.cluster.predict` <-
       function(sbt.model, data, annot, doMapping=FALSE, mapping, do.prediction.strength=FALSE, verbose=FALSE) {
         
+        #sbts <- intrinsic.cluster.predict(sbt.model=pam50.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype", "subtype.proba")]
+        #sbt.model=pam50.robust
+        #do.prediction.strength=FALSE
+
+        
         if(missing(data) || missing(annot) || missing(sbt.model)) { stop("data, annot and sbt.mod parameters must be specified") }
         if (!is.matrix(data)) { data <- as.matrix(data) }
         
@@ -651,30 +675,37 @@ getBreastSubtypes = function (data, subtypeModel=c("scmgene", "scmod1", "scmod2"
     if (subtypeModel %in% c("scmgene", "scmod1", "scmod2")) {
       switch(subtypeModel,
              "scmgene" = {
-               sbts <- subtype.cluster.predict(subtypeModel=scmgene.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype2", "subtype.proba2")]
+               sbts <- subtype.cluster.predict(subtypeModel=scmgene.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype", "subtype.proba")]
              },
              "scmod1" = {
-               sbts <- subtype.cluster.predict(subtypeModel=scmod1.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype2", "subtype.proba2")]
+               sbts <- subtype.cluster.predict(subtypeModel=scmod1.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype", "subtype.proba")]
              },
              "scmod2" = {
-               sbts <- subtype.cluster.predict(subtypeModel=scmod2.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype2", "subtype.proba2")]
+               sbts <- subtype.cluster.predict(subtypeModel=scmod2.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype", "subtype.proba")]
              }
       )
       names(sbts) <- c("subtype", "subtype.proba")
       ## compute crisp classification
-      sbts$subtype.crisp <- t(apply(sbts$subtype.proba, 1, function (x) {
-        xx <- array(0, dim=length(x), dimnames=list(names(x)))
-        xx[which.max(x)] <- 1
-        return (xx)
-      }))
+      if(!is.null(sbts$subtype.proba))
+      {
+        sbts$subtype.crisp <- t(apply(sbts$subtype.proba, 1, function (x) {
+          xx <- array(0, dim=length(x), dimnames=list(names(x)))
+          xx[which.max(x)] <- 1
+          return (xx)
+        })) 
+        ## set the proper names
+        names(sbts$subtype) <- rownames(sbts$subtype.proba) <- rownames(sbts$subtype.crisp)<- rownames(data)
+      }else{
+        sbts$subtype.crisp = cbind(sbts$subtype.proba)
+      }
+
 
       ## reorder columns
       #ss <- sbtn2.ssp[is.element(sbtn2.ssp, colnames(sbts$subtype.proba))]
       #sbts$subtype.proba <- sbts$subtype.proba[ , ss, drop=FALSE]
       #sbts$subtype.crisp <- sbts$subtype.crisp[ , ss, drop=FALSE]
 
-      ## set the proper names
-      names(sbts$subtype) <- rownames(sbts$subtype.proba) <- rownames(sbts$subtype.crisp)<- rownames(data)
+
     }
 
     ## SSP family
@@ -682,6 +713,113 @@ getBreastSubtypes = function (data, subtypeModel=c("scmgene", "scmod1", "scmod2"
       switch(subtypeModel,
              "pam50" = {
                sbts <- intrinsic.cluster.predict(sbt.model=pam50.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype", "subtype.proba")]
+               
+               sspPredict<-function(x,classes="",y,nGenes="",priors="equal",std=F,distm="euclidean",centroids=F){
+                 
+                 x = pamout.centroids
+                 classes=""
+                 #y = y$xd
+                 priors="equal"
+                 std=F
+                 distm="spearman"
+                 centroids=T
+                 
+                 dataMatrix<-x
+                 features<- dim(x)[1]
+                 samples<- dim(x)[2]
+                 sampleNames<- dimnames(x)[[2]]
+                 featureNames<- dimnames(x)[[1]]
+                 
+                 #parse the test file - same as train file but no rows of classes
+                 tdataMatrix<-y
+                 tfeatures<- dim(y)[1]
+                 tsamples<- dim(y)[2]
+                 tsampleNames<- dimnames(y)[[2]]
+                 tfeatureNames<- dimnames(y)[[1]]
+                 
+                 #dimnames(tdataMatrix)[[2]]<-paste("x",seq(1,471))
+                 temp <- overlapSets(dataMatrix,tdataMatrix)
+                 dataMatrix <- temp$x
+                 tdataMatrix <- temp$y
+                 sfeatureNames<-row.names(dataMatrix)
+                 
+                 # standardize both sets
+                 if(std){
+                   dataMatrix<-standardize(dataMatrix)
+                   tdataMatrix<-standardize(tdataMatrix)
+                 }
+                 
+                 if(!centroids){
+                   thisClass <- as.vector(classes[,1])
+                   nClasses<-nlevels(as.factor(thisClass))
+                   classLevels<-levels(as.factor(thisClass))
+                   for(j in 1:nClasses){
+                     thisClass[thisClass==classLevels[j]] <- j
+                   }
+                   thisClass<-as.numeric(thisClass)
+                   dataMatrix <- dataMatrix[,!(is.na(thisClass))]
+                   thisClass <- thisClass[!(is.na(thisClass))]
+                   
+                   scores<-apply(dataMatrix,1,bwss,thisClass)
+                   trainscores<-vector()	
+                   for(j in 1:dim(dataMatrix)[1]){			
+                     trainscores[j]<-scores[[row.names(dataMatrix)[j]]]$bss / scores[[row.names(dataMatrix)[j]]]$wss
+                   }
+                   
+                   dataMatrix<-dataMatrix[sort.list(trainscores,decreasing=T),]
+                   tdataMatrix<-tdataMatrix[sort.list(trainscores,decreasing=T),]	
+                   
+                   if(nGenes==""){
+                     nGenes<-dim(dataMatrix)[1]
+                   }
+                   print(paste("Number of genes used:",nGenes))
+                   
+                   dataMatrix<-dataMatrix[1:nGenes,]
+                   tdataMatrix<-tdataMatrix[1:nGenes,]
+                   
+                   centroids<-matrix(nrow=nGenes,ncol=nClasses)
+                   for(j in 1:nClasses){
+                     centroids[,j]<-apply(dataMatrix[,thisClass==j],1,mean)
+                   }
+                   dimnames(centroids)<-list(row.names(dataMatrix),NULL)
+                   
+                 }else{
+                   nGenes<-dim(dataMatrix)[1]
+                   print(paste("Number of genes used:",nGenes))
+                   centroids<-dataMatrix
+                   nClasses<-dim(centroids)[2]
+                   classLevels<-dimnames(centroids)[[2]]
+                 }
+                 
+                 distances<-matrix(ncol=nClasses,nrow=dim(tdataMatrix)[2])
+                 for(j in 1:nClasses){
+                   if(distm=="euclidean"){
+                     distances[,j]<-dist(t(cbind(centroids[,j],tdataMatrix)))[1:(dim(tdataMatrix)[2])]
+                   }
+                   if(distm=="correlation" | distm=="pearson"){
+                     distances[,j]<-t(-1*cor(cbind(centroids[,j],tdataMatrix),use="pairwise.complete.obs"))[2:(dim(tdataMatrix)[2]+1)]
+                   }
+                   if(distm=="spearman"){
+                     distances[,j]<-t(-1*cor(cbind(centroids[,j],tdataMatrix),method="spearman",use="pairwise.complete.obs"))[2:(dim(tdataMatrix)[2]+1)]
+                   }
+                 }
+                 
+                 scores<-apply(distances,1,min)
+                 prediction<-vector(length=tsamples)
+                 for(i in 1:tsamples){
+                   prediction[i]<-classLevels[match(scores[i],distances[i,])]
+                 }
+                 names(prediction)<-tsampleNames
+                 
+                 return(list(predictions=prediction,testData=tdataMatrix,distances=distances,centroids=centroids))
+               }
+               pamout.centroids = pam50.robust$centroids
+               rownames(pamout.centroids) = pam50.robust$centroids.map$EntrezGene.ID
+               y = t(data)[annot$best_probe, ]
+               rownames(y) = annot$EntrezGene.ID[annot$best_probe]
+               #out<-sspPredict(pamout.centroids,classes="",y,std=F,distm="spearman",centroids=T)
+               #sbts$subtype = out$predictions
+               
              },
              "ssp2006" = {
                sbts <- intrinsic.cluster.predict(sbt.model=ssp2006.robust, data=data, annot=annot, doMapping=doMapping)[c("subtype", "subtype.proba")]

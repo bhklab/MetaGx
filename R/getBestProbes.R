@@ -15,11 +15,11 @@
 getBestProbes = function(eset)
 {
 
-  dataValsOrig = eset@assayData$exprs;
+  #dataValsOrig = eset@assayData$exprs;
   #Result is much worse if the below line is included
   #dataVals <- normalizeBetweenArrays(dataVals,method="quantile")
-  dataInfo = eset@featureData@data;
-  dataInfoEntrezGene.ID = dataInfo$EntrezGene.ID
+  #dataInfo = eset@featureData@data;
+  #dataInfoEntrezGene.ID = dataInfo$EntrezGene.ID
 
   #below seems uneccessary now that createEsetList.R has been fixed
   #dataInfoEntrezGene.ID = as.character(dataInfo$EntrezGene.ID)
@@ -48,8 +48,8 @@ getBestProbes = function(eset)
 
   #dataInfoEntrezGene.ID = as.numeric(dataInfoEntrezGene.ID)
 
-  dataInfoProbeset = as.vector(dataInfo$probeset)
-  dataInfoGene = as.vector(dataInfo$gene)
+  #dataInfoProbeset = as.vector(dataInfo$probeset)
+  #dataInfoGene = as.vector(dataInfo$gene)
 
   #repeatEnt = duplicated(dataInfoEntrezGene.ID)
   #repeatEnt = which(repeatEnt == TRUE)
@@ -75,18 +75,24 @@ getBestProbes = function(eset)
   #bestProbes = bestProbes[-rmList]
 
   #return(bestProbes)
+  dataValsOrig = eset@assayData$exprs;
+  dataInfo = eset@featureData@data;
+  dataInfoEntrezGene.ID = dataInfo$EntrezGene.ID
 
+  dataInfoProbeset = as.vector(dataInfo$probeset)
+  dataInfoGene = as.vector(dataInfo$gene)
+  dataInfoEntrezGene.ID = as.character(dataInfo$EntrezGene.ID)
+  
   #old method below that is faster, should probably switch back to this and add a reordering
   #deal with / and , in entrez id list
-  dataInfoEntrezGene.ID = as.character(dataInfo$EntrezGene.ID)
   dataInfoEntrezGene.ID = gsub(",", "/", dataInfoEntrezGene.ID)
   multEnts = which(grepl("/", dataInfoEntrezGene.ID))
   multStrings = dataInfoEntrezGene.ID[multEnts]
   firstSlashes = rapply(gregexpr(pattern = "/", multStrings), function(x) head(x, 1))
   firstEnts = substr(multStrings, 1, firstSlashes - 1)
   dataInfoEntrezGene.ID[multEnts] = firstEnts
+  
   dataInfoEntrezGene.ID = as.numeric(dataInfoEntrezGene.ID)
-
   sortInd = sort(dataInfoEntrezGene.ID, decreasing = FALSE, index.return=TRUE)$ix;
   #definitly sorts least to greatest
   dataInfoEntrezGene.IDPreSort = dataInfoEntrezGene.ID
@@ -94,12 +100,34 @@ getBestProbes = function(eset)
   dataVals = dataValsOrig[sortInd, ];
   dataInfoProbeset = dataInfoProbeset[sortInd];
   dataInfoGene = dataInfoGene[sortInd];
+  
+  naRows = which(rowSums((is.na(dataVals))) > 0)
+  if(length(naRows) > 0)
+  {
+    dataInfoEntrezGene.ID = dataInfoEntrezGene.ID[-naRows]
+    dataVals = dataVals[-naRows, ];
+  }
+  #remove any probes that have NA expression for one of the patients
+  #for(i in 1:length(dataList))
+  #{
+  #  naRows = which(rowSums((is.na(dataList[[i]]@assayData$exprs))) > 0)
+  #  if(length(naRows) == nrow(dataList[[i]]@assayData$exprs)){
+  #    dataList[i] = NULL
+  #    infoString = infoString[-i] 
+  #  }else if(length(naRows) > 0)
+  #    dataList[[i]]@assayData$exprs = dataList[[i]]@assayData$exprs[-naRows, ]
+  #}
+  
+  #dataInfoEntrezGene.ID = gsub(" ", "", dataInfoEntrezGene.ID)
 
   bestProbes = c()
   i = 1;
   while(i < dim(dataVals)[1])
   {
     entrezId = dataInfoEntrezGene.ID[i];
+    #slashLoc = gregexpr(pattern = "/", entrezId)[[1]][1]
+    #if(slashLoc > 0)
+    #  entrezId = substr(entrezId, 1, slashLoc-1)
     origInd = i;
     probesWithId = c();
     while(dataInfoEntrezGene.ID[i] == entrezId)
@@ -118,8 +146,10 @@ getBestProbes = function(eset)
     }
     if(length(probesWithId) > 1)
     {
+      #print(origInd)
       probes = dataVals[probesWithId,]
-      iqrs = rowIQRs(probes);
+      iqrs = sapply(1:nrow(probes), function(x) matrixStats::iqr(probes[x, ]))
+      #iqrs = rowIQRs(probes[!rowSums(is.na(probes)) == ncol(probes), !colSums(is.na(probes)) == nrow(probes)]);
       keepProbe = which(iqrs == max(iqrs)) + (origInd - 1);
       bestProbes = c(bestProbes, keepProbe)
     }
@@ -133,3 +163,4 @@ getBestProbes = function(eset)
   bestProbes = match(keepRows, rownames(dataValsOrig))
   return(bestProbes)
 }
+

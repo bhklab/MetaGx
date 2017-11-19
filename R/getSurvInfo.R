@@ -164,6 +164,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
     invalidPatVec = c(invalidPatVec, unknown)
   }
 
+  #some patient expression values are NA, causes NA scores
   missingGenes = which(is.na(scoreVals) == TRUE)
   if(length(missingGenes > 0))
   {

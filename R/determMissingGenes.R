@@ -4,6 +4,7 @@
 #' This function checks each dataset to determine whether the genes supplied are present for the patients
 #' @param geneIds A character vector containing the ensemble IDs, entrez IDs, or gene symbols for the genes in the signature being tested
 #' @param dataList a list containing the datasets that the genes will be searched for in
+#' @param remNaProbes a boolean specifying whether genes with defined expression in only some of the patients should be considered. Default is FALSE
 #' @return a data frame with information pertaining to whether the genes were found in the supplied datasets, note that if the ID could not be mapped
 #' to an entrez ID the supplied ID will be found in both the "Symbols of Missing Genes" and "Entrez IDs of Missing Genes" section as its ID is unknown   
 #' @export
@@ -21,7 +22,7 @@
 #'
 
 #want a frame that has columns dataset name, number present, number missing genes, names of missing genes, entrez of missing genes, maybe prognostic value of those genes also?
-determMissingGenes = function(geneIds, dataList)
+determMissingGenes = function(geneIds, dataList, remNaProbes = TRUE)
 {
   #geneEntrezIds = geneEntrezList[[1]]
   geneFrame = getGeneInfo(geneIds, rep(1, length(geneIds)))
@@ -42,11 +43,16 @@ determMissingGenes = function(geneIds, dataList)
     missEntStr = ""
     dataInfo = dataList[[i]]@featureData@data;
     dataInfoEntrez = as.character(dataInfo$EntrezGene.ID)
+    
+    naRows = which(rowSums((is.na(dataList[[i]]@assayData$exprs))) > 0)
+    if(length(naRows) > 0 & remNaProbes == TRUE)
+      dataInfoEntrez = dataInfoEntrez[-naRows]
 
     dataGeneInds = c()
     for(j in 1:length(geneEntrezIds))
     {
       genePresent = sum(dataInfoEntrez == geneEntrezIds[j]) > 0
+      #dataGeneInds = c(dataGeneInds, which(dataInfoEntrez == geneEntrezIds[j])[1])
       if(is.na(geneEntrezIds[j]))
       {
         genePresent = FALSE 
@@ -61,7 +67,7 @@ determMissingGenes = function(geneIds, dataList)
         missEntStr = paste0(missEntStr, geneEntrezIds[j], ",")
       }
 
-      dataGeneInds = c(dataGeneInds, which(dataInfoEntrez == geneEntrezIds[j]));
+      dataGeneInds = c(dataGeneInds, which(dataInfoEntrez == geneEntrezIds[j])[1]);
     }
     if(grepl(",", substr(missEntStr, nchar(missEntStr), nchar(missEntStr))))
     {

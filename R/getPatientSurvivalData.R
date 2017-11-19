@@ -18,6 +18,8 @@
 #' @param removeMid a number greater than 0 and less than .5 specifying the fraction of the patients with scores/risk predictions in the middle of the patients scores to be removed when generating survival results
 #' The default is 0, all patients used in the analysis
 #' @param censorTime an integer specifying the point in time (years) at which the survival data must be censored. The default is 10 years
+#' @param patientNames a character vector specifying which patients from the datasets should dbe used in the analysis. The names should corresponsd with the IDs of the patients from the esets obtained via the loadMetaData function
+#' @param patientScores a numeric vector specifying the scores for the patients provided in the patientNames variables
 #' @return a list of data frames (1 for all patients and 1 for each subtype) containing the patients' risk prediction, time to the survival event, status of the survival event, the number of genes used in the analysis, the dataset the patient is from and the ID of the patient in the dataset
 #' @export
 #' @examples
@@ -26,7 +28,7 @@
 #' survInfoList = getPatientSurvivalData(geneEntrezIds, geneDirecs, cancerType = "ovarian", subtype = "verhaak", survivalMetric = "overall")
 #'
 
-getPatientSurvivalData = function(geneEntrezIds, geneDirecs, cancerType, subtype, survivalMetric, dataList = NULL, bestProbesList = NULL, removeMid = 0, censorTime = 10)
+getPatientSurvivalData = function(geneEntrezIds, geneDirecs, cancerType, subtype, survivalMetric, dataList = NULL, bestProbesList = NULL, removeMid = 0, censorTime = 10, patientNames = NULL, patientScores = NULL)
 {
   #i=3
   #geneEntrezIds = geneSigList[[i]]
@@ -92,20 +94,82 @@ getPatientSurvivalData = function(geneEntrezIds, geneDirecs, cancerType, subtype
   for(i in 1:length(dataList))
     subtypeVec = c(subtypeVec, unique(as.character((dataList[[i]]@phenoData@data$subtypes))))
   subtypes = unique(subtypeVec)
+  #in case of NAs from inability to map patient to subtype
+  subtypes = subtypes[!is.na(subtypes)]
   numSubtypes = length(subtypes)
 
-  survStatsAll = getSurvStatsGen(dataList, survivalMetric, NULL, censorTime)
-  if(is.null(survStatsAll) == FALSE)
+  if(is.null(patientScores))
   {
+    survStatsAll = getSurvStatsGen(dataList, survivalMetric, NULL, censorTime)
+    if(is.null(survStatsAll) == FALSE)
+    {
+      survInfoList[[length(survInfoList) + 1]] = survStatsAll
+      for(i in 1:numSubtypes)
+      {
+        survInfoList[[length(survInfoList) + 1]] = getSurvStatsGen(dataList, survivalMetric, subtypes[i], censorTime)
+      }
+      names(survInfoList) = c("All Patients", as.character(subtypes))
+      
+      if(is.null(patientNames) == FALSE)
+      {
+        for(i in 1:length(survInfoList))
+        {
+          keepInds = which(survInfoList[[i]]$`Patient ID` %in% patientNames)
+          if(length(keepInds) == 0)
+            warning("patientNames specified were not in any of the datasets used")
+          survInfoList[[i]] = survInfoList[[i]][keepInds, ]
+        }
+      }
+      if(removeMid > 0)
+        survInfoList = extremePatientSubset(survInfoList, removeMid)
+      
+    }
+  }else{
+    #if user provides scores and patient names, search the datasets for the patients and create dataFrames with scores, event times+status, to work with package functions
+    if(length(patientScores) != length(patientNames))
+      stop("There is not a one to one correspondence between the patientNames and patientScores")
+    
+    timeToDeathVec = vitalStatVec = idVec = dataNameVec = genesPresVec = subtypeVec = patientScoresVec = c()
+    for(i in 1:length(dataList))
+    {
+      patientInds = patientNames[(patientNames %in% colnames(dataList[[i]]@assayData$exprs))]
+      patientInds = which(colnames(dataList[[i]]@assayData$exprs) %in% patientInds)
+      if(length(patientInds) > 0)
+      {
+        survEventList = getSurvEventData(list(dataList[[i]]), survivalMetric)
+        dataTimeToDeath = survEventList$eventTimeList[[1]]
+        dataVitalStat = survEventList$eventList[[1]]
+        if(!is.null(censorTime))
+        {
+          newDat = censor.time(dataTimeToDeath, dataVitalStat, time.cens = censorTime)
+          dataTimeToDeath = newDat[[1]]
+          dataVitalStat = newDat[[2]]
+        }
+      timeToDeathVec = c(timeToDeathVec, dataTimeToDeath[patientInds])
+      vitalStatVec = c(vitalStatVec, dataVitalStat[patientInds])
+      idVec = c(idVec, colnames(dataList[[i]]@assayData$exprs)[patientInds])
+      dataNameVec = c(dataNameVec, rep(names(dataList)[i], length(patientInds)))
+      genesPresVec = c(genesPresVec, rep("scores provided", length(patientInds)))
+      subtypeVec = c(subtypeVec, as.character(dataList[[i]]$subtype[patientInds]))
+      patientScoresVec = c(patientScoresVec, patientScores[patientInds])
+          
+      }
+    }
+    survStatsAll = data.frame(timeToDeathVec, vitalStatVec, patientScoresVec, patientScoresVec, genesPresVec, idVec, dataNameVec, stringsAsFactors = FALSE)
+    subtypeVec = subtypeVec[complete.cases(survStatsAll)]
+    survStatsAll = survStatsAll[complete.cases(survStatsAll), ]
+    colnames(survStatsAll) = c("timeToDeath", "vitalStat", "scoreVals", "scoreValsOrig", "numGenesPresent", "Patient ID", "dataName")
     survInfoList[[length(survInfoList) + 1]] = survStatsAll
     for(i in 1:numSubtypes)
-    {
-      survInfoList[[length(survInfoList) + 1]] = getSurvStatsGen(dataList, survivalMetric, subtypes[i], censorTime)
-    }
+      survInfoList[[length(survInfoList) + 1]] = survStatsAll[grepl(subtypes[i], subtypeVec), ]
+    
     names(survInfoList) = c("All Patients", as.character(subtypes))
+    
+    if(removeMid > 0)
+      survInfoList = extremePatientSubset(survInfoList, removeMid)
+    
   }
-  if(removeMid > 0)
-    survInfoList = extremePatientSubset(survInfoList, removeMid)
+  
 
   return(survInfoList)
 }

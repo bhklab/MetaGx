@@ -2,7 +2,7 @@
 #'
 #' This function identifies the breast cancer molecular subtypes using a Subtype Clustering Model
 #' @param eset an eset object
-#' @param subtypeModel a string representing the desired subtyping classification model. Subtyping classification model, can be either "verhaak", "bentink", "tothill", "helland", or "konecny".
+#' @param subtypeModel a string representing the desired subtyping classification model. Subtyping classification model, can be either "verhaak", "bentink", "tothill", "helland", "konecny", or consensusov.
 #' @param intersectThresh the fraction of genes from the eset that must be present in each verhaak subtype gene set in order for the patients in the eset to be classified according to the verhaak subtypes. Default value is 0.75 and the variable is not relevant for the other subtyping schemes.
 #' @return a list with 3 elements. "subtype", which has the subtype of each patient in the eSet for the given subtyping classification model. The second element varies and is specific to the suptyping scheme, it generally provides information regarding how well each patient fit into each subtyping scheme. Annot.eset has information about the eset that was sent.
 #' @export
@@ -184,6 +184,83 @@ getOvarianSubtypes = function(eset, subtypeModel, intersectThresh = 0.75)
       }
       subtypeInfoList = list(subtypes = subclasses, gsva.out=gsva.out, Annotated.eset=eset)
       #return(list(Annotated.eset=eset, gsva.out=gsva.out))
+  }else if (subtypeModel == "consensusov"){
+    
+    remove.using.cutoff=FALSE
+    percentage.dataset.removed = 0.75
+    
+    expression.matrix = eset@assayData$exprs
+    entrez.ids = eset@featureData@data$EntrezGene.ID
+    
+    expression.matrix <- t(scale(t(expression.matrix)))
+    entrez.ids <- as.character(entrez.ids)
+    
+    data("consensus.training.dataset.full")
+    training.dataset <- consensus.training.dataset.full
+    
+    train.labels <- training.dataset$Verhaak.subtypes
+    #print(train.labels)
+    
+    levels(train.labels) <- paste0(levels(train.labels), "_consensus")
+    
+    intersecting.entrez.ids <- as.character(
+      intersect(fData(training.dataset)$EntrezGene.ID, entrez.ids)
+    )
+    
+    #print("Training Random Forest...")
+    
+    eids <- fData(training.dataset)$EntrezGene.ID
+    ind <- match(intersecting.entrez.ids, eids)
+    train.expression.matrix <- t(exprs(training.dataset)[ind,])
+    
+    comb.mat <- combn(seq_along(intersecting.entrez.ids), 2)
+    train.pairwise.matrix <- apply(comb.mat, 2, function(pair) 
+      train.expression.matrix[,pair[1]] > train.expression.matrix[,pair[2]])
+    train.pairwise.vals <- as.data.frame(train.pairwise.matrix)
+    
+    #rf.model <- randomForest(x=train.pairwise.vals, y=train.labels)
+    assign("train.labels", train.labels, envir = .GlobalEnv)
+    rf.modelNew <- ranger(train.labels ~., data = train.pairwise.vals, probability = TRUE)
+    
+    ind <- match(intersecting.entrez.ids, entrez.ids)
+    test.expression.matrix <- t(expression.matrix[ind,])
+    
+    comb.mat <- combn(seq_along(intersecting.entrez.ids), 2)
+    test.pairwise.matrix <- apply(comb.mat, 2, function(pair) 
+      test.expression.matrix[,pair[1]] > test.expression.matrix[,pair[2]])
+    test.pairwise.vals <- as.data.frame(test.pairwise.matrix)
+    
+    #occasionally NA expression results in NA value, so replace with FALSE as didnt meet condition test.expression.matrix[,pair[1]] > test.expression.matrix[,pair[2]])
+    #couldl change this to return NA for these patients
+    test.pairwise.vals[is.na(test.pairwise.vals)] <- FALSE
+    
+    #my.predictions <- predict(rf.model, newdata = test.pairwise.vals)
+    #118/129 overlap for E.MATB dataset, mean probability difference 1.9 percent over entire matrix
+    my.predictionsNew <- predict(rf.modelNew, dat = test.pairwise.vals)
+    my.predictions = colnames(my.predictionsNew$predictions)[max.col(my.predictionsNew$predictions,ties.method="first")]
+    my.predictions = gsub("_", "", my.predictions)
+    names(my.predictions) = rownames(test.pairwise.vals)
+    #my.predictions.probs <- predict(rf.model,
+    #                                newdata = test.pairwise.matrix,
+    #                                type = 'prob')
+    my.predictions.probsNew = my.predictionsNew$predictions
+    
+    if(remove.using.cutoff) {
+      subtr <- apply(my.predictions.probs, 1, function(row) sort(row)[3])
+      my.predictions.margins <- rowMax(my.predictions.probs) - subtr    
+      ecdf.evaluated <- ecdf(my.predictions.margins)(my.predictions.margins)
+      na.ind <- ecdf.evaluated < percentage.dataset.removed
+      my.predictions[na.ind] <- NA
+    }
+    
+    names(my.predictions) <- NULL
+    my.predictions <- factor(my.predictions, levels=c("IMRconsensus",
+                                                      "DIFconsensus",
+                                                      "PROconsensus",
+                                                      "MESconsensus"))
+    
+    subtypeInfoList = list(subtypes = my.predictions, gsva.out=my.predictions.probsNew, Annotated.eset=eset)
+    
   }else if(subtypeModel == "bentink"){
       ## Classify new samples
     #print("hi")

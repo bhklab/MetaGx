@@ -10,6 +10,8 @@
 #' 2. normalizing the scores of the patients in each dataset such that the 2.5 percentile and 97.5 percentile for the patients scores in each dataset have the same value, then creating one vector of patient score and splitting this
 #' vector of patient scores into the number of groups specified (TRUE). Normalization/TRUE is the default.
 #' @param numDigits an integer specifying the number of digits for the values in the dataframe, Default is 2
+#' @param minPatients an integer specifying the minimum number of patients/samples required to calculate a D.index for one of the datasets. Default is 20. Note that for a dataset with 100 patients and 4 subtypes, something much larger than 20 would 
+#' likely remove the D.index in some of the subtype analyses (samples in subtype analysis ~ 100 patients divide 4 subtypes)
 #' @return a data frame with the D index, D index confidence interval, D index p value, and log rank p value for each survival frame in the survInfoList
 #' @export
 #' @examples
@@ -20,14 +22,14 @@
 #' resultsTable = getMetaDindexAndLogP(survInfoList, 2)
 #' resultsTable
 
-getMetaDindexAndLogP = function(survInfoList, numGroups, normalizeEsetScores = TRUE, numDigits = 2)
+getMetaDindexAndLogP = function(survInfoList, numGroups, normalizeEsetScores = FALSE, numDigits = 2, minPatients = 20)
 {
   statTable = as.data.frame(NULL)
   for(i in 1:length(survInfoList))
   {
     survInfo = survInfoList[[i]]
     #statTabRow = names(survInfoList)[i]
-    dindInfo = metaGx::getDindexOfDatasets(survInfo)
+    dindInfo = metaGx::getDindexOfDatasets(survInfo, minPatients = minPatients)
     dindInfo$dIndex = as.numeric(as.character(dindInfo$dIndex))
     dindInfo$dIndStandErr = as.numeric(as.character(dindInfo$dIndStandErr))
     dindComb = combine.est(dindInfo$dIndex[!is.na(dindInfo$dIndex)], dindInfo$dIndStandErr[!is.na(dindInfo$dIndStandErr)], hetero = TRUE)

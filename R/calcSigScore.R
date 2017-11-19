@@ -1,6 +1,7 @@
-#' Function to identify breast cancer molecular subtypes using the Subtype Clustering Model
+#' Function to determine the risk prediction scores of patients
 #'
-#' This function identifies the breast cancer molecular subtypes using a Subtype Clustering Model
+#' This function uses the gene expression values for the genes of interest along with the direction of association for the genes of interest supplied by the user to determine a score for the patients. Presumably the genes are believed to be 
+#' associated with an event, such as survival, and the scores are used to determine the likelihood of the event for a patient.
 #' @param x Matrix containing the gene(s) in the gene list in rows and at least three columns: "probe", "EntrezGene.ID" and "coefficient" standing for the name of the probe, the NCBI Entrez Gene id and the coefficient giving the direction and the strength of the association of each gene in the gene list.
 #' @param data Matrix of gene expressions with samples in rows and probes in columns, dimnames being properly defined.
 #' @param annot Matrix of annotations with at least one column named "EntrezGene.ID" (for ssp, scm, AIMS, and claudinLow models) or "Gene.Symbol" (for the intClust model), dimnames being properly defined.

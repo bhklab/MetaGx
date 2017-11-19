@@ -13,16 +13,18 @@
 obtainCancerSigs = function(cancerType)
 {
   if(cancerType == "ovarian"){
-    benchList = mod1
+    data("ovarianSigs")
+    benchList = ovarianSigs
   }else if(cancerType == "breast"){
-    benchList = mod1
+    data("breastSigs")
+    benchList = breastSigs
   }
   geneSigList = list()
   geneDirecList = list()
-  for(i in 1:length(mod1))
+  for(i in 1:length(benchList))
   {
-    entrezIds = benchList[[i]]$EntrezGene.ID
-    geneDirecs = benchList[[i]]$coefficient/abs(benchList[[i]]$coefficient)
+    entrezIds = as.numeric(as.character(benchList[[i]]$EntrezGene.ID))
+    geneDirecs = as.numeric(as.character(benchList[[i]]$coefficient))/abs(as.numeric(as.character(benchList[[i]]$coefficient)))
     #removes first gene which according to paper it appears isnt used anyways
     remInds = which(is.na(geneDirecs))
     if(length(remInds) > 0)

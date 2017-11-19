@@ -4,7 +4,7 @@
 #' @param dataList a list containing the datasets one would like info about
 #' @param survivalMetric a string specifying whether to use overall survival or relapse free survival as the event of interest. Note that
 #' an error will be thrown if the esets in dataList do not contain survival information for the requested event. Enter "overall" for
-#' overall survival and "relapse" for relapse free survival.
+#' overall survival, "relapse" for relapse free survival, and "hierarchy" for disease free survival.
 #' @return a data frame with information about the esets supplied
 #' @export
 #' @examples
@@ -36,7 +36,7 @@ obtainDataInfo = function(dataList, survivalMetric)
   }
   if(grepl("hierarchy", tolower(survivalMetric)))
   {
-    numEvStr = "# Events (Metastases/Recurrence/Deceased)"
+    numEvStr = "# Disease Free"
     evTimeStr = "Median Event Time (Years)"
   }
   

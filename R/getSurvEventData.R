@@ -48,10 +48,10 @@ getSurvEventData = function(dataList, survivalMetric)
     if(survivalMetric == "hierarchy"){
       eventData = getEsetEvents(eset, "relapse")
       
-      if(sum(is.na(eventData[[1]])) == length(eventData[[1]]))
+      if((sum(is.na(eventData[[1]])) == length(eventData[[1]])) | (sum(is.na(eventData[[2]])) == length(eventData[[2]])))
         eventData = getEsetEvents(eset, "metastasis")
       
-      if(sum(is.na(eventData[[1]])) == length(eventData[[1]]))
+      if((sum(is.na(eventData[[1]])) == length(eventData[[1]])) | (sum(is.na(eventData[[2]])) == length(eventData[[2]])))
         eventData = getEsetEvents(eset, "overall")
       
     }else{

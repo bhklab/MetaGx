@@ -4,7 +4,7 @@
 #' This function separates the patients into their respective datasets and then computes the D index for each dataset using the risk predictions, event times, and event occurence indicators of the patients
 #' @param survInfo One of the data frames in the list returned from the function getPatientSurvivalData. Alternatively, a data frame with 7 columns called eventTime, eventStatus, scoreVals, scoreVals, numGenesPresent, dataName and patient ID that correspond to
 #' the survival event times, the survival event's status, the score/risk prediction of the patient, the number of genes used to calculate the score, teh ID of the patient in the dataset and the name of the dataset that the patient is from. 
-#' @param minPatients an integer specifying the minimum number of patients/samples required to calculate a D.index. Default is 10
+#' @param minPatients an integer specifying the minimum number of patients/samples required to calculate a D.index in a dataset. Default is 20
 #' @return a data frame with information about the datasets, including the D index and standard error of the D index for each dataset
 #' @export
 #' @examples
@@ -15,8 +15,9 @@
 #' dIndexData = getDindexOfDatasets(survInfoList$IMR)
 #' dIndexData
 
-getDindexOfDatasets = function(survInfo, minPatients = 10)
+getDindexOfDatasets = function(survInfo, minPatients = 20)
 {
+  #survInfo = geneDataList$verhaakClovar$`All Patients`
   forestPlotFrame = as.data.frame(NULL)
   dataNames = as.character(unique(survInfo$dataName))
   dindVec = c()
@@ -31,22 +32,33 @@ getDindexOfDatasets = function(survInfo, minPatients = 10)
     dataRows =  which(as.character(survInfo$dataName) == dataStr)
     sampleString = c(sampleString, length(dataRows))
     numGenesVec = c(numGenesVec, survInfo[dataRows, ]$numGenesPresent[1])
+    dInds = NA
+    dIndsLow = NA
+    dIndsHigh = NA
+    dIndSe = NA
     #seen d indices of 300 with 8 samples, so set sample min requirement?
     if(length(dataRows) > minPatients){
       survInfoInd = survInfo[dataRows, ]
       #Note: whether you use the original scores or shifted scores, D.index returns the same results
+      #get an Error in fitter(X, Y, strats, offset, init, control, weights = weights,  : 
+      #(converted from warning) Ran out of iterations and did not converge
+      #when vital stat has only one value, i.e all patients one outcome, happened in er-/her2- patients for a few datasets
       dIndInfo = D.index(x=survInfoInd$scoreValsOrig, surv.time=survInfoInd$timeToDeath, surv.event=survInfoInd$vitalStat)
       dInds = dIndInfo$d.index
-      dIndSe = dIndInfo$se
-      dIndsLow = dIndInfo$lower
-      dIndsHigh = dIndInfo$upper
+      #if dInd is > 10 D.index likely didnt converge well and is giving an unrealistic result due to small number of events
+      if(is.na(dInds) == FALSE)
+      {
+        if(dInds < 10)
+        {
+          dIndSe = dIndInfo$se
+          dIndsLow = dIndInfo$lower
+          dIndsHigh = dIndInfo$upper 
+        }else{
+          dInds = NA
+        } 
+      }
       #dIndsLow = dInds*exp(-qnorm(.05, lower.tail = FALSE)*dIndSe)
       #dIndsHigh = dInds*exp(qnorm(.05, lower.tail = FALSE)*dIndSe)
-    }else{
-      dInds = NA
-      dIndsLow = NA
-      dIndsHigh = NA
-      dIndSe = NA
     }
     dindVec = c(dindVec, dInds)
     dindSeVec = c(dindSeVec, dIndSe)
