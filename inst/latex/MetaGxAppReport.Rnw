@@ -48,7 +48,7 @@ cat(paste("\\title{", titleString, "}"))
 cat("\\maketitle")
 cat("\\tableofcontents")
 
-#geneInfoLists = getGenesProgValue(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups, dataNames, soloGeneAnalysis, removeMid, censorTime = censorTime, addBenchmarks)
+#geneInfoLists = getGenesProgValue(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups, dataNames, soloGeneAnalysis, removeMid, censorTime = censorTime, addBenchmarks, genesRequired)
 #load("geneInfoLists.R")
 dataList = geneInfoLists$datasets
 survFramesList = geneInfoLists$patientSurvData
@@ -98,6 +98,7 @@ if(removeMid > 0)
 cat("\\item{Data censored at ",censorStr,"}")
 cat("\\item{Survival curve groups determined via ",splitStr,"}")
 cat("\\item{", combEstStr," used when combining estimators (D index)}")
+cat("\\item{", genesRequired*100," percent of the genes in a signature were required in a dataset for the data to used in the analysis of that signature}")
 cat("\\item{", subtypeStr,"molecular subtyping scheme used}")
 if(addBenchmarks == TRUE)
   cat("\\item{Benchmark/Hallmark signatures identifiable by red text in tables/plots and phrase benchmarks}")
@@ -151,7 +152,11 @@ for(i in 1:numSigs)
        geneMissFrame$`IDs of Missing Genes`[k] = genesMiss
     }
   }
-  tableCap = "Information Pertaining to the Number of Genes Missing from the Signature in the Datasets"
+  remData = which(as.numeric(as.character(geneMissFrame$`Genes Present`)) <= genesRequired*length(geneSigList[[i]]))
+  if(length(remData) > 0){
+    geneMissFrame = geneMissFrame[-remData, ]
+  }
+  tableCap = "Number of Genes Missing from the Signature in the Datasets that had the Required Number of Genes"
   
   
   geneMissFrame = xtable::xtable(geneMissFrame, digits = 5, caption = tableCap, align=c("p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{7cm\\textwidth}"))

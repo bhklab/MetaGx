@@ -48,7 +48,7 @@ cat(paste("\\title{", titleString, "}"))
 cat("\\maketitle")
 cat("\\tableofcontents")
 
-geneInfoLists = getGenesProgValue(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups, dataNames, soloGeneAnalysis, removeMid, censorTime = censorTime, addBenchmarks)
+geneInfoLists = getGenesProgValue(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups, dataNames, patientNames, patientScoresList, soloGeneAnalysis, removeMid, censorTime, addBenchmarks, genesRequired)
 #load("geneInfoLists.R")
 dataList = geneInfoLists$datasets
 survFramesList = geneInfoLists$patientSurvData
@@ -68,10 +68,10 @@ if(grepl("relapse", survivalMetric, ignore.case = TRUE))
    dataStr = "Relapse free survival"
    survivalMetric = "relapse"
 }
-if(grepl("metastases", survivalMetric, ignore.case = TRUE))
+if(grepl("metastasis", survivalMetric, ignore.case = TRUE))
 {
    dataStr = "Distant metastasis free survival"
-   survivalMetric = "metastases"
+   survivalMetric = "metastasis"
 }
 if(grepl("hierarchy", survivalMetric, ignore.case = TRUE))
 {
@@ -109,6 +109,15 @@ cat("\\item{", combEstStr," used when combining estimators (D index)}")
 cat("\\item{", subtypeStr,"molecular subtyping scheme used}")
 if(addBenchmarks == TRUE)
   cat("\\item{Benchmark/Hallmark signatures identifiable by red text in tables/plots and phrase benchmarks}")
+if(is.null(patientNames) == FALSE)
+  cat("\\item{Only patients names provided were used, note that some were likely removed due to missing survival information}")
+if(length(patientScoresList) == 0){
+  cat("\\item{", genesRequired*100," percent of the genes in a signature were required in a dataset for the data to used in the analysis of that signature}")
+}else{
+  genesRequired = -1
+    cat("\\item{Risk predictions were not calculated as patient scores were provided}")
+}
+
 cat("\\item{Direction of +1 implies the gene's expression was added to the score}")
 cat("\\item{For survival curves using individual genes, direction of association was +1}")
 cat("\\end{itemize}")
@@ -129,13 +138,17 @@ for(i in 1:length(geneSigList))
   cat("\\subsection{", names(survFramesList)[i],"}")
   cat("\\subsubsection{Genes in the Signature}")
   geneFrame = genesFrameList[[i]]
+  #longInds = nchar(geneFrame$Description) > 45
+  #geneFrame$Description = substr(geneFrame$Description, 1, 45)
+  #geneFrame$Description[longInds] = paste0(geneFrame$Description[longInds], "...")
+  
   geneSigTab = cbind(geneFrame$Symbol, geneFrame$Description, geneFrame$`Entrez ID`, geneFrame$Direction)
   #add printing the missing genes from the signature
   #geneSigTab = geneSigTab[!is.na(geneFrame$`Entrez ID`), ]
   colnames(geneSigTab) = c("Gene Symbol", "Description", "Entrez ID", "Direction")
   tableCap = "Information Pertaining to the Genes in the Signature"
 
-  geneSigTab = xtable::xtable(geneSigTab, digits = 5, caption = tableCap, align=c("l", "l", "l", "l", "p{5cm}"))
+  geneSigTab = xtable::xtable(geneSigTab, digits = 5, caption = tableCap, align=c("p{2.5cm\\textwidth}","p{2.5cm\\textwidth}","p{8cm\\textwidth}","p{2.5cm\\textwidth}","p{3cm\\textwidth}"))
   addtorow = list()
   addtorow$pos = list()
   addtorow$pos[[1]] = c(0)
@@ -158,7 +171,11 @@ for(i in 1:length(geneSigList))
        geneMissFrame$`IDs of Missing Genes`[k] = genesMiss
     }
   }
-  tableCap = "Information Pertaining to the Number of Genes Missing from the Signature in the Datasets"
+  remData = which(as.numeric(as.character(geneMissFrame$`Genes Present`)) <= genesRequired*length(geneSigList[[i]]))
+  if(length(remData) > 0){
+    geneMissFrame = geneMissFrame[-remData, ]
+  }
+  tableCap = "Number of Genes Missing from the Signature in the Datasets that had the Required Number of Genes"
     
   cat("\\clearpage")
   
@@ -171,6 +188,8 @@ for(i in 1:length(geneSigList))
   print(geneMissFrame, caption.placement = getOption("xtable.caption.placement", "bottom"), include.rownames=FALSE)
   #print(geneMissFrame, caption.placement = getOption("xtable.caption.placement", "bottom"), tabular.environment = 'longtable', floating = TRUE, include.rownames=FALSE, hline.after=c(-1, 0), add.to.row = addtorow)
   cat("\\clearpage")
+  
+
   
 }
 
@@ -286,7 +305,7 @@ for(i in 1:numSigs)
     pdf(an)
     titleStr = paste("Survival Curve \nUsing", names(sigSurvFrameList)[k])
 
-    makeSurvivalPlot(sigSurvFrameList[[k]], as.numeric(numGroups), normalizeEsetScores = TRUE, titleStr)
+    makeSurvivalPlot(sigSurvFrameList[[k]], as.numeric(numGroups), normalizeEsetScores = FALSE, titleStr)
     dev.off()
     cat(paste("\\includegraphics[bb = 80 158 233 482, scale = 1]{{", aname, "}.pdf}", sep = ""))
     cat("\\clearpage")
@@ -303,9 +322,9 @@ for(i in 1:numSigs)
       pdf(file = an, width = 14, height = 15, onefile = FALSE)
 
       cat("\\subsubsection{Forest Plot For D Indices when using ", names(sigSurvFrameList)[k], "}")
-      makeForestPlot(sigSurvFrameList[[k]], reportSize = TRUE)
+      minPatients = 20
+      makeForestPlot(sigSurvFrameList[[k]], minPatients = minPatients, reportSize = TRUE)
       
-      minPatients = 10
       forestPlotData = getDindexOfDatasets(sigSurvFrameList[[k]], minPatients)
       remData = unique(which(is.na(forestPlotData), arr.ind = TRUE)[, 1])
       if(length(remData) > 0)
@@ -344,7 +363,7 @@ if(soloGeneAnalysis == TRUE)
       pdf(an)
       xLoc = 2
       titleStr = paste(names(geneSurvList)[1])
-      makeSurvivalPlot(geneSurvList$`All Patients`, as.numeric(numGroups), normalizeEsetScores = TRUE, titleStr, xLoc = xLoc)
+      makeSurvivalPlot(geneSurvList$`All Patients`, as.numeric(numGroups), normalizeEsetScores = FALSE, titleStr, xLoc = xLoc)
       xLoc = 3.5
       cat(paste("\\includegraphics[bb = 40 158 233 482, scale = .8]{{", aname, "}.pdf}", sep = ""))
       dev.off()
@@ -372,7 +391,7 @@ if(soloGeneAnalysis == TRUE)
         if(j != (length(geneSurvList) + 1))
         {
           titleStr = paste(names(geneSurvList)[j])
-          makeSurvivalPlot(geneSurvList[[j]], as.numeric(numGroups), normalizeEsetScores = TRUE, titleStr, xLoc = xLoc) 
+          makeSurvivalPlot(geneSurvList[[j]], as.numeric(numGroups), normalizeEsetScores = FALSE, titleStr, xLoc = xLoc) 
         }
       }
     }else{
