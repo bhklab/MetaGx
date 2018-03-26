@@ -222,8 +222,8 @@ getBestProbes = function(eset)
   names(bestProbes) = gsub(" ", "", names(bestProbes))
   names(bestProbes) = gsub(",", "///", names(bestProbes))
   #potential duplicates from splitting up /// ent rows into multiple rows with same values
-  #and then using nmes(dataInfoEnts) to only keep the row index of the original row
-  bestProbes = bestProbes[!duplicated(bestProbes)]
+  #and then using names(dataInfoEnts) to only keep the row index of the original row
+  bestProbes = bestProbes[!duplicated(names(bestProbes))]
   
   #get the rownames of the probes to keep and then match them with the rows from the unsorted data
   #keepRows = rownames(dataVals)[bestProbes]
