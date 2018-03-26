@@ -2,7 +2,7 @@
 #' Function that assesses the prognostic value of a gene signature and returns a pdf of the results
 #'
 #' This function runs a survival analysis on breast or ovarian cancer patients for a gene signature using overall survival or relapse freee survival data
-#' @param geneSigList A list of character vectors containing the ensemble IDs, entrez IDs, or gene symbols for the genes signatures/genes to conduct a survival analysis on. Entrez IDs are 
+#' @param geneSigList A list of character vectors containing the ensemble IDs, entrez IDs, or gene symbols for the genes signatures/genes to conduct a survival analysis on. Entrez IDs are
 #'  recommended as if gene symbols or ensemble Ids cant be mapped to entrez Ids then the gene will be omitted from the analysis. Note that The names of the
 #' elements in the list will correspond to the names of the signatures in the report, and default names will be provided if the list elements are not named.
 #' @param geneDirecList A list of numeric vectors composed of +1 and - 1 indicating the direction of association for each vector of genes supplied in the geneSigList vectors.
@@ -23,7 +23,7 @@
 #' obtainDataInfo function. Use loadMetaData followed by obtainDataInfo with the cancerType and survivalMetric of interest to get the appropriate data names in the obtainDataInfo table for your analysis. By default
 #' all datasets are included.
 #' @param patientNames a character vector specifying which patients from the datasets should dbe used in the analysis. The names should corresponsd with the IDs of the patients from the esets obtained via the loadMetaData function
-#' @param patientScoresList a list of numeric vectors specifying the patient scores in each signature for the patients provided in the patientNames variables 
+#' @param patientScoresList a list of numeric vectors specifying the patient scores in each signature for the patients provided in the patientNames variables
 #' @param soloGeneAnalysis a boolean specifying whether each unique gene in geneSigList should have an survival analysis conducted on it in order to assess its
 #' prognostic value independent of its gene signature. Results will show up in a section called Individual Gene Survival Analysis and high scores in the survival curves correspond to high expression as the direction is defaulted to 1
 #' to allow for easy comparison amongst all the genes. Default value is FALSE
@@ -111,10 +111,10 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
       if((sum(length(patientNames) != length(patientScoresList[[i]]))))
         stop("patientScoresList elements must contain a single score for each patient in patientNames")
     }
-  
+
   if(!is.null(patientScoresList) & is.null(patientNames))
     stop("Cannot provide patientScores without patientNames")
-  
+
   for(i in 1:length(geneSigList))
     if(length(geneSigList[[i]]) != length(geneDirecList[[i]]))
       stop(paste0("There is not a 1 to 1 relationship between the gene IDs in geneSigList and the directions in geneDirecList (length of geneSigList[[", i,"]] is not equal to the length of geneDirecList[[",i,"]])"))
@@ -227,7 +227,7 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
 #geneSig = read.xlsx(file = "Bioinformatics Sig Paper Signature.xlsx", sheetIndex = 1)
 #geneSig = geneSig[!duplicated(geneSig$Entrez.ID), ]
 #geneIds = geneSig$Entrez.ID
-#geneDirec = sign(as.numeric(as.character(gsub("â^'", "-", geneSig$Cox.score.coefficient))))
+#geneDirec = sign(as.numeric(as.character(gsub("?^'", "-", geneSig$Cox.score.coefficient))))
 
 #Paper:  Integrated genomic analyses of ovarian carcinoma
 #very prognostic
@@ -244,7 +244,7 @@ createSurvivalReport = function(geneSigList, geneDirecList, cancerType, subtype,
 #not prognostic, weird method section , different score calculation then calcSigScore
 #setwd("C:\\Users\\micha\\Documents\\PMH Research\\metaGx Paper\\Ovarian Signatures")
 #geneSig = read.xlsx(file = "Kang Paper Signature.xlsx", sheetIndex = 1)
-#geneIds = c("ATM", "H2AFX",    "MDC1",     "RNF8",     "TOP2A",    "BRCA2" ,    "C17orf70", "FANCB",    "FANCE" ,   "FANCF" ,   "FANCG",   
+#geneIds = c("ATM", "H2AFX",    "MDC1",     "RNF8",     "TOP2A",    "BRCA2" ,    "C17orf70", "FANCB",    "FANCE" ,   "FANCF" ,   "FANCG",
 #             "FANCI" ,   "PALB2",    "MUS81" ,   "NBN"   ,   "SHFM1" ,   "DDB1" ,    "ERCC8" ,   "RAD23A" ,  "XPA"  ,    "MAD2L2" ,  "POLH" , "UBE2I")
 #geneDirec = c(1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1, 1, 1, -1 ,1 , 1, -1 , 1, -1, 1, 1, 1)
 

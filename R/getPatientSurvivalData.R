@@ -57,7 +57,7 @@ getPatientSurvivalData = function(geneEntrezIds, geneDirecs, cancerType, subtype
   }
 
   if(is.null(dataList) & is.null(bestProbesList)){
-    print("bye")
+    #print("bye")
     esetsAndProbes = getEsetsProbesSubtypesEvents(cancerType, survivalMetric, subtype)
     dataList = esetsAndProbes$esets
     dataListBestProbes = esetsAndProbes$esetsBestProbes

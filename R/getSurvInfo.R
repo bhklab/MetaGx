@@ -17,9 +17,10 @@
 #'
 #' geneEntrezIds = c("43847", "434768", "80070", "3620")
 #' geneDirecs = c(1, 1, -1, -1)
-#' esetsAndProbes = getEsetsProbesSubtypes("ovarian", "overall", "verhaak")
-#' eset = esetsAndProbes$esets$E.MTAB.386
-#' survInfo = getSurvInfo(eset, geneEntrezIds, geneDirecs, survivalMetric = "overall")
+#' esetsAndProbes = getEsetsProbesSubtypesEvents("ovarian", "overall", "verhaak", dataNames = c("GSE9891))
+#' eset = esetsAndProbes$esets$GSE9891
+#' bestProbes = esetsAndProbes$esetsBestProbes$GSE9891
+#' survInfo = getSurvInfo(eset, geneEntrezIds, geneDirecs, survivalMetric = "overall", bestProbes = bestProbes)
 #'
 #' firstSubtype = as.character(esetsAndProbes$esets$E.MTAB.386$subtypes[1])
 #' survInfoSubtype = getSurvInfo(eset, geneEntrezIds, geneDirecs, survivalMetric = "overall", subtypeName = firstSubtype)
@@ -27,10 +28,24 @@
 getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeName = NULL, censorTime = 10, bestProbes = NULL)
 {
   survData = as.data.frame(NULL)
-
+  dataInfo = eset@featureData@data;
+  
+  #below probably pointless as names are already the same
+#  bestProbeNames = names(bestProbes)
+#  entNames = as.character(eset@featureData@data$EntrezGene.ID[as.numeric(bestProbes)])
+#  entNames = gsub(" ", "", entNames)
+#  entNames = gsub(",", "///", entNames)
+#  if(identical(entNames, names(bestProbes))){
+#    dataInfoEntrezGene.ID = names(bestProbes)
+#  }else{
+    dataInfoEntrezGene.ID = as.character(dataInfo$EntrezGene.ID)
+    dataInfoEntrezGene.ID = dataInfoEntrezGene.ID[as.numeric(bestProbes)]
+#  }
+    
+  
   if(is.null(bestProbes))
     bestProbes = metaGx::getBestProbes(eset)
-
+  
   survEventList = getSurvEventData(list(eset), survivalMetric)
   dataTimeToDeath = survEventList$eventTimeList[[1]]
   dataVitalStat = survEventList$eventList[[1]]
@@ -40,9 +55,8 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
     dataTimeToDeath = newDat[[1]]
     dataVitalStat = newDat[[2]]
   }
-  dataInfo = eset@featureData@data;
   dataValsOrig = eset@assayData$exprs;
-
+  
   subtypes = as.vector(eset$subtypes);
   subInds = which(subtypes == subtypeName)
   if(!is.null(subtypeName))
@@ -57,7 +71,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
       return(survData)
     }
   }
-
+  
   ##new start
   #dataInfoEntrezGene.ID = as.character(dataInfo$EntrezGene.ID)
   ##some missing ids that are "///"
@@ -69,38 +83,39 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
   ##set the missing ents to -100 so the probe selection works
   ##dont end up using any of them anyways
   #dataInfoEntrezGene.ID[missingEnts]  = -100
-
+  
   ##multiple entrez ids have ent1///ent2///....///entN
   #multEnts = which(grepl("/", dataInfoEntrezGene.ID))
   #multStrings = dataInfoEntrezGene.ID[multEnts]
   #firstSlashes = rapply(gregexpr(pattern = "/", multStrings), function(x) head(x, 1))
   #firstEnts = substr(multStrings, 1, firstSlashes - 1)
   #dataInfoEntrezGene.ID[multEnts] = firstEnts
-
+  
   #multEnts = which(grepl(",", dataInfoEntrezGene.ID))
   #multStrings = dataInfoEntrezGene.ID[multEnts]
   #firstSlashes = rapply(gregexpr(pattern = ",", multStrings), function(x) head(x, 1))
   #firstEnts = substr(multStrings, 1, firstSlashes - 1)
   #dataInfoEntrezGene.ID[multEnts] = firstEnts
-
-  dataInfoEntrezGene.ID = as.character(dataInfo$EntrezGene.ID)
-  dataInfoEntrezGene.ID = gsub(",", "/", dataInfoEntrezGene.ID)
-  multEnts = which(grepl("/", dataInfoEntrezGene.ID))
-  multStrings = dataInfoEntrezGene.ID[multEnts]
-  firstSlashes = rapply(gregexpr(pattern = "/", multStrings), function(x) head(x, 1))
-  firstEnts = substr(multStrings, 1, firstSlashes - 1)
-  dataInfoEntrezGene.ID[multEnts] = firstEnts
-  dataInfoEntrezGene.ID = as.numeric(dataInfoEntrezGene.ID)
-
+  
+  #dataInfoEntrezGene.ID = gsub(",", "/", dataInfoEntrezGene.ID)
+  #multEnts = which(grepl("/", dataInfoEntrezGene.ID))
+  #multStrings = dataInfoEntrezGene.ID[multEnts]
+  #firstSlashes = rapply(gregexpr(pattern = "/", multStrings), function(x) head(x, 1))
+  #firstEnts = substr(multStrings, 1, firstSlashes - 1)
+  #dataInfoEntrezGene.ID[multEnts] = firstEnts
+  #dataInfoEntrezGene.ID = as.numeric(dataInfoEntrezGene.ID)
+  
   #old line
   #dataInfoEntrezGene.ID = as.numeric(dataInfo$EntrezGene.ID)
-
-  dataVals = dataValsOrig[bestProbes, , drop = FALSE]
-  dataInfoEntrezGene.ID = dataInfoEntrezGene.ID[bestProbes]
+  
+  dataVals = dataValsOrig[as.numeric(bestProbes), , drop = FALSE]
+  dataInfoEntrezGene.ID = gsub(" ", "", dataInfoEntrezGene.ID) 
+  dataInfoEntrezGene.ID = gsub(",", "///", dataInfoEntrezGene.ID)
+  dataInfoEntrezGene.ID = paste0("/", dataInfoEntrezGene.ID, "/")
   #print("hello")
-  dataInfoProbeset = as.vector(dataInfo$probeset[bestProbes])
-  dataInfoGene = as.vector(dataInfo$gene[bestProbes])
-
+  dataInfoProbeset = as.vector(dataInfo$probeset[as.numeric(bestProbes)])
+  dataInfoGene = as.vector(dataInfo$gene[as.numeric(bestProbes)])
+  
   geneSigInds = c()
   geneSigEntrez = c()
   geneSigNames = c()
@@ -108,30 +123,30 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
   genesFoundInd = c()
   for(i in 1:length(geneEntrezIds))
   {
-    geneSigEntrez = geneEntrezIds[i]
+    geneSigEntrez = paste0("/", geneEntrezIds[i], "/")
     #geneSigNames = c(geneSigNames, xOrig$geneNames[geneSigInd])
     #print(which(dataInfoEntrezGene.ID == geneSigEntrez[i]))
-    if(length(which(dataInfoEntrezGene.ID == geneSigEntrez)) > 0)
+    if(length(which(grepl(geneSigEntrez, dataInfoEntrezGene.ID))) > 0)
       genesFoundInd = c(genesFoundInd, i)
-    dataGeneSigInds = c(dataGeneSigInds, which(dataInfoEntrezGene.ID == geneSigEntrez));
+    dataGeneSigInds = c(dataGeneSigInds, which(grepl(geneSigEntrez, dataInfoEntrezGene.ID)));
     #print(i)
     #print(which(dataInfoEntrezGene.ID == geneSigEntrez[i]))
   }
   #geneSigInds = which(xOrig$probeIds %in% geneSig);
   #geneSigEntrez = xOrig$entrezIds[geneSigInds]
-
+  
   #tcgaGeneSigInds = which(tcgaInfo$EntrezGene.ID %in% geneSigEntrez);
-
+  
   scores = NULL
   topGenes = dataInfoProbeset[dataGeneSigInds]
-
+  
   #if none of the randomly selected genes are in the data set then move on
   if(length(topGenes) < 1)
   {
     survData = NA
     return(survData)
   }
-
+  
   rownames(dataVals) = dataInfoProbeset
   for(i in 1:dim(dataVals)[2])
   {
@@ -144,7 +159,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
   scoreVals = as.numeric(scores[,1])
   names(scoreVals) = colnames(dataVals)
   invalidPatVec = c("start")
-
+  
   unknown = which(is.na(dataTimeToDeath) == TRUE)
   if(length(unknown) > 0)
   {
@@ -153,7 +168,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
     scoreVals = scoreVals[-unknown]
     invalidPatVec = c(invalidPatVec, unknown)
   }
-
+  
   #Is this dirupting something else, why didnt I add this earlier if it was so easy --> double check
   unknown = which(is.na(dataVitalStat) == TRUE)
   if(length(unknown) > 0)
@@ -163,7 +178,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
     scoreVals = scoreVals[-unknown]
     invalidPatVec = c(invalidPatVec, unknown)
   }
-
+  
   #some patient expression values are NA, causes NA scores
   missingGenes = which(is.na(scoreVals) == TRUE)
   if(length(missingGenes > 0))
@@ -173,7 +188,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
     scoreVals = scoreVals[-missingGenes]
     invalidPatVec = c(invalidPatVec, missingGenes)
   }
-
+  
   scoreValsOrig = scoreVals
   quantVals = quantile(scoreVals, c(.025, .975))
   oldLow = quantVals[1]
@@ -187,7 +202,7 @@ getSurvInfo = function(eset, geneEntrezIds, geneDirecs, survivalMetric, subtypeN
     scoreVals = scoreValsOrig
   }
   topGeneVec = rep(length(topGenes), length(dataTimeToDeath))
-
+  
   #dataMatrix = matrix(c(dataTimeToDeath, dataVitalStat, scoreVals, scoreValsOrig, topGeneVec, names(scoreVals)), nrow = length(dataVitalStat), ncol = 6)
   #survData = as.data.frame(dataMatrix, stringsAsFactors = FALSE)
   survData = data.frame(dataTimeToDeath, dataVitalStat, scoreVals, scoreValsOrig, topGeneVec, names(scoreVals), stringsAsFactors = FALSE)

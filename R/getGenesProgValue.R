@@ -51,6 +51,8 @@
 
 getGenesProgValue = function(geneSigList, geneDirecList, cancerType, subtype, survivalMetric, numGroups = 2, dataNames = NULL, patientNames = NULL, patientScoresList = NULL, soloGeneAnalysis = FALSE, removeMid = 0, censorTime = 10, addBenchmarks = FALSE, genesRequired = 0.80, includeAll = FALSE)
 {
+  #sigInfoListBreastHier = getGenesProgValue(geneSigListBreast, geneDirecListBreast, cancerType = "breast", subtype = "scmgene", survivalMetric = "hierarchy", censorTime = 10, genesRequired = 0.75)
+  
   geneSigOrigList = geneSigList
   #geneInfoList = geneSigList
   if(genesRequired < 0 | genesRequired > 1)
